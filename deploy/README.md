@@ -23,6 +23,11 @@
 
 ## How to Run Each Deployment Mode
 
+### change directory
+```sh
+cd docker
+```
+
 ### 1. Default (Basic)
 ```sh
 docker-compose up
