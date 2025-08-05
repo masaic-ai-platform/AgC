@@ -52,7 +52,7 @@ https://github.com/masaic-ai-platform/AgC.git
 cd AgC
 
 # Start with default configuration
-cd deploy
+cd deploy/docker/
 docker-compose up
 
 # Access the platform
