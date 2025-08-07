@@ -48,7 +48,7 @@ All of this is delivered in a fully deployable platform with a single goal:
 
 ```bash
 # Clone the repository
-https://github.com/masaic-ai-platform/AgC.git
+git clone https://github.com/masaic-ai-platform/AgC.git
 cd AgC
 
 # Start with default configuration
