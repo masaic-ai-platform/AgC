@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import io.mockk.every
 import io.mockk.mockk
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterAll
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.MethodOrderer
@@ -25,7 +26,7 @@ import kotlin.test.assertTrue
 
 /**
  * Tests persistence of the FileBasedVectorSearchProvider across application restarts.
- * 
+ *
  * This test class uses method ordering to simulate an application lifecycle:
  * 1. First test adds data
  * 2. Second test simulates a restart and verifies data is still available
@@ -37,12 +38,12 @@ import kotlin.test.assertTrue
 class FileBasedVectorSearchProviderPersistenceTest {
     // Use a shared directory for all tests instead of per-test directories
     private lateinit var tempDirPath: Path
-    
+
     private lateinit var embeddingService: EmbeddingService
     private lateinit var vectorSearchProperties: VectorSearchConfigProperties
     private lateinit var objectMapper: ObjectMapper
     private lateinit var hybridSearchServiceHelper: HybridSearchServiceHelper
-    
+
     // File IDs used across tests to simulate persistence
     private val fileId1 = "persist-test-1"
     private val fileId2 = "persist-test-2"
@@ -53,7 +54,7 @@ class FileBasedVectorSearchProviderPersistenceTest {
     ) {
         // Save the tempDir for use across all tests
         this.tempDirPath = tempDir
-        
+
         // Create mocks and configuration that will be used for all tests
         embeddingService = mockk()
         hybridSearchServiceHelper = mockk(relaxed = true)
@@ -64,16 +65,16 @@ class FileBasedVectorSearchProviderPersistenceTest {
                 listOf(0.4f, 0.5f, 0.6f),
             )
         every { embeddingService.calculateSimilarity(any<List<Float>>(), any<List<Float>>()) } returns 0.85f
-        
+
         vectorSearchProperties =
             VectorSearchConfigProperties(
                 provider = "file-based",
-                chunkSize = 500, 
+                chunkSize = 500,
                 chunkOverlap = 100,
             )
-        
+
         objectMapper = jacksonObjectMapper()
-        
+
         // Create the embeddings directory
         Files.createDirectories(tempDirPath)
     }
@@ -101,19 +102,19 @@ class FileBasedVectorSearchProviderPersistenceTest {
                 tempDirPath.toString(),
                 hybridSearchServiceHelper,
             )
-        
+
         // Add first document
         val content1 = "This is the first test document that should persist across application restarts."
-        provider.indexFile(fileId1, ByteArrayInputStream(content1.toByteArray()), "file1.txt", null, "test")
-        
+        runBlocking { provider.indexFile(fileId1, ByteArrayInputStream(content1.toByteArray()), "file1.txt", null, "test") }
+
         // Add second document
         val content2 = "This is the second test document with different content."
-        provider.indexFile(fileId2, ByteArrayInputStream(content2.toByteArray()), "file2.txt", null, "test")
-        
+        runBlocking { provider.indexFile(fileId2, ByteArrayInputStream(content2.toByteArray()), "file2.txt", null, "test") }
+
         // Verify indexing worked in this session - using a general query should find both
         val results = provider.searchSimilar("test document", rankingOptions = null)
         assertEquals(2, results.size, "Should find both indexed documents")
-        
+
         // Verify files were created on disk
         val embeddingsDir = tempDirPath.resolve("embeddings")
         assertTrue(Files.exists(embeddingsDir.resolve("embeddings-$fileId1.json")), "First embeddings file should exist")
@@ -134,11 +135,11 @@ class FileBasedVectorSearchProviderPersistenceTest {
                 tempDirPath.toString(),
                 hybridSearchServiceHelper,
             )
-        
+
         // Verify documents can be found after "restart"
         val results = provider.searchSimilar("test document", rankingOptions = null)
         assertEquals(2, results.size, "Should find both documents after restart")
-        
+
         // Verify specific documents by filtering with fileId
         val filter1 = ComparisonFilter(key = "file_id", type = "eq", value = fileId1)
         val firstResults =
@@ -149,7 +150,7 @@ class FileBasedVectorSearchProviderPersistenceTest {
             )
         assertEquals(1, firstResults.size, "Should find only first document when filtered")
         assertEquals(fileId1, firstResults[0].fileId, "Should return the first file ID")
-        
+
         val filter2 = ComparisonFilter(key = "file_id", type = "eq", value = fileId2)
         val secondResults =
             provider.searchSimilar(
@@ -175,16 +176,16 @@ class FileBasedVectorSearchProviderPersistenceTest {
                 tempDirPath.toString(),
                 hybridSearchServiceHelper,
             )
-        
+
         // Delete the first document
-        val deleted = provider.deleteFile(fileId1)
+        val deleted = runBlocking { provider.deleteFile(fileId1) }
         assertTrue(deleted, "Should successfully delete the file")
-        
+
         // Verify document is gone from this instance
         val results = provider.searchSimilar("test document", rankingOptions = null)
         assertEquals(1, results.size, "Should only find the second document")
         assertEquals(fileId2, results[0].fileId, "Should only return the second file ID")
-        
+
         // Verify first file was deleted from disk
         val embeddingsDir = tempDirPath.resolve("embeddings")
         assertTrue(!Files.exists(embeddingsDir.resolve("embeddings-$fileId1.json")), "First embeddings file should be deleted")
@@ -205,12 +206,12 @@ class FileBasedVectorSearchProviderPersistenceTest {
                 tempDirPath.toString(),
                 hybridSearchServiceHelper,
             )
-        
+
         // Verify only the second document is still available
         val results = provider.searchSimilar("test document", rankingOptions = null)
         assertEquals(1, results.size, "Should only find the second document after restart")
         assertEquals(fileId2, results[0].fileId, "Should only return the second file ID")
-        
+
         // Verify there's no trace of the first document after restart by explicitly searching for it
         val filter1 = ComparisonFilter(key = "file_id", type = "eq", value = fileId1)
         val firstResults =
@@ -221,4 +222,4 @@ class FileBasedVectorSearchProviderPersistenceTest {
             )
         assertEquals(0, firstResults.size, "Should not find the deleted first document")
     }
-} 
+}

@@ -29,7 +29,7 @@ class TelemetryService(
     @Value("\${otel.instrumentation.genai.capture.message.content:true}")
     private val captureMessageContent: Boolean = true
 
-    fun emitModelInputEvents(
+    suspend fun emitModelInputEvents(
         observation: Observation,
         inputParams: ChatCompletionCreateParams,
         metadata: InstrumentationMetadataInput,
@@ -421,34 +421,34 @@ class TelemetryService(
         observation.stop()
     }
 
-    fun <T> withClientObservation(
+    suspend fun <T> withClientObservation(
         operationName: String,
         modelName: String,
-        block: (Observation) -> T,
+        block: suspend (Observation) -> T,
     ): T = withClientObservation("$operationName $modelName", null, block)
 
-    fun <T> withClientObservation(
+    suspend fun <T> withClientObservation(
         obsName: String,
-        block: (Observation) -> T,
+        block: suspend (Observation) -> T,
     ): T = withClientObservation(obsName, null, block)
 
     /**
      * Creates an observation named "$operationName $modelName" as a child of [parentObservation], if provided.
      */
-    fun <T> withClientObservation(
+    suspend fun <T> withClientObservation(
         operationName: String,
         modelName: String,
         parentObservation: Observation?,
-        block: (Observation) -> T,
+        block: suspend (Observation) -> T,
     ): T = withClientObservation("$operationName $modelName", parentObservation, block)
 
     /**
      * Creates an observation named [obsName] as a child of [parentObservation], if provided.
      */
-    fun <T> withClientObservation(
+    suspend fun <T> withClientObservation(
         obsName: String,
         parentObservation: Observation?,
-        block: (Observation) -> T,
+        block: suspend (Observation) -> T,
     ): T {
         val observation = Observation.createNotStarted(obsName, observationRegistry)
         parentObservation?.let { observation.parentObservation(it) }
@@ -630,15 +630,15 @@ class TelemetryService(
         val observation = startObservation("open-responses.file.$operationName", "")
         observation.lowCardinalityKeyValue(OpenResponsesObsAttributes.FILE_OPERATION, operationName)
         observation.highCardinalityKeyValue(OpenResponsesObsAttributes.FILE_ID, fileId)
-        
+
         fileName?.let {
             observation.highCardinalityKeyValue(OpenResponsesObsAttributes.FILE_NAME, it)
         }
-        
+
         purpose?.let {
             observation.lowCardinalityKeyValue(OpenResponsesObsAttributes.FILE_PURPOSE, it)
         }
-        
+
         return observation
     }
 
@@ -658,7 +658,7 @@ class TelemetryService(
             fileSize?.let {
                 observation.highCardinalityKeyValue(OpenResponsesObsAttributes.FILE_SIZE, it.toString())
             }
-            
+
             if (!success) {
                 observation.error(RuntimeException("File operation failed"))
             }
@@ -692,7 +692,7 @@ class TelemetryService(
                 .tags(OpenResponsesObsAttributes.FILE_OPERATION, operationName)
                 .register(meterRegistry)
         val sample = Timer.start(meterRegistry)
-        
+
         return try {
             val result = block()
             stopFileOperation(observation, success = true)
@@ -705,7 +705,7 @@ class TelemetryService(
             sample.stop(timer)
         }
     }
-    
+
     // ------------------------------------------------------------------------
     // Vector Store Operation Telemetry Methods
     // ------------------------------------------------------------------------
@@ -724,7 +724,7 @@ class TelemetryService(
         val observation = startObservation("open-responses.vector_store.$operationName", "")
         observation.lowCardinalityKeyValue(OpenResponsesObsAttributes.VECTOR_STORE_OPERATION, operationName)
         observation.highCardinalityKeyValue(OpenResponsesObsAttributes.VECTOR_STORE_ID, vectorStoreId)
-        
+
         return observation
     }
 
@@ -769,7 +769,7 @@ class TelemetryService(
                 .tags(OpenResponsesObsAttributes.VECTOR_STORE_ID, vectorStoreId)
                 .register(meterRegistry)
         val sample = Timer.start(meterRegistry)
-        
+
         return try {
             val result = block()
             stopVectorStoreOperation(observation, success = true)
@@ -782,7 +782,7 @@ class TelemetryService(
             sample.stop(timer)
         }
     }
-    
+
     // ------------------------------------------------------------------------
     // Search Operation Telemetry Methods
     // ------------------------------------------------------------------------
@@ -803,11 +803,11 @@ class TelemetryService(
         val observation = startObservation("open-responses.search.$operationName", "")
         observation.lowCardinalityKeyValue(OpenResponsesObsAttributes.SEARCH_OPERATION, operationName)
         observation.highCardinalityKeyValue(OpenResponsesObsAttributes.SEARCH_QUERY, query)
-        
+
         vectorStoreId?.let {
             observation.highCardinalityKeyValue(OpenResponsesObsAttributes.VECTOR_STORE_ID, it)
         }
-        
+
         return observation
     }
 
@@ -833,7 +833,7 @@ class TelemetryService(
             resultsCount?.let {
                 observation.highCardinalityKeyValue(OpenResponsesObsAttributes.SEARCH_RESULTS_COUNT, it.toString())
             }
-            
+
             documentIds?.let {
                 if (it.isNotEmpty()) {
                     // Only record up to 10 document IDs to keep the metric cardinality under control
@@ -844,7 +844,7 @@ class TelemetryService(
                     )
                 }
             }
-            
+
             chunkIds?.let {
                 if (it.isNotEmpty()) {
                     // Only record up to 10 chunk IDs to keep the metric cardinality under control
@@ -855,7 +855,7 @@ class TelemetryService(
                     )
                 }
             }
-            
+
             scores?.let {
                 if (it.isNotEmpty()) {
                     // Record the top score (highest similarity)
@@ -866,7 +866,7 @@ class TelemetryService(
                             score.toString(),
                         )
                     }
-                    
+
                     // Record the average score
                     val avgScore = it.average()
                     observation.highCardinalityKeyValue(
@@ -875,7 +875,7 @@ class TelemetryService(
                     )
                 }
             }
-            
+
             if (!success) {
                 observation.error(RuntimeException("Search operation failed"))
             }
