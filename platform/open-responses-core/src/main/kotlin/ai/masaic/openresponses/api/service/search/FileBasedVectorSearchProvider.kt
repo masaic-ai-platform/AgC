@@ -131,7 +131,7 @@ class FileBasedVectorSearchProvider(
      * @return True if indexing was successful, false otherwise
      */
     @OptIn(DelicateCoroutinesApi::class, DelicateCoroutinesApi::class)
-    override fun indexFile(
+    override suspend fun indexFile(
         fileId: String,
         inputStream: InputStream,
         filename: String,
@@ -157,7 +157,7 @@ class FileBasedVectorSearchProvider(
             // Use the TextChunkingUtil to chunk the text
             log.debug("Chunking text for file: $filename")
             val textChunks = TextChunkingUtil.chunkText(text, chunkingStrategy)
-            
+
             if (textChunks.isEmpty()) {
                 log.warn("No chunks created for file: $filename")
                 return false
@@ -168,12 +168,12 @@ class FileBasedVectorSearchProvider(
             // Prepare for batch embedding
             val chunkTexts = textChunks.map { it.text }
             val chunkMetadataList = mutableListOf<Map<String, Any>>()
-            
+
             // Prepare metadata for each chunk
             textChunks.forEachIndexed { index, chunk ->
                 // Generate a short unique ID for each chunk
                 val chunkId = IdGenerator.generateChunkId()
-                
+
                 // Create base metadata
                 val chunkMetadata =
                     mutableMapOf<String, Any>(
@@ -184,19 +184,19 @@ class FileBasedVectorSearchProvider(
                         "vector_store_id" to vectorStoreId,
                         "total_chunks" to textChunks.size,
                     )
-                
+
                 // Add any additional attributes
                 if (attributes != null) {
                     chunkMetadata.putAll(attributes)
                 }
-                
+
                 chunkMetadataList.add(chunkMetadata)
             }
-            
+
             // Generate embeddings for all chunks in batch
             log.debug("Generating batch embeddings for {} chunks", chunkTexts.size)
             val embeddings = embeddingService.embedTexts(chunkTexts)
-            
+
             // Create chunks with embeddings
             val chunksWithEmbeddings =
                 textChunks.mapIndexed { index, chunk ->
@@ -208,10 +208,10 @@ class FileBasedVectorSearchProvider(
                         chunkMetadata = chunkMetadataList[index],
                     )
                 }
-            
+
             // Initialize metadata
             val initialMetadata = mutableMapOf<String, Any>("filename" to filename)
-            
+
             // Add any additional attributes to the file metadata
             if (attributes != null) {
                 initialMetadata.putAll(attributes)
@@ -253,7 +253,7 @@ class FileBasedVectorSearchProvider(
     /**
      * Indexes a file with attributes.
      */
-    override fun indexFile(
+    override suspend fun indexFile(
         fileId: String,
         inputStream: InputStream,
         filename: String,
@@ -265,7 +265,7 @@ class FileBasedVectorSearchProvider(
     /**
      * Indexes a file without attributes.
      */
-    override fun indexFile(
+    override suspend fun indexFile(
         fileId: String,
         inputStream: InputStream,
         filename: String,
@@ -299,7 +299,7 @@ class FileBasedVectorSearchProvider(
         // Collect all chunks from disk
         val embeddingsPath = Paths.get(embeddingsDir)
         val allChunks = mutableListOf<ChunkWithEmbedding>()
-        
+
         if (Files.exists(embeddingsPath)) {
             Files.list(embeddingsPath).use { paths ->
                 paths
@@ -310,7 +310,7 @@ class FileBasedVectorSearchProvider(
                                 .toString()
                                 .removePrefix("embeddings-")
                                 .removeSuffix(".json")
-                        
+
                         val fileEmbeddings = loadEmbeddingsForFile(id)
                         fileEmbeddings?.let { allChunks.addAll(it.chunks) }
                     }
@@ -336,7 +336,7 @@ class FileBasedVectorSearchProvider(
                 // Get file metadata for each result
                 val fileEmbeddings = loadEmbeddingsForFile(chunk.fileId)
                 val fileMetadata = fileEmbeddings?.metadata ?: emptyMap()
-                
+
                 VectorSearchProvider.SearchResult(
                     fileId = chunk.fileId,
                     score = score.toDouble(),
@@ -360,7 +360,7 @@ class FileBasedVectorSearchProvider(
         }
 
         log.debug("Applying filter: {} to {} chunks", filter, chunks.size)
-        
+
         try {
             // Apply the filter to each chunk
             val filteredChunks =
@@ -368,15 +368,15 @@ class FileBasedVectorSearchProvider(
                     // Load file metadata for each chunk being filtered
                     val fileEmbeddings = loadEmbeddingsForFile(chunk.fileId)
                     val fileMetadata = fileEmbeddings?.metadata ?: emptyMap()
-                    
+
                     // Combine chunk metadata with file metadata
                     val combinedMetadata = chunk.chunkMetadata + fileMetadata
                     val matches = FilterUtils.matchesFilter(filter, combinedMetadata, chunk.fileId)
                     matches
                 }
-            
+
             log.debug("After filtering: ${filteredChunks.size} chunks remain")
-            
+
             return filteredChunks
         } catch (e: Exception) {
             // Re-throw with more context about security implications
@@ -399,7 +399,7 @@ class FileBasedVectorSearchProvider(
      * @param fileId The ID of the file to delete
      * @return True if deletion was successful, false otherwise
      */
-    override fun deleteFile(fileId: String): Boolean {
+    override suspend fun deleteFile(fileId: String): Boolean {
         try {
             // Get vector store ID from file before deleting
             val fileEmbeddings = loadEmbeddingsForFile(fileId)
@@ -420,13 +420,11 @@ class FileBasedVectorSearchProvider(
             // Delete from text search indexes via hybrid service
             if (vectorStoreId != null) {
                 hybridSearchServiceHelper.let {
-                    kotlinx.coroutines.runBlocking {
-                        try {
-                            it.deleteFileChunks(fileId, vectorStoreId)
-                            log.info("Deleted chunks for file $fileId from hybrid search indexes")
-                        } catch (e: Exception) {
-                            log.error("Error deleting file $fileId chunks from hybrid search indexes: ${e.message}", e)
-                        }
+                    try {
+                        it.deleteFileChunks(fileId, vectorStoreId)
+                        log.info("Deleted chunks for file $fileId from hybrid search indexes")
+                    } catch (e: Exception) {
+                        log.error("Error deleting file $fileId chunks from hybrid search indexes: ${e.message}", e)
                     }
                 }
             }

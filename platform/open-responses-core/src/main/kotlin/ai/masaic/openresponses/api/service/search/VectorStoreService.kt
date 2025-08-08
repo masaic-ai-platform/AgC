@@ -40,7 +40,7 @@ class VectorStoreService(
     @Autowired(required = false) private val hybridSearchServiceHelper: HybridSearchServiceHelper,
 ) {
     private val log = LoggerFactory.getLogger(VectorStoreService::class.java)
-    
+
     // Create a background CoroutineScope for async operations
     private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -53,20 +53,20 @@ class VectorStoreService(
     private suspend fun updateVectorStoreFileCounts(vectorStoreId: String): VectorStore? =
         withContext(Dispatchers.IO) {
             val vectorStore = vectorStoreRepository.findVectorStoreById(vectorStoreId) ?: return@withContext null
-        
+
             // Get all files in the vector store
             val allFiles = vectorStoreRepository.listVectorStoreFiles(vectorStoreId, Int.MAX_VALUE)
-        
+
             // Count files by status
             val inProgress = allFiles.count { it.status == "in_progress" }
             val completed = allFiles.count { it.status == "completed" }
             val failed = allFiles.count { it.status == "failed" }
             val cancelled = allFiles.count { it.status == "cancelled" }
             val total = allFiles.size
-        
+
             // Calculate total bytes
             val bytes = allFiles.sumOf { it.usageBytes }
-        
+
             // Update the vector store
             val updatedVectorStore =
                 vectorStore.copy(
@@ -81,7 +81,7 @@ class VectorStoreService(
                         ),
                     lastActiveAt = Instant.now().epochSecond,
                 )
-        
+
             vectorStoreRepository.saveVectorStore(updatedVectorStore)
         }
 
@@ -132,12 +132,12 @@ class VectorStoreService(
             // Create a new vector store using the IdGenerator utility
             val vectorStoreId = IdGenerator.generateVectorStoreId()
             val createdAt = Instant.now().epochSecond
-            
+
             // Initialize file counts
             var fileCount = 0
             var inProgressCount = 0
             var failedCount = 0
-            
+
             // Set up initial vector store with empty file counts
             val vectorStore =
                 VectorStore(
@@ -155,16 +155,16 @@ class VectorStoreService(
                             total = 0,
                         ),
                 )
-            
+
             // Apply expiration policy if provided
             val vectorStoreWithExpiration = updateExpirationTimestamp(vectorStore, request.expiresAfter)
-            
+
             // Process file IDs if provided
             var vectorStoreToSave = vectorStoreWithExpiration
             if (!request.fileIds.isNullOrEmpty()) {
                 fileCount = request.fileIds.size
                 inProgressCount = fileCount // All files start as in_progress
-                
+
                 // Update the vector store with initial file counts before processing files
                 vectorStoreToSave =
                     vectorStoreWithExpiration.copy(
@@ -178,10 +178,10 @@ class VectorStoreService(
                             ),
                     )
             }
-            
+
             // Store the vector store with initial counts
             val savedVectorStore = vectorStoreRepository.saveVectorStore(vectorStoreToSave)
-        
+
             // Index any files that were provided
             request.fileIds?.forEach { fileId ->
                 try {
@@ -189,12 +189,12 @@ class VectorStoreService(
                     if (!vectorStoreFileManager.fileExists(fileId)) {
                         throw FileNotFoundException("File not found: $fileId")
                     }
-                
+
                     // Get file metadata
                     val fileMetadata = vectorStoreFileManager.getFileMetadata(fileId)
                     val filename = fileMetadata["filename"] as String
                     val bytes = fileMetadata["bytes"] as Long
-                
+
                     // Create the vector store file
                     val vectorStoreFile =
                         VectorStoreFile(
@@ -205,10 +205,10 @@ class VectorStoreService(
                             status = "in_progress",
                             attributes = mapOf("filename" to filename),
                         )
-                
+
                     // Save the vector store file
                     val savedFile = vectorStoreRepository.saveVectorStoreFile(vectorStoreFile)
-                    
+
                     // Process the file asynchronously
                     processFile(savedFile.vectorStoreId, savedFile, modelSettings = ModelInfo.modelSettings(request.modelInfo))
                 } catch (e: Exception) {
@@ -218,7 +218,7 @@ class VectorStoreService(
                     inProgressCount--
                 }
             }
-            
+
             // If there were any immediate errors, update the vector store again
             if (failedCount > 0) {
                 val updatedVectorStore =
@@ -236,7 +236,7 @@ class VectorStoreService(
                 vectorStoreRepository.saveVectorStore(updatedVectorStore)
                 return@withContext updatedVectorStore
             }
-            
+
             // Return the saved vector store (with correct initial counts)
             return@withContext savedVectorStore
         }
@@ -259,10 +259,10 @@ class VectorStoreService(
         withContext(Dispatchers.IO) {
             // Get vector stores from repository
             val vectorStores = vectorStoreRepository.listVectorStores(limit, order, after, before)
-            
+
             // Check and update expiration status for each vector store
             val updatedVectorStores = vectorStores.map { checkAndUpdateExpiration(it) }
-        
+
             // Create response
             VectorStoreListResponse(
                 data = updatedVectorStores,
@@ -282,9 +282,9 @@ class VectorStoreService(
     suspend fun getVectorStore(vectorStoreId: String): VectorStore =
         withContext(Dispatchers.IO) {
             val vectorStore =
-                vectorStoreRepository.findVectorStoreById(vectorStoreId) 
+                vectorStoreRepository.findVectorStoreById(vectorStoreId)
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
-            
+
             // Check and update expiration status
             checkAndUpdateExpiration(vectorStore)
         }
@@ -303,9 +303,9 @@ class VectorStoreService(
     ): VectorStore =
         withContext(Dispatchers.IO) {
             val vectorStore =
-                vectorStoreRepository.findVectorStoreById(vectorStoreId) 
+                vectorStoreRepository.findVectorStoreById(vectorStoreId)
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
-        
+
             // Update the vector store
             val updatedVectorStore =
                 vectorStore.copy(
@@ -313,10 +313,10 @@ class VectorStoreService(
                     metadata = request.metadata ?: vectorStore.metadata,
                     lastActiveAt = Instant.now().epochSecond,
                 )
-        
+
             // Apply expiration policy if provided
             val vectorStoreWithExpiration = updateExpirationTimestamp(updatedVectorStore, request.expiresAfter)
-        
+
             vectorStoreRepository.saveVectorStore(vectorStoreWithExpiration)
         }
 
@@ -331,15 +331,15 @@ class VectorStoreService(
         withContext(Dispatchers.IO) {
             vectorStoreRepository.findVectorStoreById(vectorStoreId)
                 ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
-        
+
             // Get all files in the vector store
             val files = vectorStoreRepository.listVectorStoreFiles(vectorStoreId, Int.MAX_VALUE)
-        
+
             // Delete all files from the vector search provider
             files.forEach { file ->
                 try {
                     vectorSearchProvider.deleteFile(file.id)
-                   
+
                     // Also delete from text search indexes via hybrid service
                     hybridSearchServiceHelper?.let {
                         try {
@@ -352,10 +352,10 @@ class VectorStoreService(
                     log.error("Error deleting file ${file.id} from vector search provider", e)
                 }
             }
-        
+
             // Delete the vector store from the repository
             val deleted = vectorStoreRepository.deleteVectorStore(vectorStoreId)
-        
+
             VectorStoreDeleteResponse(id = vectorStoreId, deleted = deleted)
         }
 
@@ -381,22 +381,22 @@ class VectorStoreService(
                 // Check if the vector store exists
                 vectorStoreRepository.findVectorStoreById(vectorStoreId)
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
-            
+
                 // Check if the file exists
                 val fileId = request.fileId
                 if (!vectorStoreFileManager.fileExists(fileId)) {
                     throw FileNotFoundException("File not found: $fileId")
                 }
-            
+
                 // Get file metadata
                 val fileMetadata = vectorStoreFileManager.getFileMetadata(fileId)
                 val filename = fileMetadata["filename"] as String
                 val bytes = fileMetadata["bytes"] as Long
-            
+
                 // Create the vector store file - merge attributes with filename
                 val attributes = request.attributes?.toMutableMap() ?: mutableMapOf()
                 attributes["filename"] = filename
-                
+
                 val vectorStoreFile =
                     VectorStoreFile(
                         id = fileId,
@@ -407,16 +407,16 @@ class VectorStoreService(
                         attributes = attributes,
                         chunkingStrategy = request.chunkingStrategy,
                     )
-            
+
                 // Save the vector store file
                 val savedFile = vectorStoreRepository.saveVectorStoreFile(vectorStoreFile)
-                
+
                 // Update the vector store counts
                 updateVectorStoreFileCounts(vectorStoreId)
-                
+
                 // Process the file asynchronously
                 processFile(savedFile.vectorStoreId, savedFile, ModelInfo.modelSettings(request.modelInfo))
-                
+
                 // Return the saved file
                 savedFile
             }
@@ -447,10 +447,10 @@ class VectorStoreService(
             if (vectorStoreRepository.findVectorStoreById(vectorStoreId) == null) {
                 throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
             }
-        
+
             // Get all files in the vector store from repository
             val files = vectorStoreRepository.listVectorStoreFiles(vectorStoreId, limit, order, after, before, filter)
-        
+
             // Create response
             VectorStoreFileListResponse(
                 data = files,
@@ -479,22 +479,22 @@ class VectorStoreService(
             if (vectorStoreRepository.findVectorStoreById(vectorStoreId) == null) {
                 throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
             }
-        
+
             // Get the file from repository
             val file =
                 vectorStoreRepository.findVectorStoreFileById(vectorStoreId, fileId)
                     ?: throw VectorStoreFileNotFoundException("File not found in vector store: $fileId")
-        
+
             // Check if the file still exists in storage
             if (!vectorStoreFileManager.fileExists(fileId)) {
                 // Remove the file from the vector store since it no longer exists
                 vectorStoreRepository.deleteVectorStoreFile(vectorStoreId, fileId)
                 vectorSearchProvider.deleteFile(fileId)
                 updateVectorStoreFileCounts(vectorStoreId)
-            
+
                 throw FileNotFoundException("File $fileId referenced in vector store $vectorStoreId no longer exists in storage")
             }
-        
+
             file
         }
 
@@ -519,40 +519,40 @@ class VectorStoreService(
             if (vectorStoreRepository.findVectorStoreById(vectorStoreId) == null) {
                 throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
             }
-        
+
             // Get the file from repository
             val file =
                 vectorStoreRepository.findVectorStoreFileById(vectorStoreId, fileId)
                     ?: throw VectorStoreFileNotFoundException("File not found in vector store: $fileId")
-        
+
             // Check if the file still exists in storage
             if (!vectorStoreFileManager.fileExists(fileId)) {
                 // Remove the file from the vector store since it no longer exists
                 vectorStoreRepository.deleteVectorStoreFile(vectorStoreId, fileId)
                 vectorSearchProvider.deleteFile(fileId)
                 updateVectorStoreFileCounts(vectorStoreId)
-            
+
                 throw FileNotFoundException("File $fileId referenced in vector store $vectorStoreId no longer exists in storage")
             }
-        
+
             // Update the file attributes
             val updatedFile = file.copy(attributes = request.attributes)
-        
+
             // Save the updated file
             val savedFile = vectorStoreRepository.saveVectorStoreFile(updatedFile)
-            
+
             // Get file metadata and prepare for re-indexing
             val fileMetadata = vectorStoreFileManager.getFileMetadata(fileId)
             val filename = fileMetadata["filename"] as String
-            
+
             // Update file status to in_progress during reindexing
             val processingFile = savedFile.copy(status = "in_progress")
             vectorStoreRepository.saveVectorStoreFile(processingFile)
             updateVectorStoreFileCounts(vectorStoreId)
-            
+
             // Get the file resource
             val resource = vectorStoreFileManager.getFileAsResource(fileId)
-            
+
             // Re-index the file with the new attributes in a single operation
             val success =
                 vectorSearchProvider.indexFile(
@@ -564,7 +564,7 @@ class VectorStoreService(
                     attributes = request.attributes,
                     vectorStoreId = vectorStoreId,
                 )
-            
+
             // Update the file status based on indexing result
             val finalFile =
                 if (success) {
@@ -575,11 +575,11 @@ class VectorStoreService(
                     log.error("Failed to re-index file $fileId with updated attributes")
                     processingFile.copy(status = "failed")
                 }
-            
+
             // Save the final file status
             val result = vectorStoreRepository.saveVectorStoreFile(finalFile)
             updateVectorStoreFileCounts(vectorStoreId)
-            
+
             log.info("Updated attributes for file $fileId in vector store $vectorStoreId")
             result
         }
@@ -602,21 +602,21 @@ class VectorStoreService(
             val vectorStore =
                 vectorStoreRepository.findVectorStoreById(vectorStoreId)
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
-        
+
             // Get the file from repository
             vectorStoreRepository.findVectorStoreFileById(vectorStoreId, fileId)
                 ?: throw VectorStoreFileNotFoundException("File not found in vector store: $fileId")
-        
+
             // Delete the file from the repository
             val deleted = vectorStoreRepository.deleteVectorStoreFile(vectorStoreId, fileId)
-        
+
             // Delete the file from the vector search provider
             try {
                 vectorSearchProvider.deleteFile(fileId)
             } catch (e: Exception) {
                 log.error("Error deleting file $fileId from vector search provider", e)
             }
-            
+
             // Also delete from text search indexes via hybrid service
             hybridSearchServiceHelper?.let {
                 try {
@@ -625,10 +625,10 @@ class VectorStoreService(
                     log.error("Error deleting file $fileId chunks from hybrid search indexes", e)
                 }
             }
-        
+
             // Update vector store counts 
             updateVectorStoreFileCounts(vectorStoreId)
-        
+
             VectorStoreFileDeleteResponse(id = fileId, deleted = deleted)
         }
 
@@ -652,7 +652,7 @@ class VectorStoreService(
                     vectorStoreId = vectorStoreId,
                     query = request.query,
                 )
-            
+
             // Start timing the operation
             val timerBuilder =
                 Timer
@@ -660,22 +660,22 @@ class VectorStoreService(
                     .description("Search operation duration")
                     .tags(OpenResponsesObsAttributes.SEARCH_OPERATION, "vector_store_search")
                     .tag(OpenResponsesObsAttributes.VECTOR_STORE_ID, vectorStoreId)
-            
+
             val timer = timerBuilder.register(telemetryService.meterRegistry)
             val sample = Timer.start(telemetryService.meterRegistry)
-            
+
             try {
                 // Check if the vector store exists
                 val vectorStore =
                     vectorStoreRepository.findVectorStoreById(vectorStoreId)
                         ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
-            
+
                 // Get all files in the vector store
                 val files = vectorStoreRepository.listVectorStoreFiles(vectorStoreId, Int.MAX_VALUE)
-                
+
                 // Filter out files that are not in completed state
                 val existingFiles = files.filter { it.status == "completed" }
-            
+
                 // Prepare list of file IDs to search
                 val fileIds = existingFiles.map { it.id }
                 if (fileIds.isEmpty()) {
@@ -691,7 +691,7 @@ class VectorStoreService(
                         data = emptyList(),
                     )
                 }
-                
+
                 // Process the search request
                 try {
                     // Create a fileIds filter
@@ -707,12 +707,12 @@ class VectorStoreService(
                                     )
                                 },
                         )
-                    
+
                     // Log user filter for debugging
                     if (request.filters != null) {
                         log.debug("Applied user filter: ${request.filters}")
                     }
-                    
+
                     // Combine with user-provided filter if it exists
                     val filterObject =
                         when {
@@ -728,24 +728,24 @@ class VectorStoreService(
                             }
                             else -> fileIdsFilter
                         }
-                    
+
                     // Execute search with structured filters (new approach)
                     val searchResults = searchSimilar(vectorStoreId, filterObject, request)
-                    
+
                     // Update the vector store's last active timestamp
                     val updatedVectorStore = vectorStore.copy(lastActiveAt = Instant.now().epochSecond)
                     vectorStoreRepository.saveVectorStore(updatedVectorStore)
-                    
+
                     // Convert search results to VectorStoreSearchResult objects
                     val results = mapSearchResultsToVectorStoreSearchResults(searchResults, existingFiles)
-                    
+
                     // Record search telemetry
                     telemetryService.stopSearchOperation(
                         observation,
                         resultsCount = results.size,
                         success = true,
                     )
-                    
+
                     VectorStoreSearchResults(
                         searchQuery = request.query,
                         data = results,
@@ -793,35 +793,35 @@ class VectorStoreService(
             val vectorStore =
                 vectorStoreRepository.findVectorStoreById(vectorStoreId)
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
-        
+
             // Get the file from repository
             val file =
                 vectorStoreRepository.findVectorStoreFileById(vectorStoreId, fileId)
                     ?: throw VectorStoreFileNotFoundException("File not found in vector store: $fileId")
-        
+
             // Check if the file still exists in storage
             if (!vectorStoreFileManager.fileExists(fileId)) {
                 // Remove the file from the vector store since it no longer exists
                 vectorStoreRepository.deleteVectorStoreFile(vectorStoreId, fileId)
                 vectorStoreFileManager.deleteFileFromVectorSearch(fileId)
                 updateVectorStoreFileCounts(vectorStoreId)
-            
+
                 throw FileNotFoundException("File $fileId referenced in vector store $vectorStoreId no longer exists in storage")
             }
-        
+
             // Update the vector store's last active timestamp
             val updatedVectorStore = vectorStore.copy(lastActiveAt = Instant.now().epochSecond)
             vectorStoreRepository.saveVectorStore(updatedVectorStore)
-            
+
             // Get filename from file attributes or fall back to file metadata
-            val filename = 
+            val filename =
                 file.attributes?.get("filename") as? String
-                    ?: vectorStoreFileManager.getFileMetadata(fileId)["filename"] as? String 
+                    ?: vectorStoreFileManager.getFileMetadata(fileId)["filename"] as? String
                     ?: fileId
-            
+
             // Get file content
             val content = vectorStoreFileManager.getFileContent(fileId)
-        
+
             VectorStoreFileContent(
                 fileId = fileId,
                 filename = filename,
@@ -839,16 +839,16 @@ class VectorStoreService(
     suspend fun cleanupVectorStores(): Int =
         withContext(Dispatchers.IO) {
             var removedFilesCount = 0
-        
+
             try {
                 // Get all vector stores
                 val vectorStores = vectorStoreRepository.listVectorStores(Int.MAX_VALUE)
-            
+
                 // Process each vector store
                 vectorStores.forEach { vectorStore ->
                     // Get all files in the vector store
                     val files = vectorStoreRepository.listVectorStoreFiles(vectorStore.id, Int.MAX_VALUE)
-                
+
                     // Check each file to see if it still exists in storage
                     val missingFiles =
                         files.filter { file ->
@@ -859,7 +859,7 @@ class VectorStoreService(
                                 true // Consider as missing if there's an error
                             }
                         }
-                
+
                     // Remove missing files from the vector store
                     missingFiles.forEach { file ->
                         try {
@@ -871,18 +871,18 @@ class VectorStoreService(
                             log.error("Error removing file ${file.id} from vector store ${vectorStore.id}", e)
                         }
                     }
-                
+
                     // Update vector store counts if files were removed
                     if (missingFiles.isNotEmpty()) {
                         updateVectorStoreFileCounts(vectorStore.id)
                     }
                 }
-            
+
                 log.info("Vector store cleanup completed: removed $removedFilesCount file references")
             } catch (e: Exception) {
                 log.error("Error during vector store cleanup", e)
             }
-        
+
             removedFilesCount
         }
 
@@ -894,11 +894,11 @@ class VectorStoreService(
     suspend fun cleanupExpiredVectorStores(): Int =
         withContext(Dispatchers.IO) {
             var cleanedUpCount = 0
-            
+
             try {
                 // Get all vector stores
                 val vectorStores = vectorStoreRepository.listVectorStores(Int.MAX_VALUE)
-                
+
                 // Process each vector store
                 vectorStores.forEach { vectorStore ->
                     // Check if the vector store is expired
@@ -914,12 +914,12 @@ class VectorStoreService(
                         }
                     }
                 }
-                
+
                 log.info("Vector store expiration cleanup completed: marked $cleanedUpCount vector stores as expired")
             } catch (e: Exception) {
                 log.error("Error during vector store expiration cleanup", e)
             }
-            
+
             cleanedUpCount
         }
 
@@ -952,22 +952,22 @@ class VectorStoreService(
                 // Get file metadata
                 val fileMetadata = vectorStoreFileManager.getFileMetadata(file.id)
                 val filename = fileMetadata["filename"] as String
-                
+
                 // Index the file in the vector search provider
                 log.info("Indexing file ${file.id} in vector store ${file.vectorStoreId}")
                 try {
                     val resource = vectorStoreFileManager.getFileAsResource(file.id)
                     val effectiveChunkingStrategy = file.chunkingStrategy // Use the file's chunking strategy
-                    
+
                     // Check if this is a re-index (existing file being processed again)
                     val isReindex = vectorSearchProvider.getFileMetadata(file.id) != null
-                    
+
                     // Process with a single indexing operation that includes attributes
                     val success =
                         indexFile(
-                            fileId = file.id, 
-                            content = resource.inputStream, 
-                            filename = filename, 
+                            fileId = file.id,
+                            content = resource.inputStream,
+                            filename = filename,
                             chunkingStrategy = effectiveChunkingStrategy,
                             attributes = file.attributes,
                             vectorStoreId = vectorStoreId,
@@ -1000,7 +1000,7 @@ class VectorStoreService(
         }
     }
 
-    protected fun indexFile(
+    protected suspend fun indexFile(
         fileId: String,
         content: InputStream,
         filename: String,
@@ -1064,4 +1064,4 @@ class VectorStoreService(
                     ),
             )
         }
-} 
+}

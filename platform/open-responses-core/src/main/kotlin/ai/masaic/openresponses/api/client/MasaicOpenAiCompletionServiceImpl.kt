@@ -12,7 +12,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.onCompletion
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.stream.consumeAsFlow
 import mu.KotlinLogging
 import org.springframework.http.codec.ServerSentEvent
@@ -61,11 +60,11 @@ class MasaicOpenAiCompletionServiceImpl(
                 if (completion._id().isMissing()) {
                     completion = completion.toBuilder().id(UUID.randomUUID().toString()).build()
                 }
-                
+
                 logger.debug { "Received chat completion with ID: ${completion.id()}" }
                 telemetryService.emitModelOutputEvents(observation, completion, metadata)
                 telemetryService.setChatCompletionObservationAttributes(observation, completion, params, metadata)
-                
+
                 if (completion.usage().isPresent) {
                     telemetryService.recordChatCompletionTokenUsage(metadata, completion, params, "input", completion.usage().get().promptTokens())
                     telemetryService.recordChatCompletionTokenUsage(metadata, completion, params, "output", completion.usage().get().completionTokens())
@@ -77,12 +76,12 @@ class MasaicOpenAiCompletionServiceImpl(
         if (hasToolCalls(initialChatCompletion)) {
             logger.info { "Tool calls detected in completion ${initialChatCompletion.id()}, initiating tool handling flow." }
             // Call handleToolCalls which will recursively call create if needed, or return a terminal completion
-            return runBlocking { handleToolCalls(initialChatCompletion, params, client, metadata) }
+            return handleToolCalls(initialChatCompletion, params, client, metadata)
         }
-        
+
         // No tool calls, store and return the original completion
         if (params.store().getOrDefault(false)) {
-            runBlocking { storeCompletion(initialChatCompletion, params) }
+            storeCompletion(initialChatCompletion, params)
         }
 
         logger.debug { "Final chat completion ID: ${initialChatCompletion.id()}" }
@@ -178,7 +177,7 @@ class MasaicOpenAiCompletionServiceImpl(
 
         try {
             telemetryService.emitModelInputEvents(observation, params, metadata)
-            
+
             return flow {
                 var currentParams = params
                 var continueLoop = true
@@ -196,20 +195,20 @@ class MasaicOpenAiCompletionServiceImpl(
                             ServerSentEvent
                                 .builder<String>()
                                 .id(chunk.id())
-                                .event("chunk") 
+                                .event("chunk")
                                 .data(jsonChunk)
                                 .build(),
                         )
                     }
-                    
+
                     // Try to reconstruct the completion from this segment's chunks for tool call detection
                     // This reconstruction is a simplified view; a more robust one might be needed.
                     reconstructedCompletionFromStream =
                         ChatCompletionConverter.reconstructFromChunks(
-                            currentIterationCompletionChunks, 
+                            currentIterationCompletionChunks,
                             currentParams.model().toString(), // Pass model from current params
                         )
-                    
+
                     if (reconstructedCompletionFromStream == null) {
                         logger.warn { "Could not reconstruct completion from stream chunks. Cannot check for tool calls." }
                         finalCompletionForTelemetry =
@@ -223,12 +222,12 @@ class MasaicOpenAiCompletionServiceImpl(
                         continueLoop = false // Stop if reconstruction fails
                         break
                     }
-                    
+
                     finalCompletionForTelemetry = reconstructedCompletionFromStream // Update for telemetry for this segment
 
                     if (hasToolCalls(reconstructedCompletionFromStream)) {
                         logger.info { "Tool calls detected in stream completion ${reconstructedCompletionFromStream.id()}, handling tool calls." }
-                        
+
                         val toolHandlingResult =
                             handleToolCallsAndPrepareNextStep(
                                 reconstructedCompletionFromStream,
@@ -241,7 +240,7 @@ class MasaicOpenAiCompletionServiceImpl(
                             toolHandlingResult.isTerminal && toolHandlingResult.terminalChatCompletion != null -> {
                                 logger.info { "Terminal tool executed in stream. Finalizing stream with ChatCompletion ID: ${toolHandlingResult.terminalChatCompletion.id()}" }
                                 finalCompletionForTelemetry = toolHandlingResult.terminalChatCompletion // This is the true final completion
-                                
+
                                 // Store this terminal completion
                                 if (currentParams.store().getOrDefault(false) && toolHandlingResult.messagesForStorage != null) {
                                     storeCompletion(toolHandlingResult.terminalChatCompletion, currentParams, toolHandlingResult.messagesForStorage)
@@ -277,7 +276,7 @@ class MasaicOpenAiCompletionServiceImpl(
                                     ServerSentEvent
                                         .builder<String>()
                                         .id(terminalChunk.id())
-                                        .event("chunk") 
+                                        .event("chunk")
                                         .data(jsonTerminalChunk)
                                         .build(),
                                 )
@@ -361,7 +360,7 @@ class MasaicOpenAiCompletionServiceImpl(
             is CompletionToolCallOutcome.Terminate -> {
                 logger.info { "Terminal tool executed in stream. ChatCompletion ID: ${toolCallOutcome.finalChatCompletion.id()}" }
                 ToolHandlingStreamResult(
-                    isTerminal = true, 
+                    isTerminal = true,
                     terminalChatCompletion = toolCallOutcome.finalChatCompletion,
                     messagesForStorage = toolCallOutcome.messagesForStorage, // Pass messages for storage
                 )

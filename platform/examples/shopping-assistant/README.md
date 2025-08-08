@@ -36,7 +36,7 @@ The Jupyter notebook (`shopify_mcp_demo.ipynb`) demonstrates how to use the Open
 
 1. Navigate to this directory:
    ```bash
-   cd examples/shopping-assistant
+   cd platform/examples/shopping-assistant
    ```
 
 2. Start the services using Docker Compose:

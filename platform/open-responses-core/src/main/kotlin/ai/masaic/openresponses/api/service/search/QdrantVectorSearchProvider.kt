@@ -123,7 +123,7 @@ class QdrantVectorSearchProvider(
      * @param attributes Additional metadata attributes to include with each vector (default: null)
      * @return True if indexing was successful, false otherwise
      */
-    override fun indexFile(
+    override suspend fun indexFile(
         fileId: String,
         inputStream: InputStream,
         filename: String,
@@ -133,7 +133,7 @@ class QdrantVectorSearchProvider(
         vectorStoreId: String,
     ): Boolean = indexWithModelInfo(fileId, inputStream, filename, chunkingStrategy, preDeleteIfExists, attributes, vectorStoreId, null)
 
-    fun indexWithModelInfo(
+    suspend fun indexWithModelInfo(
         fileId: String,
         inputStream: InputStream,
         filename: String,
@@ -244,9 +244,7 @@ class QdrantVectorSearchProvider(
             // Index chunks for text search via hybrid service
             if (chunksForIndexing.isNotEmpty()) {
                 try {
-                    kotlinx.coroutines.runBlocking {
-                        hybridSearchServiceHelper.indexChunks(chunksForIndexing)
-                    }
+                    hybridSearchServiceHelper.indexChunks(chunksForIndexing)
                     log.info("Indexed {} chunks for hybrid search", chunksForIndexing.size)
                 } catch (e: Exception) {
                     log.error("Error indexing chunks for hybrid search: {}", e.message, e)
@@ -277,7 +275,7 @@ class QdrantVectorSearchProvider(
     /**
      * Indexes a file with attributes.
      */
-    override fun indexFile(
+    override suspend fun indexFile(
         fileId: String,
         inputStream: InputStream,
         filename: String,
@@ -289,7 +287,7 @@ class QdrantVectorSearchProvider(
     /**
      * Indexes a file using the base interface method.
      */
-    override fun indexFile(
+    override suspend fun indexFile(
         fileId: String,
         inputStream: InputStream,
         filename: String,
@@ -344,7 +342,7 @@ class QdrantVectorSearchProvider(
 
             // Convert filter to Qdrant filter - will throw exception if filter is invalid
             val qdrantFilter = filter?.let { FilterUtils.convertToQdrantFilter(it) }
-            
+
             // Create search request
             val searchBuilder =
                 EmbeddingSearchRequest
@@ -402,28 +400,26 @@ class QdrantVectorSearchProvider(
      * @param fileId The ID of the file to delete
      * @return True if deletion was successful, false otherwise
      */
-    override fun deleteFile(fileId: String): Boolean {
+    override suspend fun deleteFile(fileId: String): Boolean {
         try {
             // Get vector store ID if available
             val fileMetadata = getFileMetadata(fileId)
             val vectorStoreId = fileMetadata?.get("vector_store_id") as? String
-            
+
             // Delete points with matching fileId
             embeddingStore.removeAll(IsEqualTo("file_id", fileId))
             log.info("Deleted embeddings for file: {}", fileId)
-            
+
             // Delete from text search indexes via hybrid service
             if (vectorStoreId != null) {
-                kotlinx.coroutines.runBlocking {
-                    try {
-                        hybridSearchServiceHelper.deleteFileChunks(fileId, vectorStoreId)
-                        log.info("Deleted chunks for file {} from hybrid search indexes", fileId)
-                    } catch (e: Exception) {
-                        log.error("Error deleting file {} chunks from hybrid search indexes: {}", fileId, e.message, e)
-                    }
+                try {
+                    hybridSearchServiceHelper.deleteFileChunks(fileId, vectorStoreId)
+                    log.info("Deleted chunks for file {} from hybrid search indexes", fileId)
+                } catch (e: Exception) {
+                    log.error("Error deleting file {} chunks from hybrid search indexes: {}", fileId, e.message, e)
                 }
             }
-            
+
             return true
         } catch (e: Exception) {
             log.error("Error deleting file {}: {}", fileId, e.message, e)

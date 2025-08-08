@@ -22,6 +22,7 @@ import io.qdrant.client.QdrantClient
 import io.qdrant.client.grpc.Collections
 import io.qdrant.client.grpc.Collections.CollectionOperationResponse
 import io.qdrant.client.grpc.Points
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
@@ -58,14 +59,14 @@ class QdrantVectorSearchProviderTest {
             )
 
         hybridSearchServiceHelper = mockk(relaxed = true)
-        
+
         // Mock Qdrant client
         qdrantClient = mockk()
-        
+
         // Mock collection operations
         val collectionList = mockk<Collections.CollectionDescription>()
         every { collectionList.name } returns "another-collection"
-        
+
         val collectionResponse = mockk<Collections.ListCollectionsResponse>()
         every { collectionResponse.collectionsList } returns listOf(collectionList)
 
@@ -75,24 +76,24 @@ class QdrantVectorSearchProviderTest {
             }
 
         every { qdrantClient.listCollectionsAsync() } returns collectionsFuture
-        
+
         // Mock collection creation
         val createFuture = MoreExecutors.newDirectExecutorService().submit<CollectionOperationResponse> { mockk<CollectionOperationResponse>() }
-        every { 
-            qdrantClient.createCollectionAsync(any(), any<Collections.VectorParams>()) 
+        every {
+            qdrantClient.createCollectionAsync(any(), any<Collections.VectorParams>())
         } returns createFuture
 
         val createIndexFuture = MoreExecutors.newDirectExecutorService().submit<Points.UpdateResult> { mockk<Points.UpdateResult>() }
         every {
             qdrantClient.createPayloadIndexAsync(any(), any(), any(), null, true, null, Duration.ofSeconds(10))
         } returns createIndexFuture
-        
-        // Mock embedding store 
+
+        // Mock embedding store
         embeddingStore = mockk<QdrantEmbeddingStore>()
-        
+
         // Mock QdrantEmbeddingStore.builder() static method
         mockkStatic(QdrantEmbeddingStore::class)
-        
+
         val embeddingStoreBuilder = mockk<QdrantEmbeddingStore.Builder>()
         every { QdrantEmbeddingStore.builder() } returns embeddingStoreBuilder
         every { embeddingStoreBuilder.host(any()) } returns embeddingStoreBuilder
@@ -100,7 +101,7 @@ class QdrantVectorSearchProviderTest {
         every { embeddingStoreBuilder.useTls(any()) } returns embeddingStoreBuilder
         every { embeddingStoreBuilder.collectionName(any()) } returns embeddingStoreBuilder
         every { embeddingStoreBuilder.build() } returns embeddingStore
-        
+
         // Mock embedding store operations
         every { embeddingStore.add(ofType<Embedding>(), ofType()) } returns UUID.randomUUID().toString()
 
@@ -123,7 +124,7 @@ class QdrantVectorSearchProviderTest {
                 port = 6334,
                 useTls = false,
             )
-        
+
         vectorSearchProperties =
             VectorSearchConfigProperties(
                 provider = "qdrant",
@@ -132,7 +133,7 @@ class QdrantVectorSearchProviderTest {
                 collectionName = "test-collection",
                 vectorDimension = 3,
             )
-        
+
         // Create the provider
         vectorSearchProvider =
             QdrantVectorSearchProvider(
@@ -142,7 +143,7 @@ class QdrantVectorSearchProviderTest {
                 hybridSearchServiceHelper,
                 qdrantClient,
             )
-        
+
         // Replace the embedding store with our mock
         val field = QdrantVectorSearchProvider::class.java.getDeclaredField("embeddingStore")
         field.isAccessible = true
@@ -159,8 +160,8 @@ class QdrantVectorSearchProviderTest {
         every { embeddingStore.removeAll(ofType<IsEqualTo>()) } just runs
 
         // When
-        val result = vectorSearchProvider.indexFile(fileId, inputStream, "test.txt", null, "test")
-        
+        val result = runBlocking { vectorSearchProvider.indexFile(fileId, inputStream, "test.txt", null, "test") }
+
         // Then
         assertTrue(result, "File should be successfully indexed")
         verify { embeddingService.embedTexts(any()) }
@@ -171,10 +172,10 @@ class QdrantVectorSearchProviderTest {
     fun `searchSimilar should find relevant documents`() {
         // Given
         val query = "test query"
-        
+
         // When
         val results = vectorSearchProvider.searchSimilar(query, rankingOptions = null)
-        
+
         // Then
         assertEquals(1, results.size, "Should return expected number of results")
         assertEquals("test-file-id", results[0].fileId, "Should return result with correct file ID")
@@ -187,7 +188,7 @@ class QdrantVectorSearchProviderTest {
         val query = "test query"
         val fileId = "test-file-id"
         val filter = ComparisonFilter(key = "file_id", type = "eq", value = fileId)
-        
+
         // When
         val results =
             vectorSearchProvider.searchSimilar(
@@ -195,7 +196,7 @@ class QdrantVectorSearchProviderTest {
                 rankingOptions = null,
                 filter = filter,
             )
-        
+
         // Then
         assertEquals(1, results.size, "Should return filtered results")
         assertEquals("test-file-id", results[0].fileId, "Should return result with correct file ID")
@@ -205,17 +206,17 @@ class QdrantVectorSearchProviderTest {
     fun `deleteFile should remove documents from the vector store`() {
         // Given
         val fileId = "test-file-id"
-        
+
         // Setup mock for querying documents to delete
         every { embeddingStore.findRelevant(ofType<Embedding>(), ofType<Int>(), any()) } returns
             listOf(
                 EmbeddingMatch(0.95, UUID.randomUUID().toString(), Embedding.from(FloatArray(10)), TextSegment.from("test content", Metadata.from(mapOf("file_id" to "test-file-id")))),
             )
         every { embeddingStore.removeAll(ofType<IsEqualTo>()) } just runs
-        
+
         // When
-        val result = vectorSearchProvider.deleteFile(fileId)
-        
+        val result = runBlocking { vectorSearchProvider.deleteFile(fileId) }
+
         // Then
         assertTrue(result, "File should be successfully deleted")
         verify { embeddingStore.removeAll(ofType<IsEqualTo>()) }
@@ -227,13 +228,13 @@ class QdrantVectorSearchProviderTest {
         val fileId = "test-file-id"
         val content = "This is a test document for vector indexing."
         val inputStream = ByteArrayInputStream(content.toByteArray())
-        
+
         // Mock embedding service to throw exception
         every { embeddingService.embedTexts(any()) } throws RuntimeException("Embedding service error")
         every { embeddingStore.removeAll(ofType<IsEqualTo>()) } just runs
         // When
-        val result = vectorSearchProvider.indexFile(fileId, inputStream, "test.txt", null, "test")
-        
+        val result = runBlocking { vectorSearchProvider.indexFile(fileId, inputStream, "test.txt", null, "test") }
+
         // Then
         assertFalse(result, "Indexing should fail when embedding service throws an error")
         verify { embeddingService.embedTexts(any()) }
@@ -245,10 +246,10 @@ class QdrantVectorSearchProviderTest {
         val fileId = "test-file-id"
         val content = ""
         val inputStream = ByteArrayInputStream(content.toByteArray())
-        
+
         // When
-        val result = vectorSearchProvider.indexFile(fileId, inputStream, "empty.txt", null, "test")
-        
+        val result = runBlocking { vectorSearchProvider.indexFile(fileId, inputStream, "empty.txt", null, "test") }
+
         // Then
         assertFalse(result, "Indexing should fail for empty content")
     }
@@ -260,20 +261,20 @@ class QdrantVectorSearchProviderTest {
         val content = "This is a test document for vector indexing with custom chunking strategy."
         val inputStream = ByteArrayInputStream(content.toByteArray())
         val filename = "test.txt"
-        
+
         // Create custom chunking strategy
         val staticChunkingStrategy = mockk<StaticChunkingConfig>()
         every { staticChunkingStrategy.maxChunkSizeTokens } returns 50
         every { staticChunkingStrategy.chunkOverlapTokens } returns 10
-        
+
         val chunkingStrategy = mockk<ChunkingStrategy>()
         every { chunkingStrategy.type } returns "static"
         every { chunkingStrategy.static } returns staticChunkingStrategy
         every { embeddingStore.removeAll(ofType<IsEqualTo>()) } just runs
 
         // When
-        val result = vectorSearchProvider.indexFile(fileId, inputStream, filename, chunkingStrategy, "test")
-        
+        val result = runBlocking { vectorSearchProvider.indexFile(fileId, inputStream, filename, chunkingStrategy, "test") }
+
         // Then
         assertTrue(result, "File should be successfully indexed with custom chunking strategy")
         verify { embeddingService.embedTexts(any()) }
@@ -285,17 +286,17 @@ class QdrantVectorSearchProviderTest {
         // Given
         val fileId = "test-file-id"
         val metadata = mapOf("file_id" to fileId, "filename" to "test.txt")
-        
+
         // Mock embedding store search result
         val segment = TextSegment.from("content", Metadata.from(metadata))
         val match = EmbeddingMatch(0.95, UUID.randomUUID().toString(), Embedding.from(FloatArray(10)), segment)
-        
+
         // Setup mock for finding documents by file ID
         every { embeddingStore.search(any()) } returns EmbeddingSearchResult(listOf(match))
-        
+
         // When
         val result = vectorSearchProvider.getFileMetadata(fileId)
-        
+
         // Then
         assertNotNull(result, "Should return metadata for existing file")
         assertEquals(fileId, result["file_id"], "Metadata should contain correct file ID")
@@ -306,13 +307,13 @@ class QdrantVectorSearchProviderTest {
     fun `getFileMetadata should return null for non-existent file`() {
         // Given
         val fileId = "non-existent-file"
-        
+
         // Mock empty search results
         every { embeddingStore.search(any()) } returns EmbeddingSearchResult(emptyList())
-        
+
         // When
         val result = vectorSearchProvider.getFileMetadata(fileId)
-        
+
         // Then
         assertNull(result, "Should return null for non-existent file")
     }
@@ -321,10 +322,10 @@ class QdrantVectorSearchProviderTest {
     fun `searchSimilar should handle empty query`() {
         // Given
         val query = ""
-        
+
         // When
         val results = vectorSearchProvider.searchSimilar(query, rankingOptions = null)
-        
+
         // Then
         assertTrue(results.isEmpty(), "Should return empty results for empty query")
     }
@@ -333,10 +334,10 @@ class QdrantVectorSearchProviderTest {
     fun `searchSimilar should throw errors`() {
         // Given
         val query = "test query"
-        
+
         // Mock embedding store to throw exception
         every { embeddingService.embedText(any()) } throws RuntimeException("Search error")
-        
+
         // When
         val exception =
             assertThrows<RuntimeException> {
@@ -351,13 +352,13 @@ class QdrantVectorSearchProviderTest {
     fun `deleteFile should handle errors gracefully`() {
         // Given
         val fileId = "test-file-id"
-        
+
         // Mock embedding store to throw exception
         every { embeddingStore.removeAll(ofType<IsEqualTo>()) } throws RuntimeException("Delete error")
-        
+
         // When
-        val result = vectorSearchProvider.deleteFile(fileId)
-        
+        val result = runBlocking { vectorSearchProvider.deleteFile(fileId) }
+
         // Then
         assertFalse(result, "Should return false when delete operation fails")
     }
