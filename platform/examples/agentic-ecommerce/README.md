@@ -62,7 +62,7 @@ docker-compose up
 ```
 
 This will start:
-- **Open Responses Server** on port 6644 - The main backend API server
+- **AgC Server** on port 6644 - The API server
 - **Demo MCP Server** on port 8086 - For image processing and scene generation
 - **Jupyter Lab Server** on port 8890 - Interactive notebook environment
 

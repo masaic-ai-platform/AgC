@@ -1,13 +1,13 @@
 # Shopping Assistant Demo
 
-This example demonstrates how to run the Shopping Assistant with Open Responses.
+This example demonstrates how to run the Shopping Assistant with AgC.
 
 <a href="https://www.youtube.com/watch?v=C4pHvhuGlog" target="_blank">
   <img src="https://img.youtube.com/vi/C4pHvhuGlog/0.jpg" alt="Shopping Assistant Demo" width="560" height="315" border="10" />
 </a>
 
 ## Components
-- **Open Responses**: 
+- **AgC API Server**: 
 - **Jupyter Notebook**: An interactive notebook demonstrating OpenResponses Agent orchestration
 
 ## Source Code
@@ -49,7 +49,7 @@ The Jupyter notebook (`shopify_mcp_demo.ipynb`) demonstrates how to use the Open
    http://localhost:8888
    ```
 
-4. The Open Responses service will be running at:
+4. The AgC service will be running at:
    ```
    http://localhost:6644
    ```
@@ -63,7 +63,7 @@ The Jupyter notebook (`shopify_mcp_demo.ipynb`) demonstrates how to use the Open
 
 The included notebook demonstrates how to:
 
-1. Connect to the Open Responses service using the OpenAI SDK
+1. Connect to the AgC API server using the OpenAI SDK
 2. Execute MCP calls to Shopify for catalog search and cart operations
 3. Parse and display responses from the assistant
 
