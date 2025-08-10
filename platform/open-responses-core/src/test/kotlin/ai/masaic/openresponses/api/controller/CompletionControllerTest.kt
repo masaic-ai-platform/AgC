@@ -20,13 +20,15 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.http.codec.ServerSentEvent
 import org.springframework.test.web.reactive.server.WebTestClient
 import org.springframework.web.reactive.function.BodyInserters
 import java.time.Instant
 
-@WebFluxTest(CompletionController::class)
+@WebFluxTest(controllers = [CompletionController::class])
+@Import(TestSecurityConfig::class)
 class CompletionControllerTest {
     @Autowired
     private lateinit var webTestClient: WebTestClient
