@@ -14,23 +14,27 @@ import java.util.concurrent.CompletableFuture
  * Verifies Google ID tokens using Google's official SDK
  */
 class GoogleTokenVerifier(
-    private val googleAuthConfig: GoogleAuthConfig
+    private val googleAuthConfig: GoogleAuthConfig,
 ) {
-
-    private val verifier = GoogleIdTokenVerifier.Builder(NetHttpTransport(), GsonFactory())
-        .setAudience(Collections.singletonList(googleAuthConfig.audience))
-        .setIssuer(googleAuthConfig.issuer)
-        .build()
+    private val verifier =
+        GoogleIdTokenVerifier
+            .Builder(NetHttpTransport(), GsonFactory())
+            .setAudience(Collections.singletonList(googleAuthConfig.audience))
+            .setIssuer(googleAuthConfig.issuer)
+            .build()
 
     fun verifyAsync(token: String): Mono<UserInfo> =
-        Mono.fromFuture(CompletableFuture.supplyAsync {
-            val idToken = verifier.verify(token)
-                ?: throw BadCredentialsException("Invalid Google token")
+        Mono
+            .fromFuture(
+                CompletableFuture.supplyAsync {
+                    val idToken =
+                        verifier.verify(token)
+                            ?: throw BadCredentialsException("Invalid Google token")
 
-            val payload = idToken.payload
-            UserInfo(
-                userId = payload.email,
-            )
-        })
-            .onErrorMap { BadCredentialsException("Invalid Google token", it) }
+                    val payload = idToken.payload
+                    UserInfo(
+                        userId = payload.email,
+                    )
+                },
+            ).onErrorMap { BadCredentialsException("Invalid Google token", it) }
 }

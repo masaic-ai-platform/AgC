@@ -32,7 +32,7 @@ class DashboardController(
     private val modelSettings: ModelSettings,
     private val funDefGenerationTool: FunDefGenerationTool,
     private val buildProperties: BuildProperties,
-    private val configProperties: AuthConfigProperties
+    private val configProperties: AuthConfigProperties,
 ) {
     @Value("\${open-responses.store.vector.search.provider:file}")
     private val vectorSearchProviderType = ""
@@ -97,10 +97,10 @@ ${request.description}
         val createCompletionRequest =
             CreateCompletionRequest(
                 messages =
-                messages {
-                    systemMessage(generateSchemaPrompt)
-                    userMessage("Generate Json Schema")
-                },
+                    messages {
+                        systemMessage(generateSchemaPrompt)
+                        userMessage("Generate Json Schema")
+                    },
                 model = applicableSettings.qualifiedModelName,
                 stream = false,
                 store = false,
@@ -165,10 +165,10 @@ ${request.existingPrompt}
         val createCompletionRequest =
             CreateCompletionRequest(
                 messages =
-                messages {
-                    systemMessage(generatePromptMetaPrompt)
-                    userMessage("Generate system prompt")
-                },
+                    messages {
+                        systemMessage(generatePromptMetaPrompt)
+                        userMessage("Generate system prompt")
+                    },
                 model = finalSettings.qualifiedModelName,
                 stream = false,
                 store = false,
@@ -185,12 +185,12 @@ ${request.existingPrompt}
         val tools =
             toolService.getRemoteMcpTools(
                 mcpTool =
-                MCPTool(
-                    type = "mcp",
-                    serverLabel = mcpListToolsRequest.serverLabel,
-                    serverUrl = mcpListToolsRequest.serverUrl,
-                    headers = mcpListToolsRequest.headers,
-                ),
+                    MCPTool(
+                        type = "mcp",
+                        serverLabel = mcpListToolsRequest.serverLabel,
+                        serverUrl = mcpListToolsRequest.serverUrl,
+                        headers = mcpListToolsRequest.headers,
+                    ),
             )
 
         val updatedTools =
@@ -222,7 +222,7 @@ ${request.existingPrompt}
             buildTime = buildProperties.time,
             modelSettings = ModelSettings(modelSettings.settingsType, "", ""),
             vectorStoreInfo = vectorStoreInfo,
-            authConfig = AuthConfig(configProperties.enabled)
+            authConfig = AuthConfig(configProperties.enabled),
         )
     }
 }

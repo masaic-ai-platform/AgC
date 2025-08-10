@@ -12,20 +12,22 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/v1/dashboard/platform/auth")
 @CrossOrigin("*")
 class AuthController(
-    private val googleTokenVerifier: GoogleTokenVerifier
+    private val googleTokenVerifier: GoogleTokenVerifier,
 ) {
-
     @PostMapping("/verify")
-    suspend fun verifyToken(@RequestBody request: TokenVerificationRequest): ResponseEntity<UserInfo> {
-        val userInfo = when(request.authProvider) {
-            "Google" -> googleTokenVerifier.verifyAsync(request.token).awaitSingle()
-            else -> throw IllegalArgumentException("Auth provider ${request.authProvider} is not supported")
-        }
+    suspend fun verifyToken(
+        @RequestBody request: TokenVerificationRequest,
+    ): ResponseEntity<UserInfo> {
+        val userInfo =
+            when (request.authProvider) {
+                "Google" -> googleTokenVerifier.verifyAsync(request.token).awaitSingle()
+                else -> throw IllegalArgumentException("Auth provider ${request.authProvider} is not supported")
+            }
         return ResponseEntity.ok(userInfo)
     }
 }
 
 data class TokenVerificationRequest(
     val token: String,
-    val authProvider: String = "Google"
+    val authProvider: String = "Google",
 )

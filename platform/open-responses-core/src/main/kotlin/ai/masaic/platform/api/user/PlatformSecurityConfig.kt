@@ -21,22 +21,28 @@ import reactor.core.publisher.Mono
 @Profile("platform")
 @Configuration
 @EnableWebFluxSecurity
-class PlatformSecurityConfig() {
-
+class PlatformSecurityConfig {
     @Bean
-    fun filterChain(authConfigProperties: AuthConfigProperties, googleTokenVerifier: GoogleTokenVerifier, http: ServerHttpSecurity): SecurityWebFilterChain {
-        return if (authConfigProperties.enabled) {
+    fun filterChain(
+        authConfigProperties: AuthConfigProperties,
+        googleTokenVerifier: GoogleTokenVerifier,
+        http: ServerHttpSecurity,
+    ): SecurityWebFilterChain =
+        if (authConfigProperties.enabled) {
             http
                 .csrf { it.disable() }
                 .cors { it.configurationSource(corsConfigurationSource()) }
                 .authorizeExchange { authorizeExchange ->
                     authorizeExchange
-                        .pathMatchers("/v1/dashboard/platform/info").permitAll()
-                        .pathMatchers("/v1/dashboard/platform/auth/verify").permitAll()
-                        .pathMatchers("/v1/dashboard/**").authenticated()
-                        .anyExchange().permitAll()
-                }
-                .addFilterAt(googleAuthFilter(googleTokenVerifier), SecurityWebFiltersOrder.AUTHENTICATION)
+                        .pathMatchers("/v1/dashboard/platform/info")
+                        .permitAll()
+                        .pathMatchers("/v1/dashboard/platform/auth/verify")
+                        .permitAll()
+                        .pathMatchers("/v1/dashboard/**")
+                        .authenticated()
+                        .anyExchange()
+                        .permitAll()
+                }.addFilterAt(googleAuthFilter(googleTokenVerifier), SecurityWebFiltersOrder.AUTHENTICATION)
                 .build()
         } else {
             http
@@ -44,10 +50,8 @@ class PlatformSecurityConfig() {
                 .cors { it.configurationSource(corsConfigurationSource()) }
                 .authorizeExchange { authorizeExchange ->
                     authorizeExchange.anyExchange().permitAll()
-                }
-                .build()
+                }.build()
         }
-    }
 
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
@@ -63,32 +67,35 @@ class PlatformSecurityConfig() {
     }
 
     @Bean
-    fun googleAuthenticationManager(googleTokenVerifier: GoogleTokenVerifier): ReactiveAuthenticationManager {
-        return ReactiveAuthenticationManager { token ->
+    fun googleAuthenticationManager(googleTokenVerifier: GoogleTokenVerifier): ReactiveAuthenticationManager =
+        ReactiveAuthenticationManager { token ->
             when (token) {
                 is GooglePreAuthToken -> {
-                    googleTokenVerifier.verifyAsync(token.credentials)
+                    googleTokenVerifier
+                        .verifyAsync(token.credentials)
                         .map { GoogleAuthentication(it) }
                 }
                 else -> Mono.empty()
             }
         }
-    }
 
     @Bean
-    fun googleTokenVerifier(authConfigProperties: AuthConfigProperties)=GoogleTokenVerifier(authConfigProperties.google)
+    fun googleTokenVerifier(authConfigProperties: AuthConfigProperties) = GoogleTokenVerifier(authConfigProperties.google)
 
     private fun googleAuthFilter(googleTokenVerifier: GoogleTokenVerifier): AuthenticationWebFilter {
-        val manager = ReactiveAuthenticationManager { token ->
-            Mono.just(token)
-                .cast(GooglePreAuthToken::class.java)
-                .flatMap { googleTokenVerifier.verifyAsync(it.credentials) }
-                .map { GoogleAuthentication(it) }
-        }
+        val manager =
+            ReactiveAuthenticationManager { token ->
+                Mono
+                    .just(token)
+                    .cast(GooglePreAuthToken::class.java)
+                    .flatMap { googleTokenVerifier.verifyAsync(it.credentials) }
+                    .map { GoogleAuthentication(it) }
+            }
 
         val filter = AuthenticationWebFilter(manager)
         filter.setServerAuthenticationConverter { ex ->
-            Mono.justOrEmpty(ex.request.headers.getFirst("X-Google-Token"))
+            Mono
+                .justOrEmpty(ex.request.headers.getFirst("X-Google-Token"))
                 .map(::GooglePreAuthToken)
         }
         return filter
@@ -98,7 +105,6 @@ class PlatformSecurityConfig() {
     fun currentUserProvider() = CurrentLoggedInUserProvider()
 }
 
-
 /**
  * Google OAuth configuration
  */
@@ -106,14 +112,15 @@ class PlatformSecurityConfig() {
 @ConfigurationProperties("platform.deployment.auth")
 data class AuthConfigProperties(
     val enabled: Boolean = false,
-    val google: GoogleAuthConfig
+    val google: GoogleAuthConfig,
 )
-
 
 data class GoogleAuthConfig(
     val issuer: String = "https://accounts.google.com",
     val audience: String,
-    val jwksUri: String = "https://www.googleapis.com/oauth2/v3/certs"
+    val jwksUri: String = "https://www.googleapis.com/oauth2/v3/certs",
 )
 
-data class AuthConfig(val enabled: Boolean)
+data class AuthConfig(
+    val enabled: Boolean,
+)

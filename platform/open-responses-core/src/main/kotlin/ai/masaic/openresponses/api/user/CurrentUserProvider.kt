@@ -8,17 +8,16 @@ import org.springframework.stereotype.Component
  */
 interface CurrentUserProvider {
     suspend fun getUser(): UserInfo?
+
     suspend fun getCurrentUserId(): String? = getUser()?.userId
 }
 
 @Profile("!platform")
 @Component
-class NoOpCurrentUserProvider: CurrentUserProvider {
-    override suspend fun getUser(): UserInfo? {
-        return null
-    }
+class NoOpCurrentUserProvider : CurrentUserProvider {
+    override suspend fun getUser(): UserInfo? = null
 }
 
 data class UserInfo(
-    val userId: String
+    val userId: String,
 )

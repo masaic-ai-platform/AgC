@@ -12,6 +12,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.reactive.WebFluxTest
+import org.springframework.context.annotation.Import
 import org.springframework.core.io.ByteArrayResource
 import org.springframework.core.io.Resource
 import org.springframework.http.MediaType
@@ -19,6 +20,7 @@ import org.springframework.test.web.reactive.server.WebTestClient
 import java.time.Instant
 
 @WebFluxTest(FileController::class)
+@Import(TestSecurityConfig::class)
 class FileControllerTest {
     @MockkBean
     private lateinit var fileService: FileService
