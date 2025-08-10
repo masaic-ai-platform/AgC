@@ -24,5 +24,6 @@ dist-ssr
 *.sw?
 .env.production
 .env.local
+.env
 deploy/*
 deployment-*.zip

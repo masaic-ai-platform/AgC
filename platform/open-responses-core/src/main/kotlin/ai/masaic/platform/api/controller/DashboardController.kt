@@ -8,6 +8,8 @@ import ai.masaic.platform.api.model.*
 import ai.masaic.platform.api.service.ModelService
 import ai.masaic.platform.api.service.messages
 import ai.masaic.platform.api.tools.FunDefGenerationTool
+import ai.masaic.platform.api.user.AuthConfig
+import ai.masaic.platform.api.user.AuthConfigProperties
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.springframework.beans.factory.annotation.Value
@@ -30,6 +32,7 @@ class DashboardController(
     private val modelSettings: ModelSettings,
     private val funDefGenerationTool: FunDefGenerationTool,
     private val buildProperties: BuildProperties,
+    private val configProperties: AuthConfigProperties
 ) {
     @Value("\${open-responses.store.vector.search.provider:file}")
     private val vectorSearchProviderType = ""
@@ -94,10 +97,10 @@ ${request.description}
         val createCompletionRequest =
             CreateCompletionRequest(
                 messages =
-                    messages {
-                        systemMessage(generateSchemaPrompt)
-                        userMessage("Generate Json Schema")
-                    },
+                messages {
+                    systemMessage(generateSchemaPrompt)
+                    userMessage("Generate Json Schema")
+                },
                 model = applicableSettings.qualifiedModelName,
                 stream = false,
                 store = false,
@@ -162,10 +165,10 @@ ${request.existingPrompt}
         val createCompletionRequest =
             CreateCompletionRequest(
                 messages =
-                    messages {
-                        systemMessage(generatePromptMetaPrompt)
-                        userMessage("Generate system prompt")
-                    },
+                messages {
+                    systemMessage(generatePromptMetaPrompt)
+                    userMessage("Generate system prompt")
+                },
                 model = finalSettings.qualifiedModelName,
                 stream = false,
                 store = false,
@@ -182,12 +185,12 @@ ${request.existingPrompt}
         val tools =
             toolService.getRemoteMcpTools(
                 mcpTool =
-                    MCPTool(
-                        type = "mcp",
-                        serverLabel = mcpListToolsRequest.serverLabel,
-                        serverUrl = mcpListToolsRequest.serverUrl,
-                        headers = mcpListToolsRequest.headers,
-                    ),
+                MCPTool(
+                    type = "mcp",
+                    serverLabel = mcpListToolsRequest.serverLabel,
+                    serverUrl = mcpListToolsRequest.serverUrl,
+                    headers = mcpListToolsRequest.headers,
+                ),
             )
 
         val updatedTools =
@@ -214,7 +217,13 @@ ${request.existingPrompt}
     @GetMapping("/platform/info")
     fun getPlatformInfo(): PlatformInfo {
         val vectorStoreInfo = if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
-        return PlatformInfo("v${buildProperties.version}", buildProperties.time, ModelSettings(modelSettings.settingsType, "", ""), vectorStoreInfo)
+        return PlatformInfo(
+            version = "v${buildProperties.version}",
+            buildTime = buildProperties.time,
+            modelSettings = ModelSettings(modelSettings.settingsType, "", ""),
+            vectorStoreInfo = vectorStoreInfo,
+            authConfig = AuthConfig(configProperties.enabled)
+        )
     }
 }
 
@@ -228,6 +237,7 @@ data class PlatformInfo(
     val buildTime: Instant,
     val modelSettings: ModelSettings,
     val vectorStoreInfo: VectorStoreInfo,
+    val authConfig: AuthConfig,
 )
 
 data class VectorStoreInfo(
