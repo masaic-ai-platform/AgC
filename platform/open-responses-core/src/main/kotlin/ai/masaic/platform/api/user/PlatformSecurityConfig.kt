@@ -112,12 +112,12 @@ class PlatformSecurityConfig {
 @ConfigurationProperties("platform.deployment.auth")
 data class AuthConfigProperties(
     val enabled: Boolean = false,
-    val google: GoogleAuthConfig,
+    val google: GoogleAuthConfig = GoogleAuthConfig(),
 )
 
 data class GoogleAuthConfig(
     val issuer: String = "https://accounts.google.com",
-    val audience: String,
+    val audience: String = "N/A",
     val jwksUri: String = "https://www.googleapis.com/oauth2/v3/certs",
 )
 
