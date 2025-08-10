@@ -25,13 +25,13 @@ This directory contains a comprehensive demonstration of agentic e-commerce capa
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/masaic-ai-platform/misc.git
+git clone https://github.com/masaic-ai-platform/AgC.git
 ```
 
 ### 2. Navigate to the Directory
 
 ```bash
-cd examples/agentic-ecommerce
+cd platform/examples/agentic-ecommerce
 ```
 
 ### 3. Set Environment Variables
@@ -62,7 +62,7 @@ docker-compose up
 ```
 
 This will start:
-- **Open Responses Server** on port 8080 - The main backend API server
+- **AgC Server** on port 6644 - The API server
 - **Demo MCP Server** on port 8086 - For image processing and scene generation
 - **Jupyter Lab Server** on port 8890 - Interactive notebook environment
 

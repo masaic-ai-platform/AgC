@@ -1,7 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration>
-    <!-- Load log file location from application properties -->
-    <springProperty scope="context" name="LOG_PATH" source="logging.file.name" defaultValue="~/logs/open-responses.log" />
 
     <!-- Human-readable console output -->
     <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
@@ -11,34 +9,7 @@
         </encoder>
     </appender>
 
-    <!-- JSON formatted file output for log aggregation -->
-    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
-        <file>${LOG_PATH}</file>
-        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
-            <fileNamePattern>logs/open-responses-%d{yyyy-MM-dd}.%i.log</fileNamePattern>
-            <maxFileSize>10MB</maxFileSize>
-            <maxHistory>10</maxHistory>
-            <totalSizeCap>100MB</totalSizeCap>
-        </rollingPolicy>
-        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
-            <!-- Micrometer Tracing (B3) trace fields -->
-            <includeMdcKeyName>traceId</includeMdcKeyName>
-            <includeMdcKeyName>spanId</includeMdcKeyName>
-            <includeMdcKeyName>parentId</includeMdcKeyName>
-            <includeMdcKeyName>userId</includeMdcKeyName>
-            <fieldNames>
-                <traceId>[brave.traceId]</traceId>
-                <spanId>[brave.spanId]</spanId>
-            </fieldNames>
-        </encoder>
-    </appender>
-
-    <!-- Add an AsyncAppender to handle high-volume logs efficiently -->
-    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
-        <queueSize>512</queueSize>
-        <discardingThreshold>0</discardingThreshold>
-        <appender-ref ref="FILE" />
-    </appender>
+    <!-- File logging removed; console-only logging is enabled -->
 
     <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
 
@@ -49,7 +20,6 @@
     <!-- Set default logging level -->
     <root level="INFO">
         <appender-ref ref="CONSOLE" />
-        <appender-ref ref="ASYNC_FILE" />
     </root>
 
     <!-- Application-specific log levels -->

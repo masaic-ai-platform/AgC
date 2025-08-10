@@ -2,7 +2,7 @@ version: '3'
 
 services:
   open-responses:
-    image: masaicai/open-responses:latest
+    image: masaicai/open-responses:0.4.0
     ports:
       - "6644:6644"
     networks:
