@@ -792,6 +792,32 @@ const AiPlayground: React.FC = () => {
                     if (data.response?.id) {
                       responseId = data.response.id;
                     }
+                    // Mark all in-progress tool executions as completed when response completes
+                    activeToolExecutions.forEach((execution, key) => {
+                      if (execution.status === 'in_progress') {
+                        execution.status = 'completed';
+                      }
+                    });
+                    
+                    // Update tool progress blocks with completed status
+                    contentBlocks.forEach(block => {
+                      if (block.type === 'tool_progress' && block.toolExecutions) {
+                        block.toolExecutions = Array.from(activeToolExecutions.values());
+                      }
+                    });
+                    
+                    // Remove inline loading when response is completed
+                    const blocksWithoutLoading = removeInlineLoading(contentBlocks);
+                    
+                    // If no content blocks exist, create a default text block
+                    let finalBlocks = blocksWithoutLoading;
+                    if (finalBlocks.length === 0) {
+                      finalBlocks = [{ type: 'text' as const, content: 'Response completed' }];
+                    }
+                    
+                    // If no streaming content was received, use a default message or empty string
+                    const finalContent = streamingContent || 'Response completed';
+                    updateMessage(finalBlocks, finalContent);
                   } else if (data.type === 'response.output_text.delta') {
                     // Start or continue streaming
                     if (!isStreaming) {
@@ -891,6 +917,7 @@ const AiPlayground: React.FC = () => {
                           
                           // Add inline loading when tools complete, indicating we're waiting for next text stream
                           const blocksWithLoading = addInlineLoading(contentBlocks);
+                          contentBlocks = blocksWithLoading; // Update local contentBlocks array
                           updateMessage(blocksWithLoading, streamingContent);
                         }
                       }
@@ -935,6 +962,7 @@ const AiPlayground: React.FC = () => {
                       
                       // Add inline loading when tools complete, indicating we're waiting for next text stream
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   } else if (data.type === 'response.agentic_search.in_progress') {
@@ -1005,6 +1033,7 @@ const AiPlayground: React.FC = () => {
                       
                       // Add inline loading when tools complete, indicating we're waiting for next text stream
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   } else if (data.type === 'response.fun_req_gathering_tool.in_progress') {
@@ -1039,6 +1068,7 @@ const AiPlayground: React.FC = () => {
                         }
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   } else if (data.type === 'response.fun_def_generation_tool.in_progress') {
@@ -1103,6 +1133,7 @@ const AiPlayground: React.FC = () => {
                         }
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   } else if (data.type === 'response.mock_generation_tool.in_progress') {
@@ -1132,6 +1163,7 @@ const AiPlayground: React.FC = () => {
                         }
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   } else if (data.type === 'response.mock_save_tool.in_progress') {
@@ -1161,6 +1193,7 @@ const AiPlayground: React.FC = () => {
                         }
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   }
@@ -1188,6 +1221,19 @@ const AiPlayground: React.FC = () => {
         }
       }
 
+      // Final message update to ensure loading state is properly cleared
+      if (contentBlocks.length > 0) {
+        const finalBlocks = removeInlineLoading(contentBlocks);
+        
+        // If no content blocks exist after removing loading, create a default text block
+        if (finalBlocks.length === 0) {
+          finalBlocks.push({ type: 'text' as const, content: 'Response completed' });
+        }
+        
+        const finalContent = streamingContent || 'Response completed';
+        updateMessage(finalBlocks, finalContent);
+      }
+
       // Update previous response ID for next request
       if (responseId) {
         setPreviousResponseId(responseId);
@@ -1207,6 +1253,16 @@ const AiPlayground: React.FC = () => {
       ));
     } finally {
       setIsLoading(false);
+      
+      // Ensure the assistant message is properly finalized
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantMessageId
+          ? {
+              ...msg,
+              isLoading: false
+            }
+          : msg
+      ));
       
       // Focus the textarea after streaming completes
       setTimeout(() => {
@@ -1719,6 +1775,33 @@ const AiPlayground: React.FC = () => {
                     }
                     responseCompleted = true;
                     
+                    // Mark all in-progress tool executions as completed when response completes
+                    activeToolExecutions.forEach((execution, key) => {
+                      if (execution.status === 'in_progress') {
+                        execution.status = 'completed';
+                      }
+                    });
+                    
+                    // Update tool progress blocks with completed status
+                    contentBlocks.forEach(block => {
+                      if (block.type === 'tool_progress' && block.toolExecutions) {
+                        block.toolExecutions = Array.from(activeToolExecutions.values());
+                      }
+                    });
+                    
+                    // Remove inline loading when response is completed
+                    const blocksWithoutLoading = removeInlineLoading(contentBlocks);
+                    
+                    // If no content blocks exist, create a default text block
+                    let finalBlocks = blocksWithoutLoading;
+                    if (finalBlocks.length === 0) {
+                      finalBlocks = [{ type: 'text' as const, content: 'Response completed' }];
+                    }
+                    
+                    // If no streaming content was received, use a default message or empty string
+                    const finalContent = streamingContent || 'Response completed';
+                    updateMessage(finalBlocks, finalContent);
+                    
                     // Determine save model state based on completion status
                     if (toolCompleted) {
                       // Both response and tool completed successfully
@@ -1817,6 +1900,7 @@ const AiPlayground: React.FC = () => {
                         }
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   }
@@ -1839,7 +1923,7 @@ const AiPlayground: React.FC = () => {
                 }
               : msg
           ));
-          setIsTestingModel(false);
+                    setIsTestingModel(false);
           setSaveModelState('error');
           setShowSaveModel(true);
         } finally {
@@ -1847,7 +1931,30 @@ const AiPlayground: React.FC = () => {
         }
       }
 
-    } catch (error) {
+      // Final message update to ensure loading state is properly cleared
+      if (contentBlocks.length > 0) {
+        const finalBlocks = removeInlineLoading(contentBlocks);
+        
+        // If no content blocks exist after removing loading, create a default text block
+        if (finalBlocks.length === 0) {
+          finalBlocks.push({ type: 'text' as const, content: 'Response completed' });
+        }
+        
+        const finalContent = streamingContent || 'Response completed';
+        updateMessage(finalBlocks, finalContent);
+      }
+
+      // Ensure the assistant message is properly finalized
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantMessageId
+          ? {
+              ...msg,
+              isLoading: false
+            }
+          : msg
+      ));
+
+      } catch (error) {
       console.error('Error making model test API call:', error);
       setMessages(prev => prev.map(msg =>
         msg.id === assistantMessageId
