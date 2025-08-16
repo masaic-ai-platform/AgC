@@ -71,11 +71,11 @@ const FunctionModal: React.FC<FunctionModalProps> = ({
       const savedModelName = localStorage.getItem('platform_modelName') || 'gpt-4o';
       
       // Prepare headers and payload based on platform settings
-      let headers: Record<string, string> = {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
       
-      let requestBody: any = {
+      const requestBody: any = {
         description: generatePrompt.trim()
       };
 
@@ -184,7 +184,7 @@ const FunctionModal: React.FC<FunctionModalProps> = ({
   // Highlight individual line
   const highlightLine = (line: string) => {
     const parts = [];
-    let currentIndex = 0;
+    const currentIndex = 0;
     
     // Regex patterns for different JSON elements
     const patterns = [

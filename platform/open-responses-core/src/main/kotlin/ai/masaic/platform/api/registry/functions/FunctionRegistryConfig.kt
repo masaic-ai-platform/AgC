@@ -31,3 +31,5 @@ class FunctionRegistryConfig {
         // InMemoryFunctionRegistryRepository is automatically configured via @Repository annotation
     }
 }
+
+

@@ -1,10 +1,7 @@
 package ai.masaic.platform.api.interpreter
 
-import ai.masaic.openresponses.api.exception.CodeRunnerServiceNotFoundException
 import ai.masaic.openresponses.api.model.MCPTool
 import ai.masaic.openresponses.api.model.PyInterpreterServer
-import ai.masaic.openresponses.tool.ToolDefinition
-import ai.masaic.openresponses.tool.ToolProtocol
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.CallToolResponse
 import ai.masaic.openresponses.tool.mcp.MCPServerInfo
@@ -16,10 +13,8 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
-import org.springframework.context.annotation.Lazy
 import org.springframework.http.codec.ServerSentEvent
 import java.util.*
-import kotlin.jvm.optionals.getOrNull
 
 interface CodeRunnerService {
     suspend fun runCode(request: CodeExecuteReq, eventEmitter: (ServerSentEvent<String>) -> Unit,): CodeExecResult

@@ -62,11 +62,11 @@ const SystemPromptGenerator: React.FC<SystemPromptGeneratorProps> = ({
       const savedModelName = localStorage.getItem('platform_modelName') || 'gpt-4o';
       
       // Prepare headers and payload based on platform settings
-      let headers: Record<string, string> = {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json',
       };
       
-      let requestBody: any = {
+      const requestBody: any = {
         description: generatePrompt.trim(),
         existingPrompt: existingPrompt
       };

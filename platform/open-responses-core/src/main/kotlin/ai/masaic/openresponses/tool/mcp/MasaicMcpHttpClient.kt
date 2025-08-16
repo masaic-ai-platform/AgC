@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.tool.mcp
 
+import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.api.service.ResponseTimeoutException
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolHosting
@@ -284,7 +285,7 @@ class HttpSseTransport(
             }
 
             if (code in 400..503) { // TODO: doing minimal handling now.
-                throw Exception("mcp server request failed with code=$code and response returned is: ${resp.body!!.string()}")
+                throw ResponseProcessingException("mcp server request failed with code=$code and response returned is: ${resp.body!!.string()}")
             }
 
             // Regular JSON body
@@ -308,7 +309,7 @@ class HttpSseTransport(
         client.newCall(request).execute().use { resp ->
             val code = resp.code
             if (code in 400..503) {
-                throw Exception("mcp server request failed with code=$code and response returned is: ${resp.body!!.string()}")
+                throw ResponseProcessingException("mcp server request failed with code=$code and response returned is: ${resp.body!!.string()}")
             }
 
             val ct = resp.header("Content-Type").orEmpty()
@@ -383,12 +384,12 @@ class HttpSseTransport(
                     return send(payload, sessionId, onEvent, headers, retryCount + 1)
                 } else {
                     log.error { "Failed to reconnect after 4 attempts. Giving up." }
-                    throw Exception("mcp server request failed with code=$code after 4 retry attempts")
+                    throw ResponseProcessingException("mcp server request failed with code=$code after 4 retry attempts")
                 }
             }
 
             if (code in 400..503) { // TODO: doing minimal handling now.
-                throw Exception("mcp server request failed with code=$code and response returned is: ${resp.body!!.string()}")
+                throw ResponseProcessingException("mcp server request failed with code=$code and response returned is: ${resp.body!!.string()}")
             }
 
             if (ct.startsWith("text/event-stream") && onEvent != null) {

@@ -83,7 +83,31 @@ class ApiClient {
     const response = await this.request(endpoint, options);
     
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      // Try to get the error response body for better error messages
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorBody = await response.text();
+        if (errorBody) {
+          try {
+            const errorData = JSON.parse(errorBody);
+            if (errorData.message) {
+              errorMessage = errorData.message;
+            } else {
+              errorMessage = errorBody;
+            }
+          } catch {
+            // If not JSON, use the raw text
+            errorMessage = errorBody;
+          }
+        }
+      } catch {
+        // If we can't read the response body, use the status-based message
+      }
+      
+      const error = new Error(errorMessage);
+      (error as { response?: Response; status?: number }).response = response;
+      (error as { response?: Response; status?: number }).status = response.status;
+      throw error;
     }
     
     return response.json();

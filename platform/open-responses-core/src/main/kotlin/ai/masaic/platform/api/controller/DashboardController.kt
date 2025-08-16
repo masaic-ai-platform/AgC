@@ -1,8 +1,12 @@
 package ai.masaic.platform.api.controller
 
 import ai.masaic.openresponses.api.model.*
+import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.*
+import ai.masaic.openresponses.tool.mcp.CallToolResponse
+import ai.masaic.openresponses.tool.mcp.MCPServerInfo
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
+import ai.masaic.openresponses.tool.mcp.MCPToolRegistry
 import ai.masaic.platform.api.config.*
 import ai.masaic.platform.api.model.*
 import ai.masaic.platform.api.service.ModelService
@@ -31,7 +35,8 @@ class DashboardController(
     private val modelService: ModelService,
     private val modelSettings: ModelSettings,
     private val funDefGenerationTool: FunDefGenerationTool,
-    private val platformInfo: PlatformInfo
+    private val platformInfo: PlatformInfo,
+    private val mcpToolRegistry: MCPToolRegistry
 ) {
     private val mapper = jacksonObjectMapper()
     private lateinit var modelProviders: Set<ModelProvider>
@@ -193,6 +198,16 @@ ${request.existingPrompt}
             tools.map {
                 it.copy(name = it.name?.replace("${mcpListToolsRequest.serverLabel}_", ""))
             }
+
+        mcpListToolsRequest.testMcpTool.forEach {
+            val mcpServerInfo = MCPServerInfo(mcpListToolsRequest.serverLabel, mcpListToolsRequest.serverUrl)
+            try {
+                executeMCPTool(it.copy(name = mcpServerInfo.qualifiedToolName(it.name)))
+            }catch (e: ResponseProcessingException) {
+                mcpToolRegistry.removeMcpServer(mcpServerInfo)
+                throw e
+            }
+        }
         return ResponseEntity.ok(updatedTools)
     }
 
@@ -206,8 +221,10 @@ ${request.existingPrompt}
     suspend fun executeMCPTool(
         @RequestBody toolRequest: ExecuteToolRequest,
     ): String {
-        val toolDefinition = toolService.findToolByName(toolRequest.name) ?: return "Tool ${toolRequest.name} not found."
-        return mcpToolExecutor.executeTool(toolDefinition, jacksonObjectMapper().writeValueAsString(toolRequest.arguments), null, null) ?: "no response from ${toolRequest.name}"
+        val toolDefinition = toolService.findToolByName(toolRequest.name) ?: throw ResponseProcessingException ("Tool ${toolRequest.name} not found.")
+        val toolResponse = mcpToolExecutor.executeTool(toolDefinition, mapper.writeValueAsString(toolRequest.arguments), null, null)?: throw ResponseProcessingException("no response returned by tool ${toolRequest.name}")
+        val callToolResponse: CallToolResponse = mapper.readValue(toolResponse)
+        return if(callToolResponse.isError) throw ResponseProcessingException(callToolResponse.content) else toolResponse
     }
 
     @GetMapping("/platform/info")

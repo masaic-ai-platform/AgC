@@ -46,6 +46,7 @@ import ModelSelectionModal from './ModelSelectionModal';
 import ConfigurationSettingsModal from './ConfigurationSettingsModal';
 import SystemPromptGenerator from './SystemPromptGenerator';
 import MCPModal from './MCPModal';
+import E2BModal from './E2BModal';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -136,6 +137,10 @@ interface ConfigurationPanelProps {
   // API Keys modal trigger
   openApiKeysModal?: boolean;
   onApiKeysModalChange?: (open: boolean) => void;
+  
+  // E2B modal trigger
+  openE2bModal?: boolean;
+  onE2bModalChange?: (open: boolean) => void;
   jsonSchemaContent: string;
   setJsonSchemaContent: (content: string) => void;
   jsonSchemaName: string | null;
@@ -195,6 +200,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   onResetConversation,
   openApiKeysModal = false,
   onApiKeysModalChange = (open: boolean) => {},
+  openE2bModal = false,
+  onE2bModalChange = (open: boolean) => {},
   jsonSchemaContent,
   setJsonSchemaContent,
   jsonSchemaName,
@@ -1248,6 +1255,12 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           }
         }}
         requiredProvider={requiredProvider}
+      />
+
+      {/* E2B Modal */}
+      <E2BModal
+        open={openE2bModal}
+        onOpenChange={onE2bModalChange}
       />
     </div>
   );

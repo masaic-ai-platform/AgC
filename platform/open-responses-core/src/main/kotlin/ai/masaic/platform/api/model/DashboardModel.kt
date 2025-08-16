@@ -1,6 +1,8 @@
 package ai.masaic.platform.api.model
 
 import ai.masaic.openresponses.api.model.ModelInfo
+import ai.masaic.openresponses.tool.mcp.CallToolRequest
+import ai.masaic.platform.api.controller.ExecuteToolRequest
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -49,4 +51,6 @@ data class McpListToolsRequest(
     val serverLabel: String,
     val serverUrl: String,
     val headers: Map<String, String> = emptyMap(),
+    val testMcpTool: List<ExecuteToolRequest> = emptyList()
 )
+

@@ -116,6 +116,7 @@ const AiPlayground: React.FC = () => {
   // Playground state
   const [activeTab, setActiveTab] = useState('responses');
   const [apiKeysModalOpen, setApiKeysModalOpen] = useState(false);
+  const [e2bModalOpen, setE2bModalOpen] = useState(false);
   
   const [jsonSchemaContent, setJsonSchemaContent] = useState('');
   const [jsonSchemaName, setJsonSchemaName] = useState<string | null>(null);
@@ -707,7 +708,7 @@ const AiPlayground: React.FC = () => {
       let isStreaming = false;
       let contentBlocks: ContentBlock[] = [];
       let currentTextBlock: ContentBlock | null = null;
-      let activeToolExecutions = new Map<string, ToolExecution>();
+      const activeToolExecutions = new Map<string, ToolExecution>();
 
       // Track the last SSE event name to properly handle custom events like "error"
       let lastEvent: string | null = null;
@@ -1460,6 +1461,19 @@ const AiPlayground: React.FC = () => {
       return;
     }
 
+    // Special handling for E2B Server option
+    if (tab === 'e2b-server') {
+      // Reset Mocky mode first if active
+      resetMockyMode();
+      
+      // Reset Model Test mode first if active
+      resetModelTestMode();
+      
+      setActiveTab('responses');
+      setE2bModalOpen(true);
+      return;
+    }
+
     // For any other tab, reset both modes
     resetMockyMode();
     resetModelTestMode();
@@ -1685,7 +1699,7 @@ const AiPlayground: React.FC = () => {
       let isStreaming = false;
       let contentBlocks: ContentBlock[] = [];
       let currentTextBlock: ContentBlock | null = null;
-      let activeToolExecutions = new Map<string, ToolExecution>();
+      const activeToolExecutions = new Map<string, ToolExecution>();
       let lastEvent: string | null = null;
       let responseCompleted = false;
       let toolCompleted = false;
@@ -2121,6 +2135,8 @@ const AiPlayground: React.FC = () => {
           onResetConversation={resetConversation}
           openApiKeysModal={apiKeysModalOpen}
           onApiKeysModalChange={setApiKeysModalOpen}
+          openE2bModal={e2bModalOpen}
+          onE2bModalChange={setE2bModalOpen}
           jsonSchemaContent={jsonSchemaContent}
           setJsonSchemaContent={setJsonSchemaContent}
           jsonSchemaName={jsonSchemaName}
@@ -2189,6 +2205,8 @@ const AiPlayground: React.FC = () => {
         onResetConversation={resetConversation}
         openApiKeysModal={apiKeysModalOpen}
         onApiKeysModalChange={setApiKeysModalOpen}
+        openE2bModal={e2bModalOpen}
+        onE2bModalChange={setE2bModalOpen}
         jsonSchemaContent={jsonSchemaContent}
         setJsonSchemaContent={setJsonSchemaContent}
         jsonSchemaName={jsonSchemaName}
