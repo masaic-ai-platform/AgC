@@ -95,3 +95,13 @@ class VectorIndexingException(
     message: String,
     cause: Throwable? = null,
 ) : VectorStoreException(message, cause)
+
+
+
+/**
+ * Exception thrown when code runner service is not available.
+ */
+class CodeRunnerServiceNotFoundException(
+    message: String,
+    cause: Throwable? = null,
+) : ResourceNotFoundException(message, cause)

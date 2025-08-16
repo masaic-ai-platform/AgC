@@ -2,6 +2,7 @@ package ai.masaic.openresponses.tool
 
 import ai.masaic.openresponses.api.model.FunctionTool
 import ai.masaic.openresponses.api.model.MCPTool
+import ai.masaic.openresponses.api.model.PyFunTool
 import ai.masaic.openresponses.tool.mcp.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
@@ -163,6 +164,7 @@ class ToolService(
         val toolDefinition = nativeToolRegistry.findByName(resolvedName) ?: mcpToolRegistry.findByName(resolvedName) ?: return null
         return when {
             toolDefinition is NativeToolDefinition -> NativeToolDefinition.toFunctionTool(toolDefinition)
+            toolDefinition is PyFunToolDefinition -> toolDefinition.toFunctionTool()
             else -> (toolDefinition as McpToolDefinition).toFunctionTool()
         }
     }
@@ -200,6 +202,19 @@ class ToolService(
             toolDefinition is NativeToolDefinition -> NativeToolDefinition.toFunctionTool(toolDefinition)
             else -> (toolDefinition as McpToolDefinition).toFunctionTool()
         }
+    }
+
+    suspend fun getPyFunTool(pyFunTool: PyFunTool): FunctionTool {
+        val toolDef = pyFunTool.functionDetails
+        val pyFunToolDefinition = PyFunToolDefinition(
+            protocol = ToolProtocol.PY_CODE,
+            name = pyFunTool.functionDetails.name,
+            description = toolDef.description ?: "not available",
+            parameters = toolDef.parameters,
+            code = pyFunTool.code
+        )
+        nativeToolRegistry.addIfNotPresent(pyFunToolDefinition)
+        return pyFunToolDefinition.toFunctionTool()
     }
 
     suspend fun getRemoteMcpTools(
@@ -279,6 +294,7 @@ class ToolService(
         toolMetadata: Map<String, Any>,
         context: ToolRequestContext,
     ): String? {
+        log.info("====================> going for tool execution <=======================")
         try {
             val resolvedName = resolveToolName(name, context)
             val tool = findToolByName(resolvedName) ?: return null
@@ -352,6 +368,7 @@ class ToolService(
         val toolResult =
             when (tool.protocol) {
                 ToolProtocol.NATIVE -> nativeToolRegistry.executeTool(resolvedName, arguments, paramsAccessor, openAIClient, eventEmitter, toolMetadata, context)
+                ToolProtocol.PY_CODE -> nativeToolRegistry.executeTool(resolvedName, arguments, paramsAccessor, openAIClient, eventEmitter, toolMetadata, context)
                 ToolProtocol.MCP -> mcpToolExecutor.executeTool(tool, arguments, paramsAccessor, openAIClient)
             }
         log.debug("tool ${toolMetadata["originalName"]} (resolved: $resolvedName) executed with arguments: $arguments gave result: $toolResult")

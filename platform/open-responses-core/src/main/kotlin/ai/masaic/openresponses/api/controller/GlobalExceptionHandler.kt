@@ -237,26 +237,21 @@ class GlobalExceptionHandler(
         return ResponseEntity.status(status).body(errorResponse)
     }
 
-    /**
-     * Handles ResourceNotFoundException and returns a 404 NOT_FOUND response.
-     */
     @ExceptionHandler(ResourceNotFoundException::class)
     fun handleResourceNotFoundException(
-        ex: ResourceNotFoundException,
-        request: WebRequest,
+        ex: ResourceNotFoundException
     ): ResponseEntity<ErrorResponse> {
         val status = HttpStatus.NOT_FOUND
         logError(status, ex, "Resource not found: ${ex.message}")
-        
+
         val errorResponse =
             ErrorResponse(
                 type = "not_found",
                 message = ex.message ?: "Resource not found",
-                param = request.getDescription(false).substringAfter("uri="),
                 code = status.value().toString(),
                 timestamp = Instant.now().toEpochMilli(),
             )
-        
+
         return ResponseEntity.status(status).body(errorResponse)
     }
 

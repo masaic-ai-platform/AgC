@@ -356,7 +356,7 @@ class MasaicToolHandler(
         openAIClient: OpenAIClient,
     ): MasaicToolCallResult {
         logger.debug { "Processing tool calls from ChatCompletion: ${chatCompletion.id()}" }
-
+        logger.info("=====================> handleMasaicToolCall <===================")
         // Create context with alias mappings
         val aliasMap = toolService.buildAliasMap(params.tools().orElse(emptyList()))
         val context = ToolRequestContext(aliasMap, params)
@@ -419,6 +419,7 @@ class MasaicToolHandler(
                 logger.debug { "Processing ${toolCalls.size} tool calls" }
 
                 for (tool in toolCalls) { // Changed from forEach to allow early exit for Terminate
+                    logger.info("=====================> inside for loop <===================")
                     val function = tool.function()
                     if (toolService.getFunctionTool(function.name(), context) != null) {
                         logger.info { "Executing tool: ${function.name()} with ID: ${tool.id()}" }
@@ -536,6 +537,7 @@ class MasaicToolHandler(
                                 // This callback style is for the streaming version, adapt for non-streaming
                                 var regularToolResult: String? = null
                                 try {
+                                    logger.info("=====================> Executing executeToolWithObservation <===================")
                                     regularToolResult =
                                         toolService.executeTool(
                                             function.name(),

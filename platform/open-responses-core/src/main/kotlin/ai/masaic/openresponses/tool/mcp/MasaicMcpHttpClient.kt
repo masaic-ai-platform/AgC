@@ -6,6 +6,7 @@ import ai.masaic.openresponses.tool.ToolHosting
 import ai.masaic.openresponses.tool.ToolParamsAccessor
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.client.OpenAIClient
@@ -15,7 +16,10 @@ import dev.langchain4j.mcp.client.Converter
 import dev.langchain4j.mcp.client.DefaultMcpClient
 import dev.langchain4j.mcp.client.transport.McpTransport
 import dev.langchain4j.mcp.client.transport.stdio.StdioMcpTransport
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import okhttp3.Headers
 import okhttp3.MediaType.Companion.toMediaType
@@ -28,6 +32,8 @@ import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 import java.time.Duration
 import java.util.concurrent.*
+import java.util.stream.Collectors
+import java.util.stream.StreamSupport
 import kotlin.time.Duration.Companion.seconds
 
 interface McpClientFactory {
@@ -551,9 +557,13 @@ class McpSyncClient private constructor(
         if (listenSSE) {
             return listenCallTool(request, headers)
         }
-
-        val resp = transport.send(payload = request.toRpc(3), sessionId = sessionId, headers = headers)
-        return resp.toString()
+        log.debug { "calling ${request.name} with args=${request.params}" }
+        if(request.name == "search_shop_catalog")
+            delay(10000)
+        val resp = mapper.readTree(transport.send(payload = request.toRpc(3), sessionId = sessionId, headers = headers))
+        val toolResult = mapper.writeValueAsString(Converter.extractResult(resp))
+        log.debug { "response from tool: $toolResult" }
+        return toolResult
     }
 
     private suspend fun listenCallTool(
@@ -599,3 +609,5 @@ data class CallToolRequest(
             "params" to mapOf("name" to name, "arguments" to params),
         )
 }
+
+data class CallToolResponse(val isError: Boolean = false, val content: String)

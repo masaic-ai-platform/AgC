@@ -3,6 +3,7 @@ package ai.masaic.platform.api.config
 import ai.masaic.openresponses.api.client.ResponseStore
 import ai.masaic.openresponses.api.config.QdrantVectorProperties
 import ai.masaic.openresponses.api.config.VectorSearchConfigProperties
+import ai.masaic.openresponses.api.model.MCPTool
 import ai.masaic.openresponses.api.model.ModelInfo
 import ai.masaic.openresponses.api.repository.VectorStoreRepository
 import ai.masaic.openresponses.api.service.VectorStoreFileManager
@@ -11,21 +12,34 @@ import ai.masaic.openresponses.api.service.embedding.OpenAIProxyEmbeddingService
 import ai.masaic.openresponses.api.service.rerank.RerankerService
 import ai.masaic.openresponses.api.service.search.*
 import ai.masaic.openresponses.api.support.service.TelemetryService
+import ai.masaic.openresponses.tool.ToolService
+import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
+import ai.masaic.platform.api.interpreter.CodeInterpreterResult
+import ai.masaic.platform.api.interpreter.CodeRunnerService
+import ai.masaic.platform.api.interpreter.NoOpCodeRunnerService
+import ai.masaic.platform.api.interpreter.PythonCodeRunnerService
 import ai.masaic.platform.api.repository.*
 import ai.masaic.platform.api.service.ModelService
 import ai.masaic.platform.api.service.PlatformHybridSearchService
 import ai.masaic.platform.api.service.PlatformQdrantVectorSearchProvider
 import ai.masaic.platform.api.service.PlatformVectorStoreService
 import ai.masaic.platform.api.tools.*
+import ai.masaic.platform.api.utils.PlatformPayloadFormatter
+import ai.masaic.platform.api.validation.PlatformRequestValidator
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.qdrant.client.QdrantClient
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Profile
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
+import org.springframework.http.HttpHeaders
 
 @Profile("platform")
 @Configuration
@@ -71,10 +85,12 @@ class PlatformCoreConfig {
         objectMapper: ObjectMapper,
         responseStore: ResponseStore,
         platformNativeTools: List<PlatformNativeTool>,
+        @Lazy codeRunnerService: CodeRunnerService
     ) = PlatformNativeToolRegistry(
         objectMapper,
         responseStore,
         platformNativeTools,
+        codeRunnerService
     )
 
     @Bean
@@ -92,6 +108,47 @@ class PlatformCoreConfig {
         mockFunctionRepository: MockFunctionRepository,
         mocksRepository: MocksRepository,
     ) = PlatformMcpService(mcpMockServerRepository, mockFunctionRepository, mocksRepository)
+
+    @Bean
+    fun payloadFormatter(toolService: ToolService, mapper: ObjectMapper)= PlatformPayloadFormatter(toolService, mapper)
+
+    @Bean
+    fun platformRequestValidator(vectorStoreService: VectorStoreService, responseStore: ResponseStore) = PlatformRequestValidator(vectorStoreService, responseStore)
+
+    @Configuration
+    @Profile("platform")
+    @EnableConfigurationProperties(CodeInterpreterServerProperties::class)
+    class PythonCodeRunnerConfiguration {
+        @Bean
+        @ConditionalOnProperty(
+            prefix = "platform.deployment.code.interpreter",
+            name = ["enabled"],
+            havingValue = "true",
+            matchIfMissing = false
+        )
+        fun pythonCodeRunnerService(codeInterpreterServer: CodeInterpreterServerProperties, toolService: ToolService, mcpToolExecutor: MCPToolExecutor): CodeRunnerService {
+            require(!codeInterpreterServer.name.isNullOrBlank()) { "platform.deployment.code.interpreter.name is required when enabled=true" }
+            require(!codeInterpreterServer.url.isNullOrBlank()) { "platform.deployment.code.interpreter.url is required when enabled=true" }
+            require(!codeInterpreterServer.apiKey.isNullOrBlank()) { "platform.deployment.code.interpreter.apiKey is required when enabled=true" }
+
+            val mcpTool = MCPTool(
+                type = "mcp",
+                serverLabel = codeInterpreterServer.name,
+                serverUrl = codeInterpreterServer.url,
+                headers = mapOf("Authorization" to "Bearer ${codeInterpreterServer.apiKey}")
+            )
+            val codeRunnerService = PythonCodeRunnerService(mcpTool, toolService, mcpToolExecutor)
+            return codeRunnerService
+        }
+
+        @Bean
+        @ConditionalOnMissingBean(CodeRunnerService::class)
+        fun noOpCodeRunnerService(): CodeRunnerService = NoOpCodeRunnerService()
+
+        @Bean
+        @ConditionalOnBean(PythonCodeRunnerService::class)
+        fun pythonCodeRunnerTool(pythonCodeRunnerService: PythonCodeRunnerService) = PythonCodeRunnerTool(pythonCodeRunnerService)
+    }
 
     @Configuration
     @Profile("platform")
@@ -247,3 +304,11 @@ enum class SystemSettingsType {
     RUNTIME,
     DEPLOYMENT_TIME,
 }
+
+@ConfigurationProperties("platform.deployment.code.interpreter")
+data class CodeInterpreterServerProperties(
+    val name: String ?= null,
+    val url: String ?= null,
+    val apiKey: String ?= null,
+    val enabled: Boolean = false
+)

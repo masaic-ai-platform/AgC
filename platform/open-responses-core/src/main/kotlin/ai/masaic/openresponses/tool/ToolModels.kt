@@ -38,6 +38,7 @@ enum class ToolProtocol {
     /** Masaic Communication Protocol */
     MCP,
     NATIVE,
+    PY_CODE
 }
 
 /**
@@ -102,6 +103,25 @@ data class NativeToolDefinition(
                         .build(),
                 ).build()
     }
+}
+
+data class PyFunToolDefinition(
+    override val id: String = UUID.randomUUID().toString(),
+    override val protocol: ToolProtocol = ToolProtocol.PY_CODE,
+    override val hosting: ToolHosting = ToolHosting.MASAIC_MANAGED,
+    override val name: String,
+    override val description: String,
+    val parameters: MutableMap<String, Any>,
+    val code: String,
+    val deps: List<String> = emptyList(),
+) : ToolDefinition(id, protocol, hosting, name, description) {
+    fun toFunctionTool(): FunctionTool =
+        FunctionTool(
+            description = this.description,
+            name = this.name,
+            parameters = this.parameters,
+            strict = true,
+        )
 }
 
 /**
