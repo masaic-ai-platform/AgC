@@ -5,6 +5,7 @@ import ai.masaic.openresponses.api.config.QdrantVectorProperties
 import ai.masaic.openresponses.api.config.VectorSearchConfigProperties
 import ai.masaic.openresponses.api.model.MCPTool
 import ai.masaic.openresponses.api.model.ModelInfo
+import ai.masaic.openresponses.api.model.PyInterpreterServer
 import ai.masaic.openresponses.api.repository.VectorStoreRepository
 import ai.masaic.openresponses.api.service.VectorStoreFileManager
 import ai.masaic.openresponses.api.service.embedding.EmbeddingService
@@ -14,9 +15,7 @@ import ai.masaic.openresponses.api.service.search.*
 import ai.masaic.openresponses.api.support.service.TelemetryService
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
-import ai.masaic.platform.api.interpreter.CodeInterpreterResult
 import ai.masaic.platform.api.interpreter.CodeRunnerService
-import ai.masaic.platform.api.interpreter.NoOpCodeRunnerService
 import ai.masaic.platform.api.interpreter.PythonCodeRunnerService
 import ai.masaic.platform.api.repository.*
 import ai.masaic.platform.api.service.ModelService
@@ -24,22 +23,24 @@ import ai.masaic.platform.api.service.PlatformHybridSearchService
 import ai.masaic.platform.api.service.PlatformQdrantVectorSearchProvider
 import ai.masaic.platform.api.service.PlatformVectorStoreService
 import ai.masaic.platform.api.tools.*
+import ai.masaic.platform.api.user.AuthConfig
+import ai.masaic.platform.api.user.AuthConfigProperties
 import ai.masaic.platform.api.utils.PlatformPayloadFormatter
 import ai.masaic.platform.api.validation.PlatformRequestValidator
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.qdrant.client.QdrantClient
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
+import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Lazy
 import org.springframework.context.annotation.Profile
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
-import org.springframework.http.HttpHeaders
+import java.time.Instant
 
 @Profile("platform")
 @Configuration
@@ -113,37 +114,52 @@ class PlatformCoreConfig {
     fun payloadFormatter(toolService: ToolService, mapper: ObjectMapper)= PlatformPayloadFormatter(toolService, mapper)
 
     @Bean
-    fun platformRequestValidator(vectorStoreService: VectorStoreService, responseStore: ResponseStore) = PlatformRequestValidator(vectorStoreService, responseStore)
+    fun platformRequestValidator(vectorStoreService: VectorStoreService, responseStore: ResponseStore, platformInfo: PlatformInfo) = PlatformRequestValidator(vectorStoreService, responseStore, platformInfo)
+
+    @Bean
+    fun platformInfo(
+        @Value(value = "\${open-responses.store.vector.search.provider:file}") vectorSearchProviderType: String,
+        buildProperties: BuildProperties,
+        modelSettings: ModelSettings,
+        pyInterpreterSettings: PyInterpreterSettings,
+        configProperties: AuthConfigProperties,
+    ): PlatformInfo {
+        val vectorStoreInfo =
+            if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
+        return PlatformInfo(
+            version = "v${buildProperties.version}",
+            buildTime = buildProperties.time,
+            modelSettings = ModelSettings(modelSettings.settingsType, "", ""),
+            vectorStoreInfo = vectorStoreInfo,
+            authConfig = AuthConfig(configProperties.enabled),
+            pyInterpreterSettings = if (pyInterpreterSettings.systemSettingsType == SystemSettingsType.DEPLOYMENT_TIME) /*to avoid api key leak*/ PyInterpreterSettings(
+                SystemSettingsType.DEPLOYMENT_TIME
+            ) else PyInterpreterSettings()
+        )
+    }
 
     @Configuration
     @Profile("platform")
     @EnableConfigurationProperties(CodeInterpreterServerProperties::class)
     class PythonCodeRunnerConfiguration {
         @Bean
-        @ConditionalOnProperty(
-            prefix = "platform.deployment.code.interpreter",
-            name = ["enabled"],
-            havingValue = "true",
-            matchIfMissing = false
-        )
-        fun pythonCodeRunnerService(codeInterpreterServer: CodeInterpreterServerProperties, toolService: ToolService, mcpToolExecutor: MCPToolExecutor): CodeRunnerService {
-            require(!codeInterpreterServer.name.isNullOrBlank()) { "platform.deployment.code.interpreter.name is required when enabled=true" }
-            require(!codeInterpreterServer.url.isNullOrBlank()) { "platform.deployment.code.interpreter.url is required when enabled=true" }
-            require(!codeInterpreterServer.apiKey.isNullOrBlank()) { "platform.deployment.code.interpreter.apiKey is required when enabled=true" }
-
-            val mcpTool = MCPTool(
-                type = "mcp",
-                serverLabel = codeInterpreterServer.name,
-                serverUrl = codeInterpreterServer.url,
-                headers = mapOf("Authorization" to "Bearer ${codeInterpreterServer.apiKey}")
-            )
-            val codeRunnerService = PythonCodeRunnerService(mcpTool, toolService, mcpToolExecutor)
+        fun pythonCodeRunnerService(pyInterpreterSettings: PyInterpreterSettings, toolService: ToolService, mcpToolExecutor: MCPToolExecutor): CodeRunnerService {
+            val codeRunnerService = PythonCodeRunnerService(pyInterpreterSettings, toolService, mcpToolExecutor)
             return codeRunnerService
         }
 
         @Bean
-        @ConditionalOnMissingBean(CodeRunnerService::class)
-        fun noOpCodeRunnerService(): CodeRunnerService = NoOpCodeRunnerService()
+        fun pyInterpreterSettings(
+            codeInterpreterServer: CodeInterpreterServerProperties,
+        ): PyInterpreterSettings {
+            if(codeInterpreterServer.name.isNullOrBlank() && codeInterpreterServer.url.isNullOrBlank() && codeInterpreterServer.apiKey.isNullOrBlank()) {
+                return PyInterpreterSettings(SystemSettingsType.RUNTIME)
+            }
+            require(!codeInterpreterServer.name.isNullOrBlank()) {"property platform.deployment.code.interpreter.name is not set"}
+            require(!codeInterpreterServer.url.isNullOrBlank()) {"property platform.deployment.code.interpreter.url is not set"}
+            require(!codeInterpreterServer.apiKey.isNullOrBlank()) {"property platform.deployment.code.interpreter.apiKey is not set"}
+            return PyInterpreterSettings(SystemSettingsType.DEPLOYMENT_TIME, PyInterpreterServer(serverLabel = codeInterpreterServer.name, url = codeInterpreterServer.url, apiKey = codeInterpreterServer.apiKey))
+        }
 
         @Bean
         @ConditionalOnBean(PythonCodeRunnerService::class)
@@ -309,6 +325,37 @@ enum class SystemSettingsType {
 data class CodeInterpreterServerProperties(
     val name: String ?= null,
     val url: String ?= null,
-    val apiKey: String ?= null,
-    val enabled: Boolean = false
+    val apiKey: String ?= null
+)
+
+data class PyInterpreterSettings(
+    val systemSettingsType: SystemSettingsType = SystemSettingsType.RUNTIME,
+    val pyInterpreterServer: PyInterpreterServer? = null
+) {
+    fun mcpTool(): MCPTool {
+        require(pyInterpreterServer != null) { "pyInterpreterServer can't be null" }
+        return mcpTool(pyInterpreterServer)
+    }
+
+    fun mcpTool(pyInterpreterServer: PyInterpreterServer): MCPTool {
+        return MCPTool(
+            type = "mcp",
+            serverLabel = pyInterpreterServer.url,
+            serverUrl = pyInterpreterServer.url,
+            headers = mapOf("Authorization" to "Bearer ${pyInterpreterServer.apiKey}")
+        )
+    }
+}
+
+data class PlatformInfo(
+    val version: String,
+    val buildTime: Instant,
+    val modelSettings: ModelSettings,
+    val vectorStoreInfo: VectorStoreInfo,
+    val authConfig: AuthConfig,
+    val pyInterpreterSettings: PyInterpreterSettings
+)
+
+data class VectorStoreInfo(
+    val isEnabled: Boolean,
 )

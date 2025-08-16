@@ -4,11 +4,12 @@ import ai.masaic.openresponses.api.client.ResponseStore
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.search.VectorStoreService
 import ai.masaic.openresponses.api.validation.RequestValidator
-import org.springframework.http.HttpStatus
-import org.springframework.web.server.ResponseStatusException
+import ai.masaic.platform.api.config.PlatformInfo
+import ai.masaic.platform.api.config.SystemSettingsType
 
 class PlatformRequestValidator(private val vectorStoreService: VectorStoreService,
-                               private val responseStore: ResponseStore): RequestValidator(vectorStoreService, responseStore) {
+                               private val responseStore: ResponseStore, private val platformInfo: PlatformInfo
+): RequestValidator(vectorStoreService, responseStore) {
 
     override suspend fun validateTool(tool: Tool) {
         when (tool) {
@@ -31,6 +32,10 @@ class PlatformRequestValidator(private val vectorStoreService: VectorStoreServic
                 tool.vectorStoreIds?.forEach { id ->
                     ensureVectorStoreExists(id)
                 }
+            }
+            is PyFunTool -> {
+                if(platformInfo.pyInterpreterSettings.systemSettingsType == SystemSettingsType.RUNTIME && tool.interpreterServer == null)
+                    throw IllegalArgumentException("${tool.platformToolName()} requires ${tool.interpreterServerName()} fields name, url and apiKey in the request.")
             }
         }
     }

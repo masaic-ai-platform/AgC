@@ -2,44 +2,60 @@ package ai.masaic.platform.api.interpreter
 
 import ai.masaic.openresponses.api.exception.CodeRunnerServiceNotFoundException
 import ai.masaic.openresponses.api.model.MCPTool
+import ai.masaic.openresponses.api.model.PyInterpreterServer
 import ai.masaic.openresponses.tool.ToolDefinition
+import ai.masaic.openresponses.tool.ToolProtocol
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.CallToolResponse
 import ai.masaic.openresponses.tool.mcp.MCPServerInfo
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
+import ai.masaic.platform.api.config.PyInterpreterSettings
+import ai.masaic.platform.api.config.SystemSettingsType
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import kotlinx.coroutines.runBlocking
 import mu.KotlinLogging
 import org.springframework.context.annotation.Lazy
+import org.springframework.http.codec.ServerSentEvent
 import java.util.*
+import kotlin.jvm.optionals.getOrNull
 
 interface CodeRunnerService {
-    suspend fun runCode(request: CodeExecuteReq): CodeExecResult
+    suspend fun runCode(request: CodeExecuteReq, eventEmitter: (ServerSentEvent<String>) -> Unit,): CodeExecResult
 }
 
 class PythonCodeRunnerService(
-    private val mcpTool: MCPTool,
+    private val interpreterSettings: PyInterpreterSettings,
     private val toolService: ToolService,
     private val mcpToolExecutor: MCPToolExecutor
 ) : CodeRunnerService {
-    private var codeRunnerTool: String
-    private var codeRunnerToolDef: ToolDefinition
+    private var mcpTool: MCPTool?=null
     private val mapper = jacksonObjectMapper()
     private val log = KotlinLogging.logger { }
 
     init {
         runBlocking {
-            val tools = toolService.getRemoteMcpTools(mcpTool)
-            codeRunnerTool = MCPServerInfo(mcpTool.serverLabel, mcpTool.serverUrl).qualifiedToolName("run_code")
-            codeRunnerToolDef = toolService.findToolByName(codeRunnerTool)
-                ?: throw IllegalArgumentException("Tool $codeRunnerTool not found.")
+            if(interpreterSettings.systemSettingsType == SystemSettingsType.DEPLOYMENT_TIME) {
+                mcpTool = interpreterSettings.mcpTool()
+                val tools = toolService.getRemoteMcpTools(interpreterSettings.mcpTool())
+            }
         }
     }
 
-    override suspend fun runCode(request: CodeExecuteReq): CodeExecResult {
+    override suspend fun runCode(request: CodeExecuteReq, eventEmitter: (ServerSentEvent<String>) -> Unit,): CodeExecResult {
         require(!request.funName.isNullOrBlank()) { "request must contain funName" }
+        val tobeUsedMCPTool: MCPTool =
+            request.pyInterpreterServer?.let {
+                toolService.getRemoteMcpTools(interpreterSettings.mcpTool(it))
+                interpreterSettings.mcpTool(it)
+            } ?: mcpTool ?: throw IllegalArgumentException(
+                    "Python interpreter connection settings are neither available at server nor in the request"
+                )
+        val codeRunnerTool = MCPServerInfo(tobeUsedMCPTool.serverLabel, tobeUsedMCPTool.serverUrl).qualifiedToolName("run_code")
+        val codeRunnerToolDef = toolService.findToolByName(codeRunnerTool)
+            ?: throw IllegalArgumentException("Tool $codeRunnerTool not found.")
+
         val codeStr = String(Base64.getDecoder().decode(request.encodedCode), Charsets.UTF_8)
         val paramsJsonStr = try {String(Base64.getDecoder().decode(request.encodedJsonParams), Charsets.UTF_8)} catch (ex: IllegalArgumentException) {String(request.encodedJsonParams!!.toByteArray(), Charsets.UTF_8)}
         val depsJson = mapper.writeValueAsString(request.deps)
@@ -53,10 +69,14 @@ class PythonCodeRunnerService(
                 params = paramsJsonStr
             )
         )
+        val eventPrefix = "response.agc_compute.${request.funName}"
+        emitEvent(eventEmitter, "$eventPrefix.executing", code)
+
         val toolResult =
             mcpToolExecutor.executeTool(codeRunnerToolDef, mapper.writeValueAsString(mapOf("code" to code)), null, null)
                 ?: "no response from $codeRunnerTool"
-        return extractCodeRunResult(toolResult)
+        val codeExecResult = extractCodeRunResult(toolResult)
+        return codeExecResult
     }
 
     private fun assembleCode(request: CodeAssembleAttributes): String {
@@ -148,11 +168,23 @@ print(json.dumps({"function_output": result}, ensure_ascii=False), end="")
         log.info { "code execution result: $result" }
         return result
     }
-}
 
-class NoOpCodeRunnerService : CodeRunnerService {
-    override suspend fun runCode(request: CodeExecuteReq): CodeExecResult {
-        throw CodeRunnerServiceNotFoundException("code runner service is not available.")
+    private fun emitEvent(eventEmitter: (ServerSentEvent<String>) -> Unit, eventName: String, code: String) {
+        eventEmitter.invoke(
+            ServerSentEvent
+                .builder<String>()
+                .event(eventName)
+                .data(
+                    mapper.writeValueAsString(
+                        mapOf<String, String>(
+                            "item_id" to (UUID.randomUUID().toString()),
+                            "output_index" to "0",
+                            "type" to eventName,
+                            "code" to code
+                        ),
+                    ),
+                ).build(),
+        )
     }
 }
 
@@ -160,7 +192,8 @@ data class CodeExecuteReq(
     val funName: String? = null,
     val deps: List<String> = emptyList(),
     val encodedCode: String,
-    val encodedJsonParams: String? = null
+    val encodedJsonParams: String? = null,
+    val pyInterpreterServer: PyInterpreterServer ?= null
 )
 
 data class CodeAssembleAttributes(val name: String, val deps: String, val userCode: String, val params: String? = null)

@@ -89,9 +89,10 @@ data class PyFunTool(
     @JsonProperty("tool_def") val functionDetails: FunctionDetails,
     val code: String,
     val deps: List<String> = emptyList(),
-    @JsonProperty("code_interpreter_server") val interpreterServer: PyInterpreterServer? = null
+    @JsonProperty("code_interpreter") val interpreterServer: PyInterpreterServer? = null
 ) : Tool {
     fun platformToolName() = type
+    fun interpreterServerName() = "code_interpreter"
 }
 
 data class FunctionDetails(
@@ -106,7 +107,7 @@ data class FunctionDetails(
     }
 }
 
-data class PyInterpreterServer(val url: String, val apiKey: String)
+data class PyInterpreterServer(@JsonProperty("server_label") val serverLabel: String, val url: String, val apiKey: String)
 
 /**
  * Configuration for ranking search results.

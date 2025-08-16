@@ -114,6 +114,7 @@ data class PyFunToolDefinition(
     val parameters: MutableMap<String, Any>,
     val code: String,
     val deps: List<String> = emptyList(),
+    val pyInterpreterServer: PyInterpreterServer ?= null
 ) : ToolDefinition(id, protocol, hosting, name, description) {
     fun toFunctionTool(): FunctionTool =
         FunctionTool(

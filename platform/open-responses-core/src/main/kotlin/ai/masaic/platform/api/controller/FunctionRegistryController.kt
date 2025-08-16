@@ -129,7 +129,10 @@ class FunctionRegistryController(
 
     @PostMapping("/functions/{name}/execute")
     suspend fun executeFunction(@PathVariable name: String, @RequestBody funExecuteReq: CodeExecuteReq): ResponseEntity<CodeExecResult> {
-        return ResponseEntity.ok(codeRunnerService.runCode(funExecuteReq.copy(funName = name)))
+        return ResponseEntity.ok(codeRunnerService.runCode(
+            funExecuteReq.copy(funName = name),
+            eventEmitter = { }
+        ))
     }
 
     /**

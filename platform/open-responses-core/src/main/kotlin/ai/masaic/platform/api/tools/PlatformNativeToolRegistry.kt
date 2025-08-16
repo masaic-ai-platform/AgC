@@ -1,10 +1,7 @@
 package ai.masaic.platform.api.tools
 
 import ai.masaic.openresponses.api.client.ResponseStore
-import ai.masaic.openresponses.tool.NativeToolRegistry
-import ai.masaic.openresponses.tool.PyFunToolDefinition
-import ai.masaic.openresponses.tool.ToolParamsAccessor
-import ai.masaic.openresponses.tool.UnifiedToolContext
+import ai.masaic.openresponses.tool.*
 import ai.masaic.platform.api.interpreter.CodeExecuteReq
 import ai.masaic.platform.api.interpreter.CodeRunnerService
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -12,6 +9,8 @@ import com.openai.client.OpenAIClient
 import mu.KotlinLogging
 import org.springframework.context.annotation.Lazy
 import org.springframework.http.codec.ServerSentEvent
+import java.util.UUID
+import kotlin.jvm.optionals.getOrNull
 
 class PlatformNativeToolRegistry(
     private val objectMapper: ObjectMapper,
@@ -47,8 +46,10 @@ class PlatformNativeToolRegistry(
                     funName = tool.name,
                     deps = tool.deps,
                     encodedCode = tool.code,
-                    encodedJsonParams = arguments
-                )
+                    encodedJsonParams = arguments,
+                    pyInterpreterServer = tool.pyInterpreterServer
+                ),
+                eventEmitter
             )
             objectMapper.writeValueAsString(codeExecResult)
         } else {

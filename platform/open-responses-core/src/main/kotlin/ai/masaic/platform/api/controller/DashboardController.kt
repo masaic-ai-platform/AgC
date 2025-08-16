@@ -3,7 +3,7 @@ package ai.masaic.platform.api.controller
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.tool.*
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
-import ai.masaic.platform.api.config.ModelSettings
+import ai.masaic.platform.api.config.*
 import ai.masaic.platform.api.model.*
 import ai.masaic.platform.api.service.ModelService
 import ai.masaic.platform.api.service.messages
@@ -31,12 +31,8 @@ class DashboardController(
     private val modelService: ModelService,
     private val modelSettings: ModelSettings,
     private val funDefGenerationTool: FunDefGenerationTool,
-    private val buildProperties: BuildProperties,
-    private val configProperties: AuthConfigProperties,
+    private val platformInfo: PlatformInfo
 ) {
-    @Value("\${open-responses.store.vector.search.provider:file}")
-    private val vectorSearchProviderType = ""
-
     private val mapper = jacksonObjectMapper()
     private lateinit var modelProviders: Set<ModelProvider>
 
@@ -215,16 +211,7 @@ ${request.existingPrompt}
     }
 
     @GetMapping("/platform/info")
-    fun getPlatformInfo(): PlatformInfo {
-        val vectorStoreInfo = if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
-        return PlatformInfo(
-            version = "v${buildProperties.version}",
-            buildTime = buildProperties.time,
-            modelSettings = ModelSettings(modelSettings.settingsType, "", ""),
-            vectorStoreInfo = vectorStoreInfo,
-            authConfig = AuthConfig(configProperties.enabled),
-        )
-    }
+    fun getPlatformInfo() = platformInfo
 }
 
 data class ExecuteToolRequest(
@@ -232,14 +219,4 @@ data class ExecuteToolRequest(
     val arguments: Map<String, Any>,
 )
 
-data class PlatformInfo(
-    val version: String,
-    val buildTime: Instant,
-    val modelSettings: ModelSettings,
-    val vectorStoreInfo: VectorStoreInfo,
-    val authConfig: AuthConfig,
-)
 
-data class VectorStoreInfo(
-    val isEnabled: Boolean,
-)

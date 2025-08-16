@@ -211,9 +211,10 @@ class ToolService(
             name = pyFunTool.functionDetails.name,
             description = toolDef.description ?: "not available",
             parameters = toolDef.parameters,
-            code = pyFunTool.code
+            code = pyFunTool.code,
+            pyInterpreterServer = pyFunTool.interpreterServer
         )
-        nativeToolRegistry.addIfNotPresent(pyFunToolDefinition)
+        nativeToolRegistry.add(pyFunToolDefinition)
         return pyFunToolDefinition.toFunctionTool()
     }
 
@@ -294,7 +295,6 @@ class ToolService(
         toolMetadata: Map<String, Any>,
         context: ToolRequestContext,
     ): String? {
-        log.info("====================> going for tool execution <=======================")
         try {
             val resolvedName = resolveToolName(name, context)
             val tool = findToolByName(resolvedName) ?: return null

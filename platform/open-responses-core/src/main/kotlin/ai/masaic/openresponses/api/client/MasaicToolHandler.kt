@@ -356,7 +356,6 @@ class MasaicToolHandler(
         openAIClient: OpenAIClient,
     ): MasaicToolCallResult {
         logger.debug { "Processing tool calls from ChatCompletion: ${chatCompletion.id()}" }
-        logger.info("=====================> handleMasaicToolCall <===================")
         // Create context with alias mappings
         val aliasMap = toolService.buildAliasMap(params.tools().orElse(emptyList()))
         val context = ToolRequestContext(aliasMap, params)
@@ -419,7 +418,6 @@ class MasaicToolHandler(
                 logger.debug { "Processing ${toolCalls.size} tool calls" }
 
                 for (tool in toolCalls) { // Changed from forEach to allow early exit for Terminate
-                    logger.info("=====================> inside for loop <===================")
                     val function = tool.function()
                     if (toolService.getFunctionTool(function.name(), context) != null) {
                         logger.info { "Executing tool: ${function.name()} with ID: ${tool.id()}" }
@@ -534,24 +532,7 @@ class MasaicToolHandler(
                                 context,
                                 parentObservation,
                             ) { toolResult ->
-                                // This callback style is for the streaming version, adapt for non-streaming
-                                var regularToolResult: String? = null
-                                try {
-                                    logger.info("=====================> Executing executeToolWithObservation <===================")
-                                    regularToolResult =
-                                        toolService.executeTool(
-                                            function.name(),
-                                            function.arguments(),
-                                            params,
-                                            openAIClient,
-                                            {},
-                                            mapOf("toolId" to tool.id()),
-                                            context,
-                                        )
-                                } catch (e: Exception) {
-                                    logger.error(e) { "Error executing tool ${function.name()}: ${e.message}" }
-                                    regularToolResult = "Error executing tool ${function.name()}: ${e.message}"
-                                }
+                                val regularToolResult: String? = toolResult
 
                                 if (regularToolResult != null) {
                                     // Add the function call to response items
@@ -735,7 +716,9 @@ class MasaicToolHandler(
             if (toolService.getFunctionTool(function.name(), context) != null) {
                 logger.info { "Executing tool: ${function.name()} with ID: ${function.id()}" }
                 val toolDefinition = toolService.getAvailableTool(function.name())
-                val eventPrefix = if (toolDefinition?.protocol == ToolProtocol.MCP) "response.mcp_call.${function.name().lowercase().replace("^\\W".toRegex(), "_")}" else "response.${function.name().lowercase().replace("^\\W".toRegex(), "_")}"
+                val funNameForEventPrefix = function.name().lowercase().replace("^\\W".toRegex(), "_")
+                val eventPrefix =
+                    if (toolDefinition?.protocol == ToolProtocol.MCP) "response.mcp_call.$funNameForEventPrefix" else if (toolDefinition?.protocol == ToolProtocol.PY_CODE) "response.agc_compute.$funNameForEventPrefix" else "response.$funNameForEventPrefix"
                 eventEmitter.invoke(
                     ServerSentEvent
                         .builder<String>()
@@ -747,26 +730,30 @@ class MasaicToolHandler(
                                         "item_id" to (function.id().getOrNull() ?: function.callId()),
                                         "output_index" to index.toString(),
                                         "type" to "$eventPrefix.in_progress",
+                                        "tool_args" to function.arguments()
                                     ),
                                 ),
                         ).build(),
                 )
 
-                eventEmitter.invoke(
-                    ServerSentEvent
-                        .builder<String>()
-                        .event("$eventPrefix.executing")
-                        .data(
-                            " " +
-                                objectMapper.writeValueAsString(
-                                    mapOf<String, String>(
-                                        "item_id" to (function.id().getOrNull() ?: function.callId()),
-                                        "output_index" to index.toString(),
-                                        "type" to "$eventPrefix.executing",
-                                    ),
-                                ),
-                        ).build(),
-                )
+                if(toolDefinition?.protocol != ToolProtocol.PY_CODE) {
+                    eventEmitter.invoke(
+                        ServerSentEvent
+                            .builder<String>()
+                            .event("$eventPrefix.executing")
+                            .data(
+                                " " +
+                                        objectMapper.writeValueAsString(
+                                            mapOf<String, String>(
+                                                "item_id" to (function.id().getOrNull() ?: function.callId()),
+                                                "output_index" to index.toString(),
+                                                "type" to "$eventPrefix.executing",
+                                            ),
+                                        ),
+                            ).build(),
+                    )
+                }
+
                 if (function.name() == IMAGE_GENERATION_TOOL_NAME) {
                     eventEmitter.invoke(
                         ServerSentEvent
@@ -958,6 +945,7 @@ class MasaicToolHandler(
                                                     "item_id" to function.id().toString(),
                                                     "output_index" to index.toString(),
                                                     "type" to "$eventPrefix.completed",
+                                                    "tool_result" to toolResult
                                                 ),
                                             ),
                                     ).build(),

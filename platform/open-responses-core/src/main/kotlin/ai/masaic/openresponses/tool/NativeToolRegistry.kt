@@ -54,9 +54,8 @@ open class NativeToolRegistry(
 
     fun findAll(): List<ToolDefinition> = toolRepository.values.toList()
 
-    fun addIfNotPresent(tool: ToolDefinition) {
-        if(toolRepository[tool.name] == null)
-            toolRepository[tool.name] = tool
+    fun add(tool: ToolDefinition) {
+        toolRepository[tool.name] = tool
     }
 
     /**

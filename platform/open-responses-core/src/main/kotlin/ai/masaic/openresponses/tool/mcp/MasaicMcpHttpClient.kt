@@ -558,8 +558,6 @@ class McpSyncClient private constructor(
             return listenCallTool(request, headers)
         }
         log.debug { "calling ${request.name} with args=${request.params}" }
-        if(request.name == "search_shop_catalog")
-            delay(10000)
         val resp = mapper.readTree(transport.send(payload = request.toRpc(3), sessionId = sessionId, headers = headers))
         val toolResult = mapper.writeValueAsString(Converter.extractResult(resp))
         log.debug { "response from tool: $toolResult" }
