@@ -136,8 +136,6 @@ const JsonSchemaModal: React.FC<JsonSchemaModalProps> = ({
     }
   };
 
-
-
   const handleSave = () => {
     onSave();
     onOpenChange(false);
@@ -156,9 +154,9 @@ const JsonSchemaModal: React.FC<JsonSchemaModalProps> = ({
       const lines = formatted.split('\n');
       
       return (
-        <pre className="font-mono text-sm leading-relaxed whitespace-pre-wrap">
+        <pre className="font-mono text-xs sm:text-sm leading-relaxed whitespace-pre-wrap break-words max-w-full">
           {lines.map((line, index) => (
-            <div key={index}>
+            <div key={index} className="break-words max-w-full">
               {highlightLine(line)}
             </div>
           ))}
@@ -167,7 +165,7 @@ const JsonSchemaModal: React.FC<JsonSchemaModalProps> = ({
     } catch {
       // Return raw content if parsing fails
       return (
-        <pre className="font-mono text-sm leading-relaxed whitespace-pre-wrap text-foreground">
+        <pre className="font-mono text-xs sm:text-sm leading-relaxed whitespace-pre-wrap text-foreground break-words max-w-full">
           {jsonString}
         </pre>
       );
@@ -198,7 +196,7 @@ const JsonSchemaModal: React.FC<JsonSchemaModalProps> = ({
         const afterKey = line.substring(line.indexOf(keyMatch[0]) + keyMatch[0].length);
         
         return (
-          <span>
+          <span className="break-words max-w-full inline-block">
             <span className="text-muted-foreground">{beforeKey}</span>
             <span className="text-positive-trend">"{key}"</span>
             <span className="text-muted-foreground">:</span>
@@ -208,39 +206,39 @@ const JsonSchemaModal: React.FC<JsonSchemaModalProps> = ({
       }
     } else if (line.includes('"') && !line.includes(':')) {
       // This is likely a string value
-      return <span className="text-positive-trend">{line}</span>;
+      return <span className="text-positive-trend break-words max-w-full inline-block">{line}</span>;
     } else if (line.match(/\b(true|false|null)\b/)) {
       // This contains literals
-      return <span className="text-positive-trend">{line}</span>;
+      return <span className="text-positive-trend break-words max-w-full inline-block">{line}</span>;
     } else if (line.match(/\b\d+\b/)) {
       // This contains numbers
-      return <span className="text-foreground">{line}</span>;
+      return <span className="text-foreground break-words max-w-full inline-block">{line}</span>;
     }
     
-    return <span className="text-muted-foreground">{line}</span>;
+    return <span className="text-muted-foreground break-words max-w-full inline-block">{line}</span>;
   };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl w-[90vw] h-[80vh] p-0">
+      <DialogContent className="w-[95vw] max-w-4xl h-[90vh] max-h-[90vh] p-0 sm:w-[90vw] sm:max-w-3xl md:max-w-4xl lg:max-w-5xl">
         <div className="flex flex-col h-full">
-          <DialogHeader className="p-6 pb-0">
-            <DialogTitle className="text-xl font-semibold">Add response format</DialogTitle>
-            <DialogDescription className="text-muted-foreground">
+          <DialogHeader className="p-3 sm:p-4 md:p-6 pb-0">
+            <DialogTitle className="text-lg sm:text-xl font-semibold">Add response format</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground">
               Use a JSON schema to define the structure of the model's response format.{' '}
               <a 
                 href="https://platform.openai.com/docs/guides/structured-outputs?api-mode=chat" 
                 target="_blank" 
                 rel="noopener noreferrer"
-                className="text-positive-trend cursor-pointer hover:underline"
+                className="text-positive-trend cursor-pointer hover:underline break-words inline-block max-w-full"
               >
                 Learn more.
               </a>
             </DialogDescription>
           </DialogHeader>
 
-          <div className="flex-1 p-6 pt-4 flex flex-col min-h-0">
-            <div className="flex items-center justify-between mb-4">
+          <div className="flex-1 p-3 sm:p-4 md:p-6 pt-2 sm:pt-3 md:pt-4 flex flex-col min-h-0">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-0 mb-4">
               <h3 className="text-sm font-medium">Definition</h3>
               <div className="flex items-center space-x-2">
                 <Popover open={generateModalOpen} onOpenChange={setGenerateModalOpen}>
@@ -249,18 +247,19 @@ const JsonSchemaModal: React.FC<JsonSchemaModalProps> = ({
                       variant="outline"
                       size="sm"
                       onClick={handleGenerate}
-                      className="flex items-center space-x-2 hover:bg-positive-trend/10 hover:text-positive-trend focus:bg-positive-trend/10 focus:text-positive-trend"
+                      className="flex items-center space-x-2 hover:bg-positive-trend/10 hover:text-positive-trend focus:bg-positive-trend/10 focus:text-positive-trend text-xs sm:text-sm"
                     >
-                      <Sparkles className="h-4 w-4" />
-                      <span>Generate</span>
+                      <Sparkles className="h-3 w-3 sm:h-4 sm:w-4" />
+                      <span className="hidden sm:inline">Generate</span>
+                      <span className="sm:hidden">Gen</span>
                     </Button>
                   </PopoverTrigger>
-                          <PopoverContent 
-          className="w-80 p-4"
-          side="right"
-          align="start"
-        >
-                    <div className="space-y-4">
+                  <PopoverContent 
+                    className="w-[85vw] max-w-80 p-3 sm:p-4"
+                    side="right"
+                    align="start"
+                  >
+                    <div className="space-y-3 sm:space-y-4">
                       <div>
                         <h4 className="text-sm font-medium mb-2">Generate JSON Schema</h4>
                         <p className="text-xs text-muted-foreground mb-3">
@@ -277,15 +276,13 @@ const JsonSchemaModal: React.FC<JsonSchemaModalProps> = ({
                           value={generatePrompt}
                           onChange={(e) => setGeneratePrompt(e.target.value)}
                           placeholder="Describe how you want the model to respond, and we'll generate a JSON schema."
-                          className="w-full h-20 text-xs resize-none bg-muted/50 border border-border focus:border-positive-trend/60 focus:ring-0 focus:ring-offset-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-positive-trend/60 transition-all duration-200"
+                          className="w-full h-16 sm:h-20 text-xs resize-none bg-muted/50 border border-border focus:border-positive-trend/60 focus:ring-0 focus:ring-offset-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-positive-trend/60 transition-all duration-200"
                           style={{ 
                             boxShadow: 'none !important',
                             outline: 'none !important'
                           }}
                         />
                       </div>
-                      
-
                       
                       <div className="flex items-center justify-end space-x-2 pt-2">
                         <Button
@@ -296,50 +293,51 @@ const JsonSchemaModal: React.FC<JsonSchemaModalProps> = ({
                         >
                           Cancel
                         </Button>
-                                                 <Button
-                           size="sm"
-                           onClick={handleGenerateCreate}
-                           className="text-xs bg-positive-trend hover:bg-positive-trend/90 text-white"
-                           disabled={!generatePrompt.trim() || isGenerating}
-                         >
-                           {isGenerating ? (
-                             <div className="flex items-center space-x-2">
-                               <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
-                               <span>Creating...</span>
-                             </div>
-                           ) : (
-                             'Create'
-                           )}
-                         </Button>
+                        <Button
+                          size="sm"
+                          onClick={handleGenerateCreate}
+                          className="text-xs bg-positive-trend hover:bg-positive-trend/90 text-white"
+                          disabled={!generatePrompt.trim() || isGenerating}
+                        >
+                          {isGenerating ? (
+                            <div className="flex items-center space-x-2">
+                              <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
+                              <span>Creating...</span>
+                            </div>
+                          ) : (
+                            'Create'
+                          )}
+                        </Button>
                       </div>
                     </div>
                   </PopoverContent>
                 </Popover>
-
               </div>
             </div>
 
             <div className="flex-1 min-h-0 relative">
               {isGenerating ? (
-                <div className="w-full h-full bg-muted/50 border border-border rounded-md flex items-center justify-center min-h-[400px]">
+                <div className="w-full h-full bg-muted/50 border border-border rounded-md flex items-center justify-center min-h-[300px] sm:min-h-[400px]">
                   <div className="flex flex-col items-center space-y-3">
-                    <div className="w-8 h-8 border-2 border-positive-trend border-t-transparent rounded-full animate-spin"></div>
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 border-2 border-positive-trend border-t-transparent rounded-full animate-spin"></div>
                     <p className="text-sm text-muted-foreground">Generating schema...</p>
                   </div>
                 </div>
               ) : (
-                <div className="relative w-full h-full min-h-[400px]">
+                <div className="relative w-full h-full min-h-[300px] sm:min-h-[400px]">
                   {jsonSchema.trim() ? (
                     // Show syntax highlighted JSON
-                    <div className="w-full h-full bg-muted/50 border border-border rounded-md p-4 overflow-auto min-h-[400px]">
-                      {highlightJson(jsonSchema)}
+                    <div className="w-full h-full bg-muted/50 border border-border rounded-md p-2 sm:p-3 md:p-4 overflow-auto min-h-[300px] sm:min-h-[400px]">
+                      <div className="max-w-full">
+                        {highlightJson(jsonSchema)}
+                      </div>
                       {/* Hidden textarea for editing */}
                       <Textarea
                         value={jsonSchema}
                         onChange={(e) => onJsonSchemaChange(e.target.value)}
-                        className="absolute inset-0 w-full h-full resize-none font-mono text-sm bg-transparent border-none text-transparent caret-white focus:border-positive-trend/60 focus:ring-0 focus:ring-offset-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-positive-trend/60 transition-all duration-200 p-4"
+                        className="absolute inset-0 w-full h-full resize-none font-mono text-xs sm:text-sm bg-transparent border-none text-transparent caret-white focus:border-positive-trend/60 focus:ring-0 focus:ring-offset-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-positive-trend/60 transition-all duration-200 p-2 sm:p-3 md:p-4"
                         style={{ 
-                          minHeight: '400px',
+                          minHeight: '300px',
                           boxShadow: 'none !important',
                           outline: 'none !important',
                           caretColor: 'var(--positive-trend)'
@@ -387,9 +385,9 @@ const JsonSchemaModal: React.FC<JsonSchemaModalProps> = ({
     ]
   }
 }`}
-                      className="w-full h-full resize-none font-mono text-sm bg-muted/50 border border-border focus:border-positive-trend/60 focus:ring-0 focus:ring-offset-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-positive-trend/60 transition-all duration-200"
+                      className="w-full h-full resize-none font-mono text-xs sm:text-sm bg-muted/50 border border-border focus:border-positive-trend/60 focus:ring-0 focus:ring-offset-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-positive-trend/60 transition-all duration-200"
                       style={{ 
-                        minHeight: '400px',
+                        minHeight: '300px',
                         boxShadow: 'none !important',
                         outline: 'none !important'
                       }}
@@ -400,17 +398,17 @@ const JsonSchemaModal: React.FC<JsonSchemaModalProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center justify-end space-x-3 p-6 pt-4 border-t border-border">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-end gap-3 sm:gap-0 p-3 sm:p-4 md:p-6 pt-3 sm:pt-3 md:pt-4 border-t border-border">
             <Button
               variant="outline"
               onClick={() => onOpenChange(false)}
-              className="hover:bg-muted/50"
+              className="hover:bg-muted/50 order-2 sm:order-1"
             >
               Cancel
             </Button>
             <Button
               onClick={handleSave}
-              className="bg-positive-trend hover:bg-positive-trend/90 text-white"
+              className="bg-positive-trend hover:bg-positive-trend/90 text-white order-1 sm:order-2"
             >
               Save
             </Button>

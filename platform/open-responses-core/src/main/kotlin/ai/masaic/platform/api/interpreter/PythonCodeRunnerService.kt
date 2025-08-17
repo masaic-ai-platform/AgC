@@ -8,6 +8,7 @@ import ai.masaic.openresponses.tool.mcp.MCPServerInfo
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.platform.api.config.PyInterpreterSettings
 import ai.masaic.platform.api.config.SystemSettingsType
+import ai.masaic.platform.api.registry.functions.params
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -52,18 +53,25 @@ class PythonCodeRunnerService(
             ?: throw IllegalArgumentException("Tool $codeRunnerTool not found.")
 
         val codeStr = String(Base64.getDecoder().decode(request.encodedCode), Charsets.UTF_8)
-        val paramsJsonStr = try {String(Base64.getDecoder().decode(request.encodedJsonParams), Charsets.UTF_8)} catch (ex: IllegalArgumentException) {String(request.encodedJsonParams!!.toByteArray(), Charsets.UTF_8)}
+        val paramsJsonStr = if (request.encodedJsonParams.isNullOrBlank()) {
+            ""
+        } else {
+            try {
+                String(Base64.getDecoder().decode(request.encodedJsonParams), Charsets.UTF_8)
+            } catch (ex: IllegalArgumentException) {
+                String(request.encodedJsonParams.toByteArray(), Charsets.UTF_8)
+            }
+        }
         val depsJson = mapper.writeValueAsString(request.deps)
         val codeJson = mapper.writeValueAsString(codeStr)
 
-        val code = assembleCode(
-            CodeAssembleAttributes(
-                name = request.funName,
-                deps = depsJson,
-                userCode = codeJson,
-                params = paramsJsonStr
-            )
+        val attributes = CodeAssembleAttributes(
+        name = request.funName,
+        deps = depsJson,
+        userCode = codeJson,
+        params = paramsJsonStr
         )
+        val code = if(paramsJsonStr.isEmpty()) assembleCodeWithoutParams(attributes) else assembleCodeWithParams(attributes)
         val eventPrefix = "response.agc_compute.${request.funName}"
         emitEvent(eventEmitter, "$eventPrefix.executing", code)
 
@@ -74,9 +82,56 @@ class PythonCodeRunnerService(
         return codeExecResult
     }
 
-    private fun assembleCode(request: CodeAssembleAttributes): String {
+    private fun assembleCodeWithoutParams(request: CodeAssembleAttributes): String {
         val code = """
-import sys, subprocess, json, base64
+import sys, subprocess, json, base64, io, contextlib
+
+# 1) deps from registry
+for _pkg in ${request.deps}:
+    if _pkg:
+        subprocess.run([sys.executable, "-m", "pip", "install", _pkg],
+                       check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+# 2) load analyst code at top level
+_code = ${request.userCode}
+_code = _code.replace("\r\n", "\n").replace("\r", "\n").expandtabs(4)
+
+globals_dict = {}
+
+# Capture user stdout
+user_stdout = io.StringIO()
+with contextlib.redirect_stdout(user_stdout):
+    exec(compile(_code, "<user_code>", "exec"), globals_dict, globals_dict)
+
+# 3) call run(params) or fallback to ENTRYPOINT(**params)
+ENTRYPOINT = "${request.name}"
+if "run" in globals_dict and callable(globals_dict["run"]):
+    result = globals_dict["run"]()
+else:
+    fn = globals_dict.get(ENTRYPOINT)
+    if fn is None or not callable(fn):
+        raise RuntimeError(f"ENTRYPOINT '{ENTRYPOINT}' not found and no run(params) provided")
+    result = fn()
+
+# 4) capture any intermediate prints from user code
+user_prints = user_stdout.getvalue()
+
+# 5) print *only deterministic JSON* to stdout
+print(json.dumps({
+    "function_output": result,
+    "user_stdout": user_prints.strip() if user_prints else None
+}, ensure_ascii=False))
+        """.trimIndent()
+
+        log.debug { "======== Final code for execution=======" }
+        log.debug { code }
+        log.debug { "========================================" }
+        return code
+    }
+
+    private fun assembleCodeWithParams(request: CodeAssembleAttributes): String {
+        val code = """
+import sys, subprocess, json, base64, io, contextlib
 
 # 1) deps from registry
 for _pkg in ${request.deps}:
@@ -87,28 +142,43 @@ for _pkg in ${request.deps}:
 # 2) params
 params = json.loads('''${request.params}''')
 
-# 3) load analyst code at top level (no indentation coupling)
+# 3) prepare user code
 _code = ${request.userCode}
-_code = _code.replace("\r\n","\n").replace("\r","\n").expandtabs(4)
-exec(compile(_code, "<user_code>", "exec"), globals(), globals())
+_code = _code.replace("\r\n", "\n").replace("\r", "\n").expandtabs(4)
 
-# 4) call run(params) or fallback to ENTRYPOINT(**params)
+globals_dict = {}
+
+# 4) execute user code (function definitions, imports, etc.)
+exec(compile(_code, "<user_code>", "exec"), globals_dict, globals_dict)
+
+# 5) find entrypoint
 ENTRYPOINT = "${request.name}"
-if "run" in globals() and callable(globals()["run"]):
-    result = globals()["run"](params)
+fn = None
+if "run" in globals_dict and callable(globals_dict["run"]):
+    fn = globals_dict["run"]
 else:
-    fn = globals().get(ENTRYPOINT)
+    fn = globals_dict.get(ENTRYPOINT)
     if fn is None or not callable(fn):
         raise RuntimeError(f"ENTRYPOINT '{ENTRYPOINT}' not found and no run(params) provided")
+
+# 6) capture stdout during function call
+user_stdout = io.StringIO()
+with contextlib.redirect_stdout(user_stdout):
     result = fn(**params)
 
-# 5) print result as a single JSON line (easy to parse)
-print(json.dumps({"function_output": result}, ensure_ascii=False), end="")   
+# 7) collect captured prints
+user_prints = user_stdout.getvalue()
+
+# 8) deterministic JSON output
+print(json.dumps({
+    "function_output": result,
+    "user_stdout": user_prints.strip() if user_prints else None
+}, ensure_ascii=False), end="")
         """.trimIndent()
 
-        log.info { "======== Final code for execution=======" }
-        log.info { code }
-        log.info { "========================================" }
+        log.debug { "======== Final code for execution=======" }
+        log.debug { code }
+        log.debug { "========================================" }
         return code
     }
 
@@ -188,6 +258,7 @@ data class CodeExecuteReq(
     val deps: List<String> = emptyList(),
     val encodedCode: String,
     val encodedJsonParams: String? = null,
+    @JsonProperty("code_interpreter")
     val pyInterpreterServer: PyInterpreterServer ?= null
 )
 
@@ -208,6 +279,7 @@ data class CodeInterpreterResult(
 
 data class CodeExecResult(
     @JsonProperty("function_output") val functionOutput: Map<String, Any> = emptyMap(),
+    @JsonProperty("user_stdout") val debugStatements: String ?= null,
     val error: CodeExecError? = null
 )
 

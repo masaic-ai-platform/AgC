@@ -198,6 +198,7 @@ const AiPlayground: React.FC = () => {
     const savedMCPTools = loadMCPToolsFromStorage();
     const savedFileSearchTools = loadFileSearchToolsFromStorage();
     const savedAgenticFileSearchTools = loadAgenticFileSearchToolsFromStorage();
+    const savedPyFunctionTools = loadPyFunctionToolsFromStorage();
     
     // Don't load apiKey from localStorage - it's managed by getProviderApiKey function
     setBaseUrl(savedBaseUrl);
@@ -215,7 +216,7 @@ const AiPlayground: React.FC = () => {
     setTextFormat(savedTextFormat);
     setToolChoice(savedToolChoice);
     setPromptMessages(savedPromptMessages);
-    setSelectedTools([...savedOtherTools, ...savedMCPTools, ...savedFileSearchTools, ...savedAgenticFileSearchTools]);
+    setSelectedTools([...savedOtherTools, ...savedMCPTools, ...savedFileSearchTools, ...savedAgenticFileSearchTools, ...savedPyFunctionTools]);
   }, []);
 
   // Save settings to localStorage whenever they change
@@ -241,15 +242,18 @@ const AiPlayground: React.FC = () => {
     const mcpTools = selectedTools.filter(tool => tool.id === 'mcp_server');
     const fileSearchTools = selectedTools.filter(tool => tool.id === 'file_search');
     const agenticFileSearchTools = selectedTools.filter(tool => tool.id === 'agentic_file_search');
+    const pyFunctionTools = selectedTools.filter(tool => tool.id === 'py_fun_tool');
     const otherTools = selectedTools.filter(tool => 
       tool.id !== 'mcp_server' && 
       tool.id !== 'file_search' && 
-      tool.id !== 'agentic_file_search'
+      tool.id !== 'agentic_file_search' &&
+      tool.id !== 'py_fun_tool'
     );
     
     saveMCPToolsToStorage(mcpTools);
     saveFileSearchToolsToStorage(fileSearchTools);
     saveAgenticFileSearchToolsToStorage(agenticFileSearchTools);
+    savePyFunctionToolsToStorage(pyFunctionTools);
     localStorage.setItem('aiPlayground_otherTools', JSON.stringify(otherTools));
   }, [apiKey, baseUrl, modelProvider, modelName, imageModelProvider, imageModelName, imageProviderKey, selectedVectorStore, instructions, temperature, maxTokens, topP, storeLogs, textFormat, toolChoice, promptMessages, selectedTools]);
 
@@ -467,6 +471,57 @@ const AiPlayground: React.FC = () => {
     });
     
     localStorage.setItem('platform_agenticFileSearchTools', JSON.stringify(agenticFileSearchToolsMap));
+  };
+
+  // Py function tools persistence
+  const loadPyFunctionToolsFromStorage = (): Tool[] => {
+    try {
+      const stored = localStorage.getItem('platform_py_fun_tools');
+      if (!stored) return [];
+      
+      const pyFunctionToolsMap = JSON.parse(stored);
+      const pyFunctionTools: Tool[] = [];
+      
+      // Handle both array and object formats for backward compatibility
+      if (Array.isArray(pyFunctionToolsMap)) {
+        // Old array format - convert to new format
+        pyFunctionToolsMap.forEach((tool: any) => {
+          pyFunctionTools.push({
+            id: 'py_fun_tool',
+            name: tool.tool_def.name,
+            icon: Code,
+            pyFunctionConfig: tool
+          });
+        });
+      } else {
+        // New object format
+        Object.values(pyFunctionToolsMap).forEach((tool: any) => {
+          pyFunctionTools.push({
+            id: 'py_fun_tool',
+            name: tool.tool_def.name,
+            icon: Code,
+            pyFunctionConfig: tool
+          });
+        });
+      }
+      
+      return pyFunctionTools;
+    } catch (error) {
+      console.error('Error loading Py function tools from storage:', error);
+      return [];
+    }
+  };
+
+  const savePyFunctionToolsToStorage = (tools: Tool[]) => {
+    const pyFunctionTools = tools.filter(tool => tool.id === 'py_fun_tool' && tool.pyFunctionConfig);
+    const pyFunctionToolsMap: Record<string, any> = {};
+    
+    pyFunctionTools.forEach(tool => {
+      const functionName = tool.pyFunctionConfig!.tool_def.name;
+      pyFunctionToolsMap[functionName] = tool.pyFunctionConfig;
+    });
+    
+    localStorage.setItem('platform_py_fun_tools', JSON.stringify(pyFunctionToolsMap));
   };
 
   const generateResponse = async (prompt: string) => {

@@ -127,14 +127,6 @@ class FunctionRegistryController(
         }
     }
 
-    @PostMapping("/functions/{name}/execute")
-    suspend fun executeFunction(@PathVariable name: String, @RequestBody funExecuteReq: CodeExecuteReq): ResponseEntity<CodeExecResult> {
-        return ResponseEntity.ok(codeRunnerService.runCode(
-            funExecuteReq.copy(funName = name),
-            eventEmitter = { }
-        ))
-    }
-
     /**
      * Preview function (placeholder for future schema inference).
      * POST /api/registry/functions:preview

@@ -22,6 +22,7 @@ import FunctionModal from './FunctionModal';
 import MCPModal from './MCPModal';
 import FileSearchModal from './FileSearchModal';
 import AgenticFileSearchModal from './AgenticFileSearchModal';
+import PyFunctionToolModal from './PyFunctionToolModal';
 
 interface Tool {
   id: string;
@@ -31,6 +32,17 @@ interface Tool {
   mcpConfig?: any; // For MCP server tools
   fileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[] }; // For file search tools
   agenticFileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[]; iterations: number; maxResults: number }; // For agentic file search tools
+  pyFunctionConfig?: any; // For Python function tools
+}
+
+interface PyFunctionTool {
+  type: string;
+  tool_def: {
+    name: string;
+    description: string;
+    parameters: string;
+  };
+  code: string;
 }
 
 interface ToolsSelectionModalProps {
@@ -44,12 +56,16 @@ interface ToolsSelectionModalProps {
   onEditingFileSearchChange?: (editingFileSearch: Tool | null) => void;
   editingAgenticFileSearch?: Tool | null;
   onEditingAgenticFileSearchChange?: (editingAgenticFileSearch: Tool | null) => void;
+  editingPyFunction?: Tool | null;
+  onEditingPyFunctionChange?: (editingPyFunction: Tool | null) => void;
+  onOpenE2BModal?: () => void;
   getMCPToolByLabel?: (label: string) => any;
   children?: React.ReactNode;
 }
 
 const availableTools: Tool[] = [
   { id: 'mcp_server', name: 'MCP Server', icon: MCP },
+  { id: 'py_fun_tool', name: 'Py Function Tool', icon: Code },
   { id: 'file_search', name: 'File Search', icon: Search },
   { id: 'agentic_file_search', name: 'Agentic File Search', icon: FileSearch },
   { id: 'function', name: 'Function', icon: Code },
@@ -68,6 +84,9 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
   onEditingFileSearchChange,
   editingAgenticFileSearch,
   onEditingAgenticFileSearchChange,
+  editingPyFunction,
+  onEditingPyFunctionChange,
+  onOpenE2BModal,
   getMCPToolByLabel,
   children
 }) => {
@@ -77,6 +96,7 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
   const [mcpModalOpen, setMcpModalOpen] = useState(false);
   const [fileSearchModalOpen, setFileSearchModalOpen] = useState(false);
   const [agenticFileSearchModalOpen, setAgenticFileSearchModalOpen] = useState(false);
+  const [pyFunctionModalOpen, setPyFunctionModalOpen] = useState(false);
   
   const { platformInfo } = usePlatformInfo();
   const isVectorStoreEnabled = platformInfo?.vectorStoreInfo?.isEnabled ?? true;
@@ -110,6 +130,13 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
     }
   }, [editingAgenticFileSearch]);
 
+  // Handle editing existing PyFunction tool
+  React.useEffect(() => {
+    if (editingPyFunction && editingPyFunction.id === 'py_fun_tool') {
+      setPyFunctionModalOpen(true);
+    }
+  }, [editingPyFunction]);
+
   const handleToolSelect = (tool: Tool) => {
     if (tool.id === 'function') {
       setIsOpen(false);
@@ -123,6 +150,9 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
     } else if (tool.id === 'agentic_file_search') {
       setIsOpen(false);
       setAgenticFileSearchModalOpen(true);
+    } else if (tool.id === 'py_fun_tool') {
+      setIsOpen(false);
+      setPyFunctionModalOpen(true);
     } else {
       onToolSelect(tool);
       setIsOpen(false);
@@ -237,9 +267,33 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
     }
   };
 
+  const handlePyFunctionSave = (config: PyFunctionTool) => {
+    // Create PyFunction tool with config
+    const pyFunctionTool: Tool = {
+      id: 'py_fun_tool',
+      name: config.tool_def.name || 'Python Function',
+      icon: Code,
+      pyFunctionConfig: config
+    };
+
+    // If editing, remove the old PyFunction tool first
+    if (editingPyFunction && onEditingPyFunctionChange) {
+      // The parent component will handle removing the old PyFunction tool and adding the new one
+      onEditingPyFunctionChange(null);
+    }
+
+    onToolSelect(pyFunctionTool);
+    setPyFunctionModalOpen(false);
+    
+    // Clear editing state
+    if (onEditingPyFunctionChange) {
+      onEditingPyFunctionChange(null);
+    }
+  };
+
   const isToolSelected = (toolId: string) => {
-    // Allow multiple functions and MCP servers to be added
-    if (toolId === 'function' || toolId === 'mcp_server') {
+    // Allow multiple functions, MCP servers, and PyFunction tools to be added
+    if (toolId === 'function' || toolId === 'mcp_server' || toolId === 'py_fun_tool') {
       return false;
     }
     return selectedTools.some(tool => tool.id === toolId);
@@ -259,6 +313,14 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
       return {
         isDisabled: true,
         tooltipMessage: 'Coming Soon'
+      };
+    }
+
+    // Enable PyFunction tool
+    if (tool.id === 'py_fun_tool') {
+      return {
+        isDisabled: false,
+        tooltipMessage: null
       };
     }
 
@@ -428,6 +490,22 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
         initialMaxResults={editingAgenticFileSearch?.agenticFileSearchConfig?.maxResults}
         initialSelectedFiles={editingAgenticFileSearch?.agenticFileSearchConfig?.selectedFiles}
         initialVectorStoreNames={editingAgenticFileSearch?.agenticFileSearchConfig?.vectorStoreNames}
+      />
+
+      <PyFunctionToolModal
+        open={pyFunctionModalOpen}
+        onOpenChange={(open) => {
+          setPyFunctionModalOpen(open);
+          if (!open) {
+            // Clear editing state when modal closes
+            if (onEditingPyFunctionChange) {
+              onEditingPyFunctionChange(null);
+            }
+          }
+        }}
+        onSave={handlePyFunctionSave}
+        initialTool={editingPyFunction?.pyFunctionConfig || null}
+        onOpenE2BModal={onOpenE2BModal}
       />
     </>
   );
