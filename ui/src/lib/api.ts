@@ -2,9 +2,46 @@ import { API_URL } from '@/config';
 
 class ApiClient {
   private getModelApiKey(): string | null {
-    // This would get the model API key from your existing logic
-    // For now, return null to maintain existing behavior
-    return null;
+    try {
+      // Get the selected model provider and name
+      const modelProvider = localStorage.getItem('platform_modelProvider');
+      const modelName = localStorage.getItem('platform_modelName');
+      
+      // If no model is selected, return null
+      if (!modelProvider || !modelName) {
+        console.warn('No model provider or name selected');
+        return null;
+      }
+      
+      // Get API keys from localStorage
+      const savedApiKeys = localStorage.getItem('platform_apiKeys');
+      if (!savedApiKeys) {
+        console.warn('No API keys found in localStorage');
+        return null;
+      }
+      
+      const apiKeys = JSON.parse(savedApiKeys);
+      
+      // Find the API key for the selected model provider
+      const providerKey = apiKeys.find((key: any) => key.name === modelProvider);
+      if (providerKey?.apiKey) {
+        console.log(`Using API key for provider: ${modelProvider}, model: ${modelName}`);
+        return providerKey.apiKey;
+      }
+      
+      // Fallback: try to use any available API key
+      const firstAvailableKey = apiKeys.find((key: any) => key.apiKey);
+      if (firstAvailableKey?.apiKey) {
+        console.warn(`No API key found for provider: ${modelProvider}, using fallback key from: ${firstAvailableKey.name}`);
+        return firstAvailableKey.apiKey;
+      }
+      
+      console.warn(`No API key found for provider: ${modelProvider} and no fallback keys available`);
+      return null;
+    } catch (error) {
+      console.error('Error getting model API key:', error);
+      return null;
+    }
   }
 
   private getGoogleToken(): string | null {
@@ -53,6 +90,15 @@ class ApiClient {
 
   async request(endpoint: string, options: RequestInit = {}): Promise<Response> {
     const headers = { ...await this.getHeaders(), ...options.headers };
+
+    // Debug: Log headers being sent (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`API Request to ${endpoint}:`, {
+        headers: headers,
+        hasAuth: !!headers['Authorization'],
+        hasGoogleToken: !!headers['X-Google-Token']
+      });
+    }
 
     try {
       const response = await fetch(`${API_URL}${endpoint}`, {

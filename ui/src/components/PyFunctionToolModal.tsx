@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Loader2, Code, Sparkles, Play, AlertCircle, Copy, Wand2, AlertTriangle, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
-import { API_URL } from '@/config';
+
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { apiClient } from '@/lib/api';
@@ -356,24 +356,7 @@ const PyFunctionToolModal: React.FC<PyFunctionToolModalProps> = ({
       const savedModelProvider = localStorage.getItem('platform_modelProvider') || 'openai';
       const savedModelName = localStorage.getItem('platform_modelName') || 'gpt-4o';
       
-      // Get API key for the selected model
-      const savedApiKeys = localStorage.getItem('platform_apiKeys');
-      let apiKey = '';
-      if (savedApiKeys) {
-        try {
-          const apiKeys = JSON.parse(savedApiKeys);
-          const providerKey = apiKeys.find((key: any) => key.name === savedModelProvider);
-          apiKey = providerKey?.apiKey || '';
-        } catch (error) {
-          console.error('Error parsing API keys:', error);
-        }
-      }
 
-      if (!apiKey) {
-        toast.error('Please configure API key for the selected model');
-        setIsValidating(false);
-        return;
-      }
 
       // Prepare request payload
       const payload = {
@@ -403,21 +386,20 @@ const PyFunctionToolModal: React.FC<PyFunctionToolModalProps> = ({
         }
       };
 
-      // Make API call
-      const response = await fetch(`${API_URL}/v1/dashboard/agc/functions:suggest`, {
+      // Make API call using apiClient
+      const data = await apiClient.jsonRequest<{
+        suggestedFunctionDetails?: {
+          name?: string;
+          description?: string;
+          parameters?: any;
+        };
+        testData?: any;
+        isCodeValid?: boolean;
+        codeProblem?: string;
+      }>('/v1/dashboard/agc/functions:suggest', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
         body: JSON.stringify(payload)
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const data = await response.json();
       
       // Handle code validation - NEVER clear the code field
       if (!data.isCodeValid) {
@@ -527,24 +509,6 @@ const PyFunctionToolModal: React.FC<PyFunctionToolModalProps> = ({
     setIsConnecting(true);
 
     try {
-      // Get API key from localStorage
-      const savedApiKeys = localStorage.getItem('platform_apiKeys');
-      let apiKey = '';
-      if (savedApiKeys) {
-        try {
-          const apiKeys = JSON.parse(savedApiKeys);
-          // Use the first available API key or get from a specific provider
-          apiKey = apiKeys[0]?.apiKey || '';
-        } catch (error) {
-          console.error('Error parsing API keys:', error);
-        }
-      }
-
-      if (!apiKey) {
-        toast.error('Please configure an API key first');
-        setIsConnecting(false);
-        return;
-      }
 
       // Get E2B server configuration from localStorage
       const e2bConfig = localStorage.getItem('platform_e2b_mcp');
@@ -569,47 +533,18 @@ const PyFunctionToolModal: React.FC<PyFunctionToolModalProps> = ({
         code_interpreter: codeInterpreter
       };
 
-      // Make API call
-      const response = await fetch(`${API_URL}/v1/dashboard/functions/${encodeURIComponent(name.trim())}:execute`, {
+      // Make API call using apiClient
+      const data = await apiClient.jsonRequest<{
+        function_output?: any;
+        error?: {
+          code: string;
+          message: string;
+          trace?: any;
+        };
+      }>(`/v1/dashboard/functions/${encodeURIComponent(name.trim())}:execute`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
         body: JSON.stringify(payload)
       });
-
-      if (!response.ok) {
-        // Handle 4XX/5XX responses with error details in response body
-        try {
-          const errorData = await response.json();
-          console.log('API Error Response:', errorData); // Debug log
-          
-          // Set the test error directly instead of throwing
-          setTestError(`Test failed: ${errorData.message || 'Unknown error'}`);
-          
-          // Show appropriate error message
-          if (errorData.type === 'invalid_request') {
-            toast.error(`Configuration Error: ${errorData.message}`);
-          } else {
-            toast.error(`Function execution failed: ${errorData.message}`);
-          }
-          
-          // Return early to avoid further processing
-          setIsConnecting(false);
-          return;
-          
-        } catch (parseError) {
-          // If response body can't be parsed, show generic HTTP error
-          console.error('Failed to parse error response:', parseError);
-          setTestError(`Test failed: HTTP ${response.status} error: ${response.statusText}`);
-          toast.error(`HTTP ${response.status} error: ${response.statusText}`);
-          setIsConnecting(false);
-          return;
-        }
-      }
-
-      const data = await response.json();
       
       // Handle response based on success/failure
       if (data.error) {
