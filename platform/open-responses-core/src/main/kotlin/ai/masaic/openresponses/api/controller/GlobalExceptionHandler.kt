@@ -239,7 +239,7 @@ class GlobalExceptionHandler(
 
     @ExceptionHandler(ResourceNotFoundException::class)
     fun handleResourceNotFoundException(
-        ex: ResourceNotFoundException
+        ex: ResourceNotFoundException,
     ): ResponseEntity<ErrorResponse> {
         val status = HttpStatus.NOT_FOUND
         logError(status, ex, "Resource not found: ${ex.message}")

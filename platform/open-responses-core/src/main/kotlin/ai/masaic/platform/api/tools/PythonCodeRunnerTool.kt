@@ -8,9 +8,11 @@ import ai.masaic.platform.api.interpreter.PythonCodeRunnerService
 import com.openai.client.OpenAIClient
 import org.springframework.http.codec.ServerSentEvent
 
-class PythonCodeRunnerTool(private val pythonCodeRunnerService: PythonCodeRunnerService): PlatformNativeTool(PlatformToolsNames.PY_CODE_RUNNER) {
-    override fun provideToolDef(): NativeToolDefinition {
-        return nativeToolDefinition {
+class PythonCodeRunnerTool(
+    private val pythonCodeRunnerService: PythonCodeRunnerService,
+) : PlatformNativeTool(PlatformToolsNames.PY_CODE_RUNNER) {
+    override fun provideToolDef(): NativeToolDefinition =
+        nativeToolDefinition {
             name(toolName)
             description("This tool is runs the given python code")
             parameters {
@@ -29,7 +31,6 @@ class PythonCodeRunnerTool(private val pythonCodeRunnerService: PythonCodeRunner
                 additionalProperties = false
             }
         }
-    }
 
     override suspend fun executeTool(
         resolvedName: String,
@@ -38,8 +39,6 @@ class PythonCodeRunnerTool(private val pythonCodeRunnerService: PythonCodeRunner
         client: OpenAIClient,
         eventEmitter: (ServerSentEvent<String>) -> Unit,
         toolMetadata: Map<String, Any>,
-        context: UnifiedToolContext
-    ): String? {
-return null
-    }
+        context: UnifiedToolContext,
+    ): String? = null
 }

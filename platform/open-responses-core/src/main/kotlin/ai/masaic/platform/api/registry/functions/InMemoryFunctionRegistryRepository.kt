@@ -14,42 +14,53 @@ import java.time.Instant
 @Repository
 @ConditionalOnProperty(name = ["open-responses.store.type"], havingValue = "in-memory", matchIfMissing = true)
 class InMemoryFunctionRegistryRepository : FunctionRegistryRepository {
-    
-    private val cache: Cache<String, FunctionDoc> = Caffeine.newBuilder()
-        .maximumSize(1000)
-        .build()
+    private val cache: Cache<String, FunctionDoc> =
+        Caffeine
+            .newBuilder()
+            .maximumSize(1000)
+            .build()
 
     override suspend fun save(function: FunctionDoc): FunctionDoc {
         cache.put(function.name, function)
         return function
     }
 
-    override suspend fun findByName(name: String): FunctionDoc? {
-        return cache.getIfPresent(name)
-    }
+    override suspend fun findByName(name: String): FunctionDoc? = cache.getIfPresent(name)
 
-    override suspend fun findAll(limit: Int, cursor: String?): List<FunctionDoc> {
-        return cache.asMap().values
+    override suspend fun findAll(
+        limit: Int,
+        cursor: String?,
+    ): List<FunctionDoc> =
+        cache
+            .asMap()
+            .values
             .sortedByDescending { it.updatedAt }
             .take(limit)
-    }
 
-    override suspend fun searchByName(query: String, limit: Int): List<FunctionDoc> {
-        return cache.asMap().values
+    override suspend fun searchByName(
+        query: String,
+        limit: Int,
+    ): List<FunctionDoc> =
+        cache
+            .asMap()
+            .values
             .filter { it.name.contains(query, ignoreCase = true) }
             .sortedByDescending { it.updatedAt }
             .take(limit)
-    }
 
-    override suspend fun updateByName(name: String, update: FunctionUpdate): FunctionDoc? {
+    override suspend fun updateByName(
+        name: String,
+        update: FunctionUpdate,
+    ): FunctionDoc? {
         val existing = findByName(name) ?: return null
         
-        val updatedFunction = existing.copy(
-            description = update.description ?: existing.description,
-            deps = update.deps ?: existing.deps,
-            code = update.code ?: existing.code,
-            updatedAt = Instant.now()
-        )
+        val updatedFunction =
+            existing.copy(
+                description = update.description ?: existing.description,
+                deps = update.deps ?: existing.deps,
+                code = update.code ?: existing.code,
+                updatedAt = Instant.now(),
+            )
         
         cache.put(name, updatedFunction)
         return updatedFunction
@@ -61,9 +72,7 @@ class InMemoryFunctionRegistryRepository : FunctionRegistryRepository {
         return existed
     }
 
-    override suspend fun existsByName(name: String): Boolean {
-        return cache.getIfPresent(name) != null
-    }
+    override suspend fun existsByName(name: String): Boolean = cache.getIfPresent(name) != null
 
     /**
      * Clears the cache (useful for testing).

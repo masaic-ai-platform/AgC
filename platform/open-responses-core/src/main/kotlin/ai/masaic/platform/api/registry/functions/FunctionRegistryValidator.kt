@@ -1,4 +1,4 @@
-    package ai.masaic.platform.api.registry.functions
+package ai.masaic.platform.api.registry.functions
 
 import org.springframework.stereotype.Component
 import java.util.regex.Pattern
@@ -8,7 +8,6 @@ import java.util.regex.Pattern
  */
 @Component
 class FunctionRegistryValidator {
-
     companion object {
         private val NAME_PATTERN = Pattern.compile("^[a-zA-Z_][a-zA-Z0-9_-]*$")
         private val PIP_REQUIREMENT_PATTERN = Pattern.compile("^[a-zA-Z0-9._\\[\\]-]+(?:[<>=!~]=?[a-zA-Z0-9._\\[\\]-]+)*(?:,[<>=!~]=?[a-zA-Z0-9._\\[\\]-]+)*$")
@@ -17,16 +16,16 @@ class FunctionRegistryValidator {
     /**
      * Validates function name according to the spec pattern.
      */
-    fun validateName(name: String): ValidationResult {
-        return when {
+    fun validateName(name: String): ValidationResult =
+        when {
             name.isBlank() -> ValidationResult.Error(ErrorCodes.INVALID_NAME, "Function name cannot be blank")
-            !NAME_PATTERN.matcher(name).matches() -> ValidationResult.Error(
-                ErrorCodes.INVALID_NAME,
-                "Function name must match pattern: ^[a-zA-Z_][a-zA-Z0-9_-]{2,64}$"
-            )
+            !NAME_PATTERN.matcher(name).matches() ->
+                ValidationResult.Error(
+                    ErrorCodes.INVALID_NAME,
+                    "Function name must match pattern: ^[a-zA-Z_][a-zA-Z0-9_-]{2,64}$",
+                )
             else -> ValidationResult.Success
         }
-    }
 
     /**
      * Validates pip requirement strings.
@@ -42,7 +41,7 @@ class FunctionRegistryValidator {
         } else {
             ValidationResult.Error(
                 ErrorCodes.INVALID_DEPS,
-                "Invalid pip requirements: ${invalidDeps.joinToString(", ")}"
+                "Invalid pip requirements: ${invalidDeps.joinToString(", ")}",
             )
         }
     }
@@ -50,19 +49,20 @@ class FunctionRegistryValidator {
     /**
      * Validates Python code (basic validation without schema inference).
      */
-    fun validateCode(code: String): ValidationResult {
-        return when {
-            code.isBlank() -> ValidationResult.Error(
-                ErrorCodes.INVALID_CODE,
-                "Code cannot be blank"
-            )
-            !code.contains("def run") -> ValidationResult.Error(
-                ErrorCodes.INVALID_CODE,
-                "Code must contain 'run' function definition"
-            )
+    fun validateCode(code: String): ValidationResult =
+        when {
+            code.isBlank() ->
+                ValidationResult.Error(
+                    ErrorCodes.INVALID_CODE,
+                    "Code cannot be blank",
+                )
+            !code.contains("def run") ->
+                ValidationResult.Error(
+                    ErrorCodes.INVALID_CODE,
+                    "Code must contain 'run' function definition",
+                )
             else -> ValidationResult.Success
         }
-    }
 
     /**
      * Validates a complete function creation request.
@@ -110,9 +110,7 @@ class FunctionRegistryValidator {
     /**
      * Checks if a string is a valid pip requirement.
      */
-    private fun isValidPipRequirement(requirement: String): Boolean {
-        return PIP_REQUIREMENT_PATTERN.matcher(requirement.trim()).matches()
-    }
+    private fun isValidPipRequirement(requirement: String): Boolean = PIP_REQUIREMENT_PATTERN.matcher(requirement.trim()).matches()
 }
 
 /**
@@ -120,5 +118,9 @@ class FunctionRegistryValidator {
  */
 sealed class ValidationResult {
     object Success : ValidationResult()
-    data class Error(val code: String, val message: String) : ValidationResult()
+
+    data class Error(
+        val code: String,
+        val message: String,
+    ) : ValidationResult()
 }

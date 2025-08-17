@@ -206,14 +206,15 @@ class ToolService(
 
     suspend fun getPyFunTool(pyFunTool: PyFunTool): FunctionTool {
         val toolDef = pyFunTool.functionDetails
-        val pyFunToolDefinition = PyFunToolDefinition(
-            protocol = ToolProtocol.PY_CODE,
-            name = pyFunTool.functionDetails.name,
-            description = toolDef.description ?: "not available",
-            parameters = toolDef.parameters,
-            code = pyFunTool.code,
-            pyInterpreterServer = pyFunTool.interpreterServer
-        )
+        val pyFunToolDefinition =
+            PyFunToolDefinition(
+                protocol = ToolProtocol.PY_CODE,
+                name = pyFunTool.functionDetails.name,
+                description = toolDef.description ?: "not available",
+                parameters = toolDef.parameters,
+                code = pyFunTool.code,
+                pyInterpreterServer = pyFunTool.interpreterServer,
+            )
         nativeToolRegistry.add(pyFunToolDefinition)
         return pyFunToolDefinition.toFunctionTool()
     }

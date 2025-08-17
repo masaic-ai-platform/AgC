@@ -16,19 +16,13 @@ import ai.masaic.platform.api.service.ModelService
 import ai.masaic.platform.api.service.createCompletion
 import ai.masaic.platform.api.service.messages
 import ai.masaic.platform.api.tools.FunDefGenerationTool
-import ai.masaic.platform.api.user.AuthConfig
-import ai.masaic.platform.api.user.AuthConfigProperties
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.Profile
 import org.springframework.core.io.ClassPathResource
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
-import java.nio.charset.Charset
-import java.time.Instant
 import java.util.*
 
 @Profile("platform")
@@ -43,7 +37,7 @@ class DashboardController(
     private val funDefGenerationTool: FunDefGenerationTool,
     private val platformInfo: PlatformInfo,
     private val mcpToolRegistry: MCPToolRegistry,
-    private val codeRunnerService: CodeRunnerService
+    private val codeRunnerService: CodeRunnerService,
 ) {
     private val mapper = jacksonObjectMapper()
     private lateinit var modelProviders: Set<ModelProvider>
@@ -210,7 +204,7 @@ ${request.existingPrompt}
             val mcpServerInfo = MCPServerInfo(mcpListToolsRequest.serverLabel, mcpListToolsRequest.serverUrl)
             try {
                 executeMCPTool(it.copy(name = mcpServerInfo.qualifiedToolName(it.name)))
-            }catch (e: ResponseProcessingException) {
+            } catch (e: ResponseProcessingException) {
                 mcpToolRegistry.removeMcpServer(mcpServerInfo)
                 throw e
             }
@@ -228,18 +222,22 @@ ${request.existingPrompt}
     suspend fun executeMCPTool(
         @RequestBody toolRequest: ExecuteToolRequest,
     ): String {
-        val toolDefinition = toolService.findToolByName(toolRequest.name) ?: throw ResponseProcessingException ("Tool ${toolRequest.name} not found.")
-        val toolResponse = mcpToolExecutor.executeTool(toolDefinition, mapper.writeValueAsString(toolRequest.arguments), null, null)?: throw ResponseProcessingException("no response returned by tool ${toolRequest.name}")
+        val toolDefinition = toolService.findToolByName(toolRequest.name) ?: throw ResponseProcessingException("Tool ${toolRequest.name} not found.")
+        val toolResponse = mcpToolExecutor.executeTool(toolDefinition, mapper.writeValueAsString(toolRequest.arguments), null, null) ?: throw ResponseProcessingException("no response returned by tool ${toolRequest.name}")
         val callToolResponse: CallToolResponse = mapper.readValue(toolResponse)
-        return if(callToolResponse.isError) throw ResponseProcessingException(callToolResponse.content) else toolResponse
+        return if (callToolResponse.isError) throw ResponseProcessingException(callToolResponse.content) else toolResponse
     }
 
     @GetMapping("/platform/info")
     fun getPlatformInfo() = platformInfo
 
     @PostMapping("/agc/functions:suggest")
-    suspend fun configureFunction(@RequestBody request: SuggestPyFunDetailsRequest,@RequestHeader("Authorization") authHeader: String? = null,): ResponseEntity<SuggestPyFunDetailsResponse>{
-        val suggestionsPrompt = """
+    suspend fun configureFunction(
+        @RequestBody request: SuggestPyFunDetailsRequest,
+        @RequestHeader("Authorization") authHeader: String? = null,
+    ): ResponseEntity<SuggestPyFunDetailsResponse> {
+        val suggestionsPrompt =
+            """
 Code Validation Prompt (Simplified)
 
 You are a Python code validation assistant.
@@ -309,47 +307,52 @@ Example Output
   "isCodeValid": true,
   "codeProblem": null
 }
-        """.trimIndent()
+            """.trimIndent()
 
-        val userMessage = """
+        val userMessage =
+            """
 Code:
 ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF_8)}
-        """.trimIndent()
+            """.trimIndent()
 
         val finalSettings = modelSettings.resolveSystemSettings(ModelInfo.fromApiKey(authHeader, request.modelInfo?.model))
         val createCompletionRequest =
             CreateCompletionRequest(
                 messages =
-                messages {
-                    systemMessage(suggestionsPrompt)
-                    userMessage(userMessage)
-                },
+                    messages {
+                        systemMessage(suggestionsPrompt)
+                        userMessage(userMessage)
+                    },
                 model = finalSettings.qualifiedModelName,
                 stream = false,
-                store = false
+                store = false,
             )
-        var response: SuggestPyFunDetailsResponse ?= null
+        var response: SuggestPyFunDetailsResponse? = null
         try {
             response = modelService.createCompletion<SuggestPyFunDetailsResponse>(createCompletionRequest, finalSettings.apiKey)
-        }catch (ex: Exception) {
+        } catch (ex: Exception) {
             throw ResponseProcessingException("Unable to create suggestions due to error ${ex.message}")
         }
 
         val functionDetails = request.functionDetails
         val suggestedFunctionResponse = response.suggestedFunctionDetails
-        val finalSuggestedFunDetails  = ConfigureFunDetails(name = suggestedFunctionResponse?.name, description = functionDetails?.description ?: suggestedFunctionResponse?.description, parameters = suggestedFunctionResponse?.parameters ?: functionDetails?.parameters)
+        val finalSuggestedFunDetails = ConfigureFunDetails(name = suggestedFunctionResponse?.name, description = functionDetails?.description ?: suggestedFunctionResponse?.description, parameters = suggestedFunctionResponse?.parameters ?: functionDetails?.parameters)
         val finalResponse = response.copy(suggestedFunctionDetails = finalSuggestedFunDetails, testData = response.testData ?: request.testData)
 
         return ResponseEntity.ok(finalResponse)
     }
 
     @PostMapping("/functions/{name}:execute")
-    suspend fun executeFunction(@PathVariable name: String, @RequestBody funExecuteReq: CodeExecuteReq): ResponseEntity<CodeExecResult> {
-        return ResponseEntity.ok(codeRunnerService.runCode(
-            funExecuteReq.copy(funName = name, encodedCode = funExecuteReq.encodedCode),
-            eventEmitter = { }
-        ))
-    }
+    suspend fun executeFunction(
+        @PathVariable name: String,
+        @RequestBody funExecuteReq: CodeExecuteReq,
+    ): ResponseEntity<CodeExecResult> =
+        ResponseEntity.ok(
+            codeRunnerService.runCode(
+                funExecuteReq.copy(funName = name, encodedCode = funExecuteReq.encodedCode),
+                eventEmitter = { },
+            ),
+        )
 }
 
 data class ExecuteToolRequest(
@@ -357,9 +360,22 @@ data class ExecuteToolRequest(
     val arguments: Map<String, Any>,
 )
 
-data class SuggestPyFunDetailsRequest(val encodedCode: String, val functionDetails: ConfigureFunDetails?= null, val testData: MutableMap<String, Any> ?= null, val modelInfo: ModelInfo?,)
+data class SuggestPyFunDetailsRequest(
+    val encodedCode: String,
+    val functionDetails: ConfigureFunDetails? = null,
+    val testData: MutableMap<String, Any>? = null,
+    val modelInfo: ModelInfo?,
+)
 
-data class ConfigureFunDetails(    val name: String?= null,
-                                    val description: String ?= null,
-                                   val parameters: MutableMap<String, Any> ?= null)
-data class SuggestPyFunDetailsResponse(val suggestedFunctionDetails: ConfigureFunDetails?= null, val testData: MutableMap<String, Any> ?= null, val isCodeValid: Boolean, val codeProblem: String ?= null)
+data class ConfigureFunDetails(
+    val name: String? = null,
+    val description: String? = null,
+    val parameters: MutableMap<String, Any>? = null,
+)
+
+data class SuggestPyFunDetailsResponse(
+    val suggestedFunctionDetails: ConfigureFunDetails? = null,
+    val testData: MutableMap<String, Any>? = null,
+    val isCodeValid: Boolean,
+    val codeProblem: String? = null,
+)

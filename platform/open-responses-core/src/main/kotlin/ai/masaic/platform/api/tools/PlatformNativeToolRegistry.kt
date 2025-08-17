@@ -7,23 +7,21 @@ import ai.masaic.platform.api.interpreter.CodeRunnerService
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import mu.KotlinLogging
-import org.springframework.context.annotation.Lazy
 import org.springframework.http.codec.ServerSentEvent
-import java.util.UUID
-import kotlin.jvm.optionals.getOrNull
 
 class PlatformNativeToolRegistry(
     private val objectMapper: ObjectMapper,
     responseStore: ResponseStore,
     private val platformNativeTools: List<PlatformNativeTool>,
-    private val codeRunnerService: CodeRunnerService
+    private val codeRunnerService: CodeRunnerService,
 ) : NativeToolRegistry(objectMapper, responseStore) {
     private val log = KotlinLogging.logger {}
 
     init {
         platformNativeTools.forEach {
-            if(it.isToolDefAvailable())
-            toolRepository[it.toolName()] = it.provideToolDef()
+            if (it.isToolDefAvailable()) {
+                toolRepository[it.toolName()] = it.provideToolDef()
+            }
         }
     }
 
@@ -40,39 +38,40 @@ class PlatformNativeToolRegistry(
         val originalName = toolMetadata["originalName"] as? String ?: resolvedName
         log.debug("Executing native tool '$originalName' (resolved to '$resolvedName') with arguments: $arguments")
 
-        val toolResponse = if (tool is PyFunToolDefinition) {
-            val codeExecResult = codeRunnerService.runCode(
-                CodeExecuteReq(
-                    funName = tool.name,
-                    deps = tool.deps,
-                    encodedCode = tool.code,
-                    encodedJsonParams = arguments,
-                    pyInterpreterServer = tool.pyInterpreterServer
-                ),
-                eventEmitter
-            )
-            objectMapper.writeValueAsString(codeExecResult)
-        } else {
-
-            val platformNativeTool = platformNativeTools.find { it.toolName() == resolvedName }
-            platformNativeTool?.executeTool(
-                resolvedName,
-                arguments,
-                paramsAccessor,
-                client,
-                eventEmitter,
-                toolMetadata,
-                context,
-            ) ?: super.executeTool(
-                resolvedName,
-                arguments,
-                paramsAccessor,
-                client,
-                eventEmitter,
-                toolMetadata,
-                context
-            )
-        }
+        val toolResponse =
+            if (tool is PyFunToolDefinition) {
+                val codeExecResult =
+                    codeRunnerService.runCode(
+                        CodeExecuteReq(
+                            funName = tool.name,
+                            deps = tool.deps,
+                            encodedCode = tool.code,
+                            encodedJsonParams = arguments,
+                            pyInterpreterServer = tool.pyInterpreterServer,
+                        ),
+                        eventEmitter,
+                    )
+                objectMapper.writeValueAsString(codeExecResult)
+            } else {
+                val platformNativeTool = platformNativeTools.find { it.toolName() == resolvedName }
+                platformNativeTool?.executeTool(
+                    resolvedName,
+                    arguments,
+                    paramsAccessor,
+                    client,
+                    eventEmitter,
+                    toolMetadata,
+                    context,
+                ) ?: super.executeTool(
+                    resolvedName,
+                    arguments,
+                    paramsAccessor,
+                    client,
+                    eventEmitter,
+                    toolMetadata,
+                    context,
+                )
+            }
 
         log.debug { "toolResponse: $toolResponse" }
         return toolResponse

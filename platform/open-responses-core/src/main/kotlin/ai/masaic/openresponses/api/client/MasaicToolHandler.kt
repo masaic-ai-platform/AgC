@@ -718,7 +718,13 @@ class MasaicToolHandler(
                 val toolDefinition = toolService.getAvailableTool(function.name())
                 val funNameForEventPrefix = function.name().lowercase().replace("^\\W".toRegex(), "_")
                 val eventPrefix =
-                    if (toolDefinition?.protocol == ToolProtocol.MCP) "response.mcp_call.$funNameForEventPrefix" else if (toolDefinition?.protocol == ToolProtocol.PY_CODE) "response.agc_compute.$funNameForEventPrefix" else "response.$funNameForEventPrefix"
+                    if (toolDefinition?.protocol == ToolProtocol.MCP) {
+                        "response.mcp_call.$funNameForEventPrefix"
+                    } else if (toolDefinition?.protocol == ToolProtocol.PY_CODE) {
+                        "response.agc.$funNameForEventPrefix"
+                    } else {
+                        "response.$funNameForEventPrefix"
+                    }
                 eventEmitter.invoke(
                     ServerSentEvent
                         .builder<String>()
@@ -730,26 +736,26 @@ class MasaicToolHandler(
                                         "item_id" to (function.id().getOrNull() ?: function.callId()),
                                         "output_index" to index.toString(),
                                         "type" to "$eventPrefix.in_progress",
-                                        "tool_args" to function.arguments()
+                                        "tool_args" to function.arguments(),
                                     ),
                                 ),
                         ).build(),
                 )
 
-                if(toolDefinition?.protocol != ToolProtocol.PY_CODE) {
+                if (toolDefinition?.protocol != ToolProtocol.PY_CODE) {
                     eventEmitter.invoke(
                         ServerSentEvent
                             .builder<String>()
                             .event("$eventPrefix.executing")
                             .data(
                                 " " +
-                                        objectMapper.writeValueAsString(
-                                            mapOf<String, String>(
-                                                "item_id" to (function.id().getOrNull() ?: function.callId()),
-                                                "output_index" to index.toString(),
-                                                "type" to "$eventPrefix.executing",
-                                            ),
+                                    objectMapper.writeValueAsString(
+                                        mapOf<String, String>(
+                                            "item_id" to (function.id().getOrNull() ?: function.callId()),
+                                            "output_index" to index.toString(),
+                                            "type" to "$eventPrefix.executing",
                                         ),
+                                    ),
                             ).build(),
                     )
                 }
@@ -945,7 +951,7 @@ class MasaicToolHandler(
                                                     "item_id" to function.id().toString(),
                                                     "output_index" to index.toString(),
                                                     "type" to "$eventPrefix.completed",
-                                                    "tool_result" to toolResult
+                                                    "tool_result" to toolResult,
                                                 ),
                                             ),
                                     ).build(),

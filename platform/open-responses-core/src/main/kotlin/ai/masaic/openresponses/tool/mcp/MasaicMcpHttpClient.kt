@@ -7,7 +7,6 @@ import ai.masaic.openresponses.tool.ToolHosting
 import ai.masaic.openresponses.tool.ToolParamsAccessor
 import com.fasterxml.jackson.databind.DeserializationFeature
 import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.client.OpenAIClient
@@ -19,7 +18,6 @@ import dev.langchain4j.mcp.client.transport.McpTransport
 import dev.langchain4j.mcp.client.transport.stdio.StdioMcpTransport
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import okhttp3.Headers
@@ -33,8 +31,6 @@ import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 import java.time.Duration
 import java.util.concurrent.*
-import java.util.stream.Collectors
-import java.util.stream.StreamSupport
 import kotlin.time.Duration.Companion.seconds
 
 interface McpClientFactory {
@@ -609,4 +605,7 @@ data class CallToolRequest(
         )
 }
 
-data class CallToolResponse(val isError: Boolean = false, val content: String)
+data class CallToolResponse(
+    val isError: Boolean = false,
+    val content: String,
+)

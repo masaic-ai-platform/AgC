@@ -61,6 +61,7 @@ interface Tool {
   mcpConfig?: any; // For MCP server tools
   fileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[] }; // For file search tools
   agenticFileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[]; iterations: number; maxResults: number }; // For agentic file search tools
+  pyFunctionConfig?: any; // For Py function tools
 }
 
 const getProviderApiKey = (provider: string): string => {
@@ -706,6 +707,33 @@ const AiPlayground: React.FC = () => {
           return { type: 'mock_generation_tool' };
         } else if (tool.id === 'mock_save_tool') {
           return { type: 'mock_save_tool' };
+        } else if (tool.id === 'py_fun_tool' && tool.pyFunctionConfig) {
+          // Get E2B server configuration from localStorage
+          const e2bConfig = localStorage.getItem('platform_e2b_mcp');
+          let codeInterpreter = {};
+          if (e2bConfig) {
+            try {
+              const e2bData = JSON.parse(e2bConfig);
+              codeInterpreter = {
+                server_label: e2bData.server_label || '',
+                url: e2bData.url || '',
+                apiKey: e2bData.apiKey || ''
+              };
+            } catch (error) {
+              console.error('Error parsing E2B configuration:', error);
+            }
+          }
+          
+          return {
+            type: 'py_fun_tool',
+            tool_def: {
+              name: tool.pyFunctionConfig.tool_def.name,
+              description: tool.pyFunctionConfig.tool_def.description,
+              parameters: tool.pyFunctionConfig.tool_def.parameters
+            },
+            code: tool.pyFunctionConfig.code,
+            code_interpreter: codeInterpreter
+          };
         }
         // Add other tool types as needed
         return null;
@@ -970,6 +998,58 @@ const AiPlayground: React.FC = () => {
                             break;
                           }
                         }
+                          
+                          // Add inline loading when tools complete, indicating we're waiting for next text stream
+                          const blocksWithLoading = addInlineLoading(contentBlocks);
+                          contentBlocks = blocksWithLoading; // Update local contentBlocks array
+                          updateMessage(blocksWithLoading, streamingContent);
+                        }
+                      }
+                    }
+                  } else if (data.type && data.type.startsWith('response.agc.')) {
+                    // Handle Py function tool events
+                    const typeParts = data.type.split('.');
+                    if (typeParts.length >= 4) {
+                      const toolName = typeParts[2];
+                      const status = typeParts[3];
+                      
+                      if (status === 'executing' || status === 'in_progress') {
+                        // Add new Py function tool execution
+                        const toolExecution: ToolExecution = {
+                          serverName: 'agc',
+                          toolName,
+                          status: 'in_progress'
+                        };
+                        activeToolExecutions.set(`agc_${toolName}`, toolExecution);
+                        
+                        // Find existing tool progress block or create new one
+                        let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
+                        if (!toolProgressBlock) {
+                          toolProgressBlock = {
+                            type: 'tool_progress',
+                            toolExecutions: Array.from(activeToolExecutions.values())
+                          };
+                          contentBlocks.push(toolProgressBlock);
+                        } else {
+                          // Update existing tool progress block
+                          toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
+                        }
+                        currentTextBlock = null; // Reset text block for potential next text
+                        
+                        updateMessage(contentBlocks, streamingContent);
+                      } else if (status === 'completed') {
+                        // Update Py function tool execution status
+                        const toolExecution = activeToolExecutions.get(`agc_${toolName}`);
+                        if (toolExecution) {
+                          toolExecution.status = 'completed';
+                          
+                          // Update the last tool progress block
+                          for (let i = contentBlocks.length - 1; i >= 0; i--) {
+                            if (contentBlocks[i].type === 'tool_progress') {
+                              contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
+                              break;
+                            }
+                          }
                           
                           // Add inline loading when tools complete, indicating we're waiting for next text stream
                           const blocksWithLoading = addInlineLoading(contentBlocks);

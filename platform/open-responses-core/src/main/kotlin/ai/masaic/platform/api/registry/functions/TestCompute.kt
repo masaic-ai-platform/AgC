@@ -1,6 +1,7 @@
 package ai.masaic.platform.api.registry.functions
 
-val params = """
+val params =
+    """
     {
         "data": {
             "person_type": [
@@ -19,7 +20,7 @@ val params = """
         "segment_field": "person_type",
         "segment_value": "Digital Enthusiasts"
     }
-""".trimIndent()
+    """.trimIndent()
 
 fun buildWrappedCode(
     userFunName: String,
@@ -50,12 +51,12 @@ def _safe_default(o):
     except Exception: return str(o)
 result = run(params)
 print("<<RESULT_JSON>>" + json.dumps(result, default=_safe_default, ensure_ascii=False))
-    """.trimIndent()
-
+        """.trimIndent()
 }
 
 fun main() {
-    val userCode = """
+    val userCode =
+        """
 def get_willingness_to_pay_by_segment(
     df: pd.DataFrame,
     product: str,
@@ -110,10 +111,7 @@ def get_willingness_to_pay_by_segment(
         "distribution": wtp_values.value_counts().to_dict()
     }
 
-    """.trimIndent()
+        """.trimIndent()
 
     println(buildWrappedCode("get_willingness_to_pay_by_segment", userCode, params))
 }
-
-
-

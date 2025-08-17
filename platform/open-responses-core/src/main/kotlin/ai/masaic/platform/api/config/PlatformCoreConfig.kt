@@ -86,12 +86,12 @@ class PlatformCoreConfig {
         objectMapper: ObjectMapper,
         responseStore: ResponseStore,
         platformNativeTools: List<PlatformNativeTool>,
-        @Lazy codeRunnerService: CodeRunnerService
+        @Lazy codeRunnerService: CodeRunnerService,
     ) = PlatformNativeToolRegistry(
         objectMapper,
         responseStore,
         platformNativeTools,
-        codeRunnerService
+        codeRunnerService,
     )
 
     @Bean
@@ -111,10 +111,17 @@ class PlatformCoreConfig {
     ) = PlatformMcpService(mcpMockServerRepository, mockFunctionRepository, mocksRepository)
 
     @Bean
-    fun payloadFormatter(toolService: ToolService, mapper: ObjectMapper)= PlatformPayloadFormatter(toolService, mapper)
+    fun payloadFormatter(
+        toolService: ToolService,
+        mapper: ObjectMapper,
+    ) = PlatformPayloadFormatter(toolService, mapper)
 
     @Bean
-    fun platformRequestValidator(vectorStoreService: VectorStoreService, responseStore: ResponseStore, platformInfo: PlatformInfo) = PlatformRequestValidator(vectorStoreService, responseStore, platformInfo)
+    fun platformRequestValidator(
+        vectorStoreService: VectorStoreService,
+        responseStore: ResponseStore,
+        platformInfo: PlatformInfo,
+    ) = PlatformRequestValidator(vectorStoreService, responseStore, platformInfo)
 
     @Bean
     fun platformInfo(
@@ -132,9 +139,15 @@ class PlatformCoreConfig {
             modelSettings = ModelSettings(modelSettings.settingsType, "", ""),
             vectorStoreInfo = vectorStoreInfo,
             authConfig = AuthConfig(configProperties.enabled),
-            pyInterpreterSettings = if (pyInterpreterSettings.systemSettingsType == SystemSettingsType.DEPLOYMENT_TIME) /*to avoid api key leak*/ PyInterpreterSettings(
-                SystemSettingsType.DEPLOYMENT_TIME
-            ) else PyInterpreterSettings()
+            pyInterpreterSettings =
+                if (pyInterpreterSettings.systemSettingsType == SystemSettingsType.DEPLOYMENT_TIME) {
+                    // to avoid api key leak
+                    PyInterpreterSettings(
+                        SystemSettingsType.DEPLOYMENT_TIME,
+                    )
+                } else {
+                    PyInterpreterSettings()
+                },
         )
     }
 
@@ -143,7 +156,11 @@ class PlatformCoreConfig {
     @EnableConfigurationProperties(CodeInterpreterServerProperties::class)
     class PythonCodeRunnerConfiguration {
         @Bean
-        fun pythonCodeRunnerService(pyInterpreterSettings: PyInterpreterSettings, toolService: ToolService, mcpToolExecutor: MCPToolExecutor): CodeRunnerService {
+        fun pythonCodeRunnerService(
+            pyInterpreterSettings: PyInterpreterSettings,
+            toolService: ToolService,
+            mcpToolExecutor: MCPToolExecutor,
+        ): CodeRunnerService {
             val codeRunnerService = PythonCodeRunnerService(pyInterpreterSettings, toolService, mcpToolExecutor)
             return codeRunnerService
         }
@@ -152,12 +169,12 @@ class PlatformCoreConfig {
         fun pyInterpreterSettings(
             codeInterpreterServer: CodeInterpreterServerProperties,
         ): PyInterpreterSettings {
-            if(codeInterpreterServer.name.isNullOrBlank() && codeInterpreterServer.url.isNullOrBlank() && codeInterpreterServer.apiKey.isNullOrBlank()) {
+            if (codeInterpreterServer.name.isNullOrBlank() && codeInterpreterServer.url.isNullOrBlank() && codeInterpreterServer.apiKey.isNullOrBlank()) {
                 return PyInterpreterSettings(SystemSettingsType.RUNTIME)
             }
-            require(!codeInterpreterServer.name.isNullOrBlank()) {"property platform.deployment.code.interpreter.name is not set"}
-            require(!codeInterpreterServer.url.isNullOrBlank()) {"property platform.deployment.code.interpreter.url is not set"}
-            require(!codeInterpreterServer.apiKey.isNullOrBlank()) {"property platform.deployment.code.interpreter.apiKey is not set"}
+            require(!codeInterpreterServer.name.isNullOrBlank()) { "property platform.deployment.code.interpreter.name is not set" }
+            require(!codeInterpreterServer.url.isNullOrBlank()) { "property platform.deployment.code.interpreter.url is not set" }
+            require(!codeInterpreterServer.apiKey.isNullOrBlank()) { "property platform.deployment.code.interpreter.apiKey is not set" }
             return PyInterpreterSettings(SystemSettingsType.DEPLOYMENT_TIME, PyInterpreterServer(serverLabel = codeInterpreterServer.name, url = codeInterpreterServer.url, apiKey = codeInterpreterServer.apiKey))
         }
 
@@ -323,28 +340,27 @@ enum class SystemSettingsType {
 
 @ConfigurationProperties("platform.deployment.code.interpreter")
 data class CodeInterpreterServerProperties(
-    val name: String ?= null,
-    val url: String ?= null,
-    val apiKey: String ?= null
+    val name: String? = null,
+    val url: String? = null,
+    val apiKey: String? = null,
 )
 
 data class PyInterpreterSettings(
     val systemSettingsType: SystemSettingsType = SystemSettingsType.RUNTIME,
-    val pyInterpreterServer: PyInterpreterServer? = null
+    val pyInterpreterServer: PyInterpreterServer? = null,
 ) {
     fun mcpTool(): MCPTool {
         require(pyInterpreterServer != null) { "pyInterpreterServer can't be null" }
         return mcpTool(pyInterpreterServer)
     }
 
-    fun mcpTool(pyInterpreterServer: PyInterpreterServer): MCPTool {
-        return MCPTool(
+    fun mcpTool(pyInterpreterServer: PyInterpreterServer): MCPTool =
+        MCPTool(
             type = "mcp",
             serverLabel = pyInterpreterServer.url,
             serverUrl = pyInterpreterServer.url,
-            headers = mapOf("Authorization" to "Bearer ${pyInterpreterServer.apiKey}")
+            headers = mapOf("Authorization" to "Bearer ${pyInterpreterServer.apiKey}"),
         )
-    }
 }
 
 data class PlatformInfo(
@@ -353,7 +369,7 @@ data class PlatformInfo(
     val modelSettings: ModelSettings,
     val vectorStoreInfo: VectorStoreInfo,
     val authConfig: AuthConfig,
-    val pyInterpreterSettings: PyInterpreterSettings
+    val pyInterpreterSettings: PyInterpreterSettings,
 )
 
 data class VectorStoreInfo(

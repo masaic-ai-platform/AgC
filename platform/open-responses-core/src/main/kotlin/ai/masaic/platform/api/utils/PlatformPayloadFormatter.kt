@@ -10,9 +10,10 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
 
-class PlatformPayloadFormatter(private val toolService: ToolService,
-                               private val mapper: ObjectMapper,) : PayloadFormatter(toolService, mapper){
-
+class PlatformPayloadFormatter(
+    private val toolService: ToolService,
+    private val mapper: ObjectMapper,
+) : PayloadFormatter(toolService, mapper) {
     override suspend fun updateToolsInRequest(tools: List<Tool>?): MutableList<Tool>? {
         val updatedTools = mutableListOf<Tool>()
         tools?.forEach {

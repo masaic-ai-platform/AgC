@@ -4,7 +4,6 @@ import ai.masaic.openresponses.api.client.ResponseStore
 import ai.masaic.openresponses.api.exception.VectorStoreNotFoundException
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.search.VectorStoreService
-import ai.masaic.openresponses.tool.ToolDefinition
 import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
@@ -83,7 +82,8 @@ open class RequestValidator(
             }
             is PyFunTool -> {
                 throw ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, "${tool.platformToolName()} is not supported outside platform deployment."
+                    HttpStatus.BAD_REQUEST,
+                    "${tool.platformToolName()} is not supported outside platform deployment.",
                 )
             }
         }

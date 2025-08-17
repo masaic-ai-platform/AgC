@@ -2,8 +2,6 @@ package ai.masaic.platform.api.controller
 
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
-import ai.masaic.platform.api.interpreter.CodeExecResult
-import ai.masaic.platform.api.interpreter.CodeExecuteReq
 import ai.masaic.platform.api.interpreter.CodeRunnerService
 import ai.masaic.platform.api.registry.functions.*
 import org.springframework.context.annotation.Profile
@@ -24,16 +22,17 @@ class FunctionRegistryController(
     private val functionRegistryService: FunctionRegistryService,
     private val toolService: ToolService,
     private val mcpToolExecutor: MCPToolExecutor,
-    private val codeRunnerService: CodeRunnerService
+    private val codeRunnerService: CodeRunnerService,
 ) {
-
     /**
      * Create a new function.
      * POST /api/registry/functions
      */
     @PostMapping("/functions")
-    suspend fun createFunction(@RequestBody request: FunctionCreate): ResponseEntity<FunctionDoc> {
-        return try {
+    suspend fun createFunction(
+        @RequestBody request: FunctionCreate,
+    ): ResponseEntity<FunctionDoc> =
+        try {
             val function = functionRegistryService.createFunction(request)
             ResponseEntity.status(HttpStatus.CREATED).body(function)
         } catch (e: FunctionRegistryException) {
@@ -42,15 +41,16 @@ class FunctionRegistryController(
                 else -> throw ResponseStatusException(HttpStatus.BAD_REQUEST, e.message)
             }
         }
-    }
 
     /**
      * Get a function by name.
      * GET /api/registry/functions/{name}
      */
     @GetMapping("/functions/{name}")
-    suspend fun getFunction(@PathVariable name: String): ResponseEntity<FunctionDoc> {
-        return try {
+    suspend fun getFunction(
+        @PathVariable name: String,
+    ): ResponseEntity<FunctionDoc> =
+        try {
             val function = functionRegistryService.getFunction(name)
             ResponseEntity.ok(function)
         } catch (e: FunctionRegistryException) {
@@ -59,7 +59,6 @@ class FunctionRegistryController(
                 else -> throw ResponseStatusException(HttpStatus.BAD_REQUEST, e.message)
             }
         }
-    }
 
     /**
      * List functions with optional search and pagination.
@@ -70,7 +69,7 @@ class FunctionRegistryController(
         @RequestParam(required = false) q: String?,
         @RequestParam(defaultValue = "100") limit: Int,
         @RequestParam(required = false) cursor: String?,
-        @RequestParam(defaultValue = "false") includeCode: Boolean
+        @RequestParam(defaultValue = "false") includeCode: Boolean,
     ): ResponseEntity<FunctionListResponse> {
         // Validate limit parameter
         if (limit > 100) {
@@ -78,12 +77,13 @@ class FunctionRegistryController(
         }
 
         return try {
-            val response = functionRegistryService.listFunctions(
-                query = q,
-                limit = limit,
-                cursor = cursor,
-                includeCode = includeCode
-            )
+            val response =
+                functionRegistryService.listFunctions(
+                    query = q,
+                    limit = limit,
+                    cursor = cursor,
+                    includeCode = includeCode,
+                )
             ResponseEntity.ok(response)
         } catch (e: Exception) {
             throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to list functions")
@@ -97,9 +97,9 @@ class FunctionRegistryController(
     @PutMapping("/functions/{name}")
     suspend fun updateFunction(
         @PathVariable name: String,
-        @RequestBody request: FunctionUpdate
-    ): ResponseEntity<FunctionDoc> {
-        return try {
+        @RequestBody request: FunctionUpdate,
+    ): ResponseEntity<FunctionDoc> =
+        try {
             val function = functionRegistryService.updateFunction(name, request)
             ResponseEntity.ok(function)
         } catch (e: FunctionRegistryException) {
@@ -108,15 +108,16 @@ class FunctionRegistryController(
                 else -> throw ResponseStatusException(HttpStatus.BAD_REQUEST, e.message)
             }
         }
-    }
 
     /**
      * Delete a function.
      * DELETE /api/registry/functions/{name}
      */
     @DeleteMapping("/functions/{name}")
-    suspend fun deleteFunction(@PathVariable name: String): ResponseEntity<Unit> {
-        return try {
+    suspend fun deleteFunction(
+        @PathVariable name: String,
+    ): ResponseEntity<Unit> =
+        try {
             functionRegistryService.deleteFunction(name)
             ResponseEntity.noContent().build()
         } catch (e: FunctionRegistryException) {
@@ -125,19 +126,19 @@ class FunctionRegistryController(
                 else -> throw ResponseStatusException(HttpStatus.BAD_REQUEST, e.message)
             }
         }
-    }
 
     /**
      * Preview function (placeholder for future schema inference).
      * POST /api/registry/functions:preview
      */
     @PostMapping("/functions:preview")
-    suspend fun previewFunction(@RequestBody request: FunctionPreview): ResponseEntity<Map<String, Any>> {
-        return try {
+    suspend fun previewFunction(
+        @RequestBody request: FunctionPreview,
+    ): ResponseEntity<Map<String, Any>> =
+        try {
             val schemas = functionRegistryService.previewFunction(request)
             ResponseEntity.ok(schemas)
         } catch (e: Exception) {
             throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to preview function")
         }
-    }
 }

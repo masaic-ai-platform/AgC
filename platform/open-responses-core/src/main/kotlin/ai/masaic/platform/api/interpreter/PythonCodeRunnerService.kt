@@ -18,61 +18,70 @@ import org.springframework.http.codec.ServerSentEvent
 import java.util.*
 
 interface CodeRunnerService {
-    suspend fun runCode(request: CodeExecuteReq, eventEmitter: (ServerSentEvent<String>) -> Unit,): CodeExecResult
+    suspend fun runCode(
+        request: CodeExecuteReq,
+        eventEmitter: (ServerSentEvent<String>) -> Unit,
+    ): CodeExecResult
 }
 
 class PythonCodeRunnerService(
     private val interpreterSettings: PyInterpreterSettings,
     private val toolService: ToolService,
-    private val mcpToolExecutor: MCPToolExecutor
+    private val mcpToolExecutor: MCPToolExecutor,
 ) : CodeRunnerService {
-    private var mcpTool: MCPTool?=null
+    private var mcpTool: MCPTool? = null
     private val mapper = jacksonObjectMapper()
     private val log = KotlinLogging.logger { }
 
     init {
         runBlocking {
-            if(interpreterSettings.systemSettingsType == SystemSettingsType.DEPLOYMENT_TIME) {
+            if (interpreterSettings.systemSettingsType == SystemSettingsType.DEPLOYMENT_TIME) {
                 mcpTool = interpreterSettings.mcpTool()
                 val tools = toolService.getRemoteMcpTools(interpreterSettings.mcpTool())
             }
         }
     }
 
-    override suspend fun runCode(request: CodeExecuteReq, eventEmitter: (ServerSentEvent<String>) -> Unit,): CodeExecResult {
+    override suspend fun runCode(
+        request: CodeExecuteReq,
+        eventEmitter: (ServerSentEvent<String>) -> Unit,
+    ): CodeExecResult {
         require(!request.funName.isNullOrBlank()) { "request must contain funName" }
         val tobeUsedMCPTool: MCPTool =
             request.pyInterpreterServer?.let {
                 toolService.getRemoteMcpTools(interpreterSettings.mcpTool(it))
                 interpreterSettings.mcpTool(it)
             } ?: mcpTool ?: throw IllegalArgumentException(
-                    "Python interpreter connection settings are neither available at server nor in the request"
-                )
+                "Python interpreter connection settings are neither available at server nor in the request",
+            )
         val codeRunnerTool = MCPServerInfo(tobeUsedMCPTool.serverLabel, tobeUsedMCPTool.serverUrl).qualifiedToolName("run_code")
-        val codeRunnerToolDef = toolService.findToolByName(codeRunnerTool)
-            ?: throw IllegalArgumentException("Tool $codeRunnerTool not found.")
+        val codeRunnerToolDef =
+            toolService.findToolByName(codeRunnerTool)
+                ?: throw IllegalArgumentException("Tool $codeRunnerTool not found.")
 
         val codeStr = String(Base64.getDecoder().decode(request.encodedCode), Charsets.UTF_8)
-        val paramsJsonStr = if (request.encodedJsonParams.isNullOrBlank()) {
-            ""
-        } else {
-            try {
-                String(Base64.getDecoder().decode(request.encodedJsonParams), Charsets.UTF_8)
-            } catch (ex: IllegalArgumentException) {
-                String(request.encodedJsonParams.toByteArray(), Charsets.UTF_8)
+        val paramsJsonStr =
+            if (request.encodedJsonParams.isNullOrBlank()) {
+                ""
+            } else {
+                try {
+                    String(Base64.getDecoder().decode(request.encodedJsonParams), Charsets.UTF_8)
+                } catch (ex: IllegalArgumentException) {
+                    String(request.encodedJsonParams.toByteArray(), Charsets.UTF_8)
+                }
             }
-        }
         val depsJson = mapper.writeValueAsString(request.deps)
         val codeJson = mapper.writeValueAsString(codeStr)
 
-        val attributes = CodeAssembleAttributes(
-        name = request.funName,
-        deps = depsJson,
-        userCode = codeJson,
-        params = paramsJsonStr
-        )
-        val code = if(paramsJsonStr.isEmpty()) assembleCodeWithoutParams(attributes) else assembleCodeWithParams(attributes)
-        val eventPrefix = "response.agc_compute.${request.funName}"
+        val attributes =
+            CodeAssembleAttributes(
+                name = request.funName,
+                deps = depsJson,
+                userCode = codeJson,
+                params = paramsJsonStr,
+            )
+        val code = if (paramsJsonStr.isEmpty()) assembleCodeWithoutParams(attributes) else assembleCodeWithParams(attributes)
+        val eventPrefix = "response.agc.${request.funName}"
         emitEvent(eventEmitter, "$eventPrefix.executing", code)
 
         val toolResult =
@@ -83,7 +92,8 @@ class PythonCodeRunnerService(
     }
 
     private fun assembleCodeWithoutParams(request: CodeAssembleAttributes): String {
-        val code = """
+        val code =
+            """
 import sys, subprocess, json, base64, io, contextlib
 
 # 1) deps from registry
@@ -121,7 +131,7 @@ print(json.dumps({
     "function_output": result,
     "user_stdout": user_prints.strip() if user_prints else None
 }, ensure_ascii=False))
-        """.trimIndent()
+            """.trimIndent()
 
         log.debug { "======== Final code for execution=======" }
         log.debug { code }
@@ -130,7 +140,8 @@ print(json.dumps({
     }
 
     private fun assembleCodeWithParams(request: CodeAssembleAttributes): String {
-        val code = """
+        val code =
+            """
 import sys, subprocess, json, base64, io, contextlib
 
 # 1) deps from registry
@@ -174,7 +185,7 @@ print(json.dumps({
     "function_output": result,
     "user_stdout": user_prints.strip() if user_prints else None
 }, ensure_ascii=False), end="")
-        """.trimIndent()
+            """.trimIndent()
 
         log.debug { "======== Final code for execution=======" }
         log.debug { code }
@@ -185,56 +196,70 @@ print(json.dumps({
     private fun extractCodeRunResult(toolResult: String): CodeExecResult {
         val callToolResponse: CallToolResponse = mapper.readValue(toolResult)
         log.debug { "code execution raw response: $callToolResponse" }
-        val result = if (callToolResponse.isError) {
-            CodeExecResult(functionOutput = mapOf("error" to callToolResponse.content))
-        } else {
-            val interpreterResult: CodeInterpreterResult = mapper.readValue(callToolResponse.content)
-            val realOutput = if (interpreterResult.stdout.isNotEmpty() && interpreterResult.stdout.size == 1) {
-                val output = mapper.readTree(interpreterResult.stdout[0])
-                if (output.has("function_output")) mapper.treeToValue(
-                    output,
-                    CodeExecResult::class.java
-                ) else CodeExecResult(functionOutput = mapOf("error" to output))
-            } else if (interpreterResult.error != null) {
-                CodeExecResult(
-                    error = CodeExecError(
-                        code = CodeExecErrorCodes.ERROR,
-                        message = "code interpreter responded with error",
-                        trace = interpreterResult.error
-                    )
-                )
-            } else if (interpreterResult.stderr.isNotEmpty()) {
-                CodeExecResult(
-                    error = CodeExecError(
-                        code = CodeExecErrorCodes.STD_ERROR,
-                        message = "code interpreter responded with stderr",
-                        trace = interpreterResult.stderr
-                    )
-                )
-            } else if (interpreterResult.results.isNotEmpty()) {
-                CodeExecResult(
-                    error = CodeExecError(
-                        code = CodeExecErrorCodes.UNEXPECTED_RESULT,
-                        message = "code interpreter responded with unexpected result",
-                        trace = interpreterResult.results
-                    )
-                )
+        val result =
+            if (callToolResponse.isError) {
+                CodeExecResult(functionOutput = mapOf("error" to callToolResponse.content))
             } else {
-                CodeExecResult(
-                    error = CodeExecError(
-                        code = CodeExecErrorCodes.INTERNAL_ERROR,
-                        message = "unable to handle response",
-                        trace = interpreterResult
-                    )
-                )
+                val interpreterResult: CodeInterpreterResult = mapper.readValue(callToolResponse.content)
+                val realOutput =
+                    if (interpreterResult.stdout.isNotEmpty() && interpreterResult.stdout.size == 1) {
+                        val output = mapper.readTree(interpreterResult.stdout[0])
+                        if (output.has("function_output")) {
+                            mapper.treeToValue(
+                                output,
+                                CodeExecResult::class.java,
+                            )
+                        } else {
+                            CodeExecResult(functionOutput = mapOf("error" to output))
+                        }
+                    } else if (interpreterResult.error != null) {
+                        CodeExecResult(
+                            error =
+                                CodeExecError(
+                                    code = CodeExecErrorCodes.ERROR,
+                                    message = "code interpreter responded with error",
+                                    trace = interpreterResult.error,
+                                ),
+                        )
+                    } else if (interpreterResult.stderr.isNotEmpty()) {
+                        CodeExecResult(
+                            error =
+                                CodeExecError(
+                                    code = CodeExecErrorCodes.STD_ERROR,
+                                    message = "code interpreter responded with stderr",
+                                    trace = interpreterResult.stderr,
+                                ),
+                        )
+                    } else if (interpreterResult.results.isNotEmpty()) {
+                        CodeExecResult(
+                            error =
+                                CodeExecError(
+                                    code = CodeExecErrorCodes.UNEXPECTED_RESULT,
+                                    message = "code interpreter responded with unexpected result",
+                                    trace = interpreterResult.results,
+                                ),
+                        )
+                    } else {
+                        CodeExecResult(
+                            error =
+                                CodeExecError(
+                                    code = CodeExecErrorCodes.INTERNAL_ERROR,
+                                    message = "unable to handle response",
+                                    trace = interpreterResult,
+                                ),
+                        )
+                    }
+                realOutput
             }
-            realOutput
-        }
         log.info { "code execution result: $result" }
         return result
     }
 
-    private fun emitEvent(eventEmitter: (ServerSentEvent<String>) -> Unit, eventName: String, code: String) {
+    private fun emitEvent(
+        eventEmitter: (ServerSentEvent<String>) -> Unit,
+        eventName: String,
+        code: String,
+    ) {
         eventEmitter.invoke(
             ServerSentEvent
                 .builder<String>()
@@ -245,7 +270,7 @@ print(json.dumps({
                             "item_id" to (UUID.randomUUID().toString()),
                             "output_index" to "0",
                             "type" to eventName,
-                            "code" to code
+                            "code" to code,
                         ),
                     ),
                 ).build(),
@@ -259,31 +284,40 @@ data class CodeExecuteReq(
     val encodedCode: String,
     val encodedJsonParams: String? = null,
     @JsonProperty("code_interpreter")
-    val pyInterpreterServer: PyInterpreterServer ?= null
+    val pyInterpreterServer: PyInterpreterServer? = null,
 )
 
-data class CodeAssembleAttributes(val name: String, val deps: String, val userCode: String, val params: String? = null)
+data class CodeAssembleAttributes(
+    val name: String,
+    val deps: String,
+    val userCode: String,
+    val params: String? = null,
+)
 
 data class CodeInterpreterErrorData(
     val name: String? = null,
     val value: String? = null,
-    val traceback: String? = null
+    val traceback: String? = null,
 )
 
 data class CodeInterpreterResult(
     val stdout: List<String> = emptyList(),
     val stderr: List<String> = emptyList(),
     val results: List<String> = emptyList(),
-    val error: CodeInterpreterErrorData? = null
+    val error: CodeInterpreterErrorData? = null,
 )
 
 data class CodeExecResult(
     @JsonProperty("function_output") val functionOutput: Map<String, Any> = emptyMap(),
-    @JsonProperty("user_stdout") val debugStatements: String ?= null,
-    val error: CodeExecError? = null
+    @JsonProperty("user_stdout") val debugStatements: String? = null,
+    val error: CodeExecError? = null,
 )
 
-data class CodeExecError(val code: String, val message: String, val trace: Any)
+data class CodeExecError(
+    val code: String,
+    val message: String,
+    val trace: Any,
+)
 
 object CodeExecErrorCodes {
     const val ERROR = "ERROR"

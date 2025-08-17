@@ -9,7 +9,6 @@ import org.springframework.context.annotation.Configuration
  */
 @Configuration
 class FunctionRegistryConfig {
-
     /**
      * MongoDB repository configuration.
      * Only enabled when open-responses.store.type=mongodb
@@ -31,5 +30,3 @@ class FunctionRegistryConfig {
         // InMemoryFunctionRegistryRepository is automatically configured via @Repository annotation
     }
 }
-
-

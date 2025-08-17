@@ -1,25 +1,24 @@
 package ai.masaic.platform.api.registry.functions
 
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class FunctionRegistryValidatorTest {
-
     private val validator = FunctionRegistryValidator()
 
     @Test
     fun `validateName should accept valid names`() {
-        val validNames = listOf(
-            "valid_name",
-            "validName",
-            "valid_name_123",
-            "VALID_NAME",
-            "a",
-            "ab",
-            "a" + "b".repeat(63)
-        )
+        val validNames =
+            listOf(
+                "valid_name",
+                "validName",
+                "valid_name_123",
+                "VALID_NAME",
+                "a",
+                "ab",
+                "a" + "b".repeat(63),
+            )
 
         validNames.forEach { name ->
             val result = validator.validateName(name)
@@ -29,15 +28,16 @@ class FunctionRegistryValidatorTest {
 
     @Test
     fun `validateName should reject invalid names`() {
-        val invalidNames = listOf(
-            "",
-            " ",
-            "123name",
-            "-name",
-            "name with spaces",
-            "name@symbol",
-            "name/slash"
-        )
+        val invalidNames =
+            listOf(
+                "",
+                " ",
+                "123name",
+                "-name",
+                "name with spaces",
+                "name@symbol",
+                "name/slash",
+            )
 
         invalidNames.forEach { name ->
             val result = validator.validateName(name)
@@ -50,14 +50,15 @@ class FunctionRegistryValidatorTest {
 
     @Test
     fun `validateDeps should accept valid pip requirements`() {
-        val validDeps = listOf(
-            "pandas==2.2.2",
-            "numpy>=1.21.0",
-            "requests",
-            "pydantic~=2.0.0",
-            "fastapi[all]",
-            "torch>=2.0.0,<3.0.0"
-        )
+        val validDeps =
+            listOf(
+                "pandas==2.2.2",
+                "numpy>=1.21.0",
+                "requests",
+                "pydantic~=2.0.0",
+                "fastapi[all]",
+                "torch>=2.0.0,<3.0.0",
+            )
 
         validDeps.forEach { dep ->
             val result = validator.validateDeps(listOf(dep))
@@ -67,14 +68,15 @@ class FunctionRegistryValidatorTest {
 
     @Test
     fun `validateDeps should reject invalid pip requirements`() {
-        val invalidDeps = listOf(
-            "",
-            " ",
-            "package with spaces",
-            "package@invalid",
-            "package/slash",
-            "package\\backslash"
-        )
+        val invalidDeps =
+            listOf(
+                "",
+                " ",
+                "package with spaces",
+                "package@invalid",
+                "package/slash",
+                "package\\backslash",
+            )
 
         invalidDeps.forEach { dep ->
             val result = validator.validateDeps(listOf(dep))
@@ -96,10 +98,11 @@ class FunctionRegistryValidatorTest {
 
     @Test
     fun `validateCode should accept valid Python code`() {
-        val validCode = """
+        val validCode =
+            """
             def run(params):
                 return {"result": "success"}
-        """.trimIndent()
+            """.trimIndent()
 
         val result = validator.validateCode(validCode)
         assertTrue(result is ValidationResult.Success)
@@ -107,12 +110,13 @@ class FunctionRegistryValidatorTest {
 
     @Test
     fun `validateCode should reject invalid Python code`() {
-        val invalidCodes = listOf(
-            "",
-            " ",
-            "print('hello')",  // Missing run function
-            "def hello(): pass"  // Wrong function name
-        )
+        val invalidCodes =
+            listOf(
+                "",
+                " ",
+                "print('hello')", // Missing run function
+                "def hello(): pass", // Wrong function name
+            )
 
         invalidCodes.forEach { code ->
             val result = validator.validateCode(code)
@@ -122,15 +126,17 @@ class FunctionRegistryValidatorTest {
 
     @Test
     fun `validateCreateRequest should accept valid request`() {
-        val validRequest = FunctionCreate(
-            name = "valid_function",
-            description = "A valid function description",
-            deps = listOf("pandas==2.2.2"),
-            code = """
-                def run(params):
-                    return {"result": "success"}
-            """.trimIndent()
-        )
+        val validRequest =
+            FunctionCreate(
+                name = "valid_function",
+                description = "A valid function description",
+                deps = listOf("pandas==2.2.2"),
+                code =
+                    """
+                    def run(params):
+                        return {"result": "success"}
+                    """.trimIndent(),
+            )
 
         val result = validator.validateCreateRequest(validRequest)
         assertTrue(result is ValidationResult.Success)
@@ -138,15 +144,17 @@ class FunctionRegistryValidatorTest {
 
     @Test
     fun `validateCreateRequest should reject invalid request`() {
-        val invalidRequest = FunctionCreate(
-            name = "123invalid",
-            description = "A valid function description",
-            deps = listOf("pandas==2.2.2"),
-            code = """
-                def run(params):
-                    return {"result": "success"}
-            """.trimIndent()
-        )
+        val invalidRequest =
+            FunctionCreate(
+                name = "123invalid",
+                description = "A valid function description",
+                deps = listOf("pandas==2.2.2"),
+                code =
+                    """
+                    def run(params):
+                        return {"result": "success"}
+                    """.trimIndent(),
+            )
 
         val result = validator.validateCreateRequest(invalidRequest)
         assertTrue(result is ValidationResult.Error)

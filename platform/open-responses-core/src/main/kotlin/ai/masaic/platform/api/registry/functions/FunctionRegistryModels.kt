@@ -1,6 +1,5 @@
 package ai.masaic.platform.api.registry.functions
 
-import com.fasterxml.jackson.annotation.JsonProperty
 import org.springframework.data.annotation.Id
 import org.springframework.data.mongodb.core.mapping.Document
 import java.time.Instant
@@ -20,14 +19,14 @@ data class FunctionDoc(
     val inputSchema: Map<String, Any>? = null,
     val outputSchema: Map<String, Any>? = null,
     val createdAt: Instant,
-    val updatedAt: Instant
+    val updatedAt: Instant,
 )
 
 /**
  * Runtime configuration for the function.
  */
 data class Runtime(
-    val kind: String
+    val kind: String,
 ) {
     companion object {
         const val PYTHON = "python"
@@ -41,7 +40,7 @@ data class FunctionCreate(
     val name: String,
     val description: String,
     val deps: List<String>,
-    val code: String
+    val code: String,
 )
 
 /**
@@ -50,7 +49,7 @@ data class FunctionCreate(
 data class FunctionUpdate(
     val description: String? = null,
     val deps: List<String>? = null,
-    val code: String? = null
+    val code: String? = null,
 )
 
 /**
@@ -58,7 +57,7 @@ data class FunctionUpdate(
  */
 data class FunctionListResponse(
     val items: List<FunctionListItem>,
-    val nextCursor: String? = null
+    val nextCursor: String? = null,
 )
 
 /**
@@ -72,19 +71,20 @@ data class FunctionListItem(
     val inputSchema: Map<String, Any>? = null,
     val outputSchema: Map<String, Any>? = null,
     val createdAt: Instant,
-    val updatedAt: Instant
+    val updatedAt: Instant,
 ) {
     companion object {
-        fun from(doc: FunctionDoc): FunctionListItem = FunctionListItem(
-            name = doc.name,
-            description = doc.description,
-            runtime = doc.runtime,
-            deps = doc.deps,
-            inputSchema = doc.inputSchema,
-            outputSchema = doc.outputSchema,
-            createdAt = doc.createdAt,
-            updatedAt = doc.updatedAt
-        )
+        fun from(doc: FunctionDoc): FunctionListItem =
+            FunctionListItem(
+                name = doc.name,
+                description = doc.description,
+                runtime = doc.runtime,
+                deps = doc.deps,
+                inputSchema = doc.inputSchema,
+                outputSchema = doc.outputSchema,
+                createdAt = doc.createdAt,
+                updatedAt = doc.updatedAt,
+            )
     }
 }
 
@@ -93,7 +93,7 @@ data class FunctionListItem(
  */
 data class FunctionPreview(
     val deps: List<String>,
-    val code: String
+    val code: String,
 )
 
 /**
@@ -102,7 +102,7 @@ data class FunctionPreview(
 data class ErrorResponse(
     val code: String,
     val message: String,
-    val hints: List<String>? = null
+    val hints: List<String>? = null,
 )
 
 object ErrorCodes {

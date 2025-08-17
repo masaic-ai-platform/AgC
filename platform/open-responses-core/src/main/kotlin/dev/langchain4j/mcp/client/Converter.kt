@@ -62,13 +62,14 @@ class Converter {
 
         private fun extractSuccessfulResult(contents: ArrayNode): String {
             val contentStream = StreamSupport.stream(contents.spliterator(), false)
-            return contentStream.map { content: JsonNode ->
-                if (content["type"].asText() != "text") {
-                    throw RuntimeException("Unsupported content type: " + content["type"].toString())
-                } else {
-                    return@map content["text"].asText()
-                }
-            }.collect(Collectors.joining("\n")) as String
+            return contentStream
+                .map { content: JsonNode ->
+                    if (content["type"].asText() != "text") {
+                        throw RuntimeException("Unsupported content type: " + content["type"].toString())
+                    } else {
+                        return@map content["text"].asText()
+                    }
+                }.collect(Collectors.joining("\n")) as String
         }
 
         private fun extractError(errorNode: JsonNode): String {

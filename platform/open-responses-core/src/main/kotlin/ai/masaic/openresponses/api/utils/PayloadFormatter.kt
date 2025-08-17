@@ -59,7 +59,8 @@ open class PayloadFormatter(
 
                 is PyFunTool -> {
                     throw ResponseStatusException(
-                        HttpStatus.BAD_REQUEST, "${it.platformToolName()} is not supported outside platform deployment."
+                        HttpStatus.BAD_REQUEST,
+                        "${it.platformToolName()} is not supported outside platform deployment.",
                     )
                 }
 
