@@ -19,9 +19,7 @@ class PlatformNativeToolRegistry(
 
     init {
         platformNativeTools.forEach {
-            if (it.isToolDefAvailable()) {
-                toolRepository[it.toolName()] = it.provideToolDef()
-            }
+            toolRepository[it.toolName()] = it.provideToolDef()
         }
     }
 

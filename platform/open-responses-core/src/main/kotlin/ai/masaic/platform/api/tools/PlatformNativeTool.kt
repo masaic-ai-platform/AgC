@@ -14,8 +14,6 @@ abstract class PlatformNativeTool(
 
     fun toolName() = toolName
 
-    open fun isToolDefAvailable(): Boolean = true
-
     abstract fun provideToolDef(): NativeToolDefinition
 
     abstract suspend fun executeTool(

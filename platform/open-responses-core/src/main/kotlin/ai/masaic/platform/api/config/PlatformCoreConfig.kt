@@ -30,7 +30,6 @@ import ai.masaic.platform.api.validation.PlatformRequestValidator
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.qdrant.client.QdrantClient
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
@@ -177,10 +176,6 @@ class PlatformCoreConfig {
             require(!codeInterpreterServer.apiKey.isNullOrBlank()) { "property platform.deployment.code.interpreter.apiKey is not set" }
             return PyInterpreterSettings(SystemSettingsType.DEPLOYMENT_TIME, PyInterpreterServer(serverLabel = codeInterpreterServer.name, url = codeInterpreterServer.url, apiKey = codeInterpreterServer.apiKey))
         }
-
-        @Bean
-        @ConditionalOnBean(PythonCodeRunnerService::class)
-        fun pythonCodeRunnerTool(pythonCodeRunnerService: PythonCodeRunnerService) = PythonCodeRunnerTool(pythonCodeRunnerService)
     }
 
     @Configuration

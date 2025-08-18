@@ -1,4 +1,4 @@
-package ai.masaic.platform.api.registry.functions
+package ai.masaic.platform.api.config
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Configuration

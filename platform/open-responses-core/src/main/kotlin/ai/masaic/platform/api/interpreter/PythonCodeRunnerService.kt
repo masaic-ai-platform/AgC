@@ -8,7 +8,6 @@ import ai.masaic.openresponses.tool.mcp.MCPServerInfo
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.platform.api.config.PyInterpreterSettings
 import ai.masaic.platform.api.config.SystemSettingsType
-import ai.masaic.platform.api.registry.functions.params
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
