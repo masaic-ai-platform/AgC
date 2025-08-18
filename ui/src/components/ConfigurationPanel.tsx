@@ -1261,7 +1261,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
               variant="outline"
               size="sm"
               onClick={() => setSaveAgentModalOpen(true)}
-              className="flex items-center space-x-2 hover:bg-positive-trend/10 hover:text-positive-trend focus:bg-positive-trend/10 focus:text-positive-trend"
+              disabled={!instructions.trim()}
+              className="flex items-center space-x-2 hover:bg-positive-trend/10 hover:text-positive-trend focus:bg-positive-trend/10 focus:text-positive-trend disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!instructions.trim() ? "System prompt is required to save an agent" : "Save current configuration as an agent"}
             >
               <Save className="h-4 w-4" />
               <span>Save Agent</span>

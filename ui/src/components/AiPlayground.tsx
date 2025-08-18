@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import UnifiedCard from '@/components/ui/unified-card';
-import { Loader2, Send, Sparkles, RotateCcw, Copy, Check, Menu, Code, Brain, Image, Puzzle, Save, Layers } from 'lucide-react';
+import { Loader2, Send, Sparkles, RotateCcw, Copy, Check, Menu, Code, Brain, Image, Puzzle, Save, Layers, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import ChatMessage from './ChatMessage';
 import ConfigurationPanel from './ConfigurationPanel';
 import PlaygroundSidebar from './PlaygroundSidebar';
+import AgentsSelectionModal from './AgentsSelectionModal';
 import CodeTabs from '@/playground/CodeTabs';
 import { PlaygroundRequest } from '@/playground/PlaygroundRequest';
 import { API_URL } from '@/config';
@@ -136,8 +137,50 @@ const AiPlayground: React.FC = () => {
   const [showSaveModel, setShowSaveModel] = useState(false);
   const [saveModelState, setSaveModelState] = useState<'success' | 'tool_issue' | 'error' | null>(null);
 
+  // Agents mode state
+  const [agentMode, setAgentMode] = useState(() => {
+    try {
+      return localStorage.getItem('platform_agentMode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [agentData, setAgentData] = useState<null | { name: string; description: string; systemPrompt: string; tools: any[]; model?: string; temperature?: number; maxTokenOutput?: number; topP?: number; }>(() => {
+    try {
+      const saved = localStorage.getItem('platform_agentData');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
   // Chat header state
   const [copiedResponseId, setCopiedResponseId] = useState(false);
+
+  // Restore agent state on page load
+  useEffect(() => {
+    if (agentMode && agentData) {
+      // Restore configuration from persisted agent data
+      setInstructions(agentData.systemPrompt || '');
+      if (agentData.temperature !== undefined) setTemperature(agentData.temperature);
+      if (agentData.maxTokenOutput !== undefined) setMaxTokens(agentData.maxTokenOutput);
+      if (agentData.topP !== undefined) setTopP(agentData.topP);
+      
+      // Restore model
+      if (agentData.model) {
+        validateAndSetAgentModel(agentData.model);
+      }
+      
+      // Transform and restore tools
+      if (agentData.tools && agentData.tools.length > 0) {
+        const transformedTools = transformAgentToolsToUI(agentData.tools);
+        setSelectedTools(transformedTools);
+      }
+      
+      // Set the active tab to responses
+      setActiveTab('responses');
+    }
+  }, []); // Only run on mount
   
   // Code snippet generator state
   const [codeModalOpen, setCodeModalOpen] = useState(false);
@@ -1465,6 +1508,209 @@ const AiPlayground: React.FC = () => {
     textarea.style.height = `${newHeight}px`;
   };
 
+  // Helper function to transform agent tools to UI tool format
+  const transformAgentToolsToUI = (agentTools: any[]): Tool[] => {
+    return agentTools.map(tool => {
+      if (tool.type === 'mcp') {
+        return {
+          id: 'mcp_server',
+          name: `MCP: ${tool.server_label}`,
+          icon: Brain,
+          mcpConfig: {
+            label: tool.server_label,
+            url: tool.server_url,
+            selectedTools: tool.allowed_tools || [],
+            authentication: tool.headers && Object.keys(tool.headers).length > 0 ? 'access_token' : 'none',
+            accessToken: tool.headers?.Authorization?.replace('Bearer ', '') || '',
+            customHeaders: []
+          }
+        };
+      } else if (tool.type === 'file_search') {
+        return {
+          id: 'file_search',
+          name: 'File Search',
+          icon: Search,
+          fileSearchConfig: {
+            selectedFiles: [],
+            selectedVectorStores: tool.vector_store_ids || [],
+            vectorStoreNames: []
+          }
+        };
+      } else if (tool.type === 'agentic_search') {
+        return {
+          id: 'agentic_file_search',
+          name: 'Agentic File Search',
+          icon: Brain,
+          agenticFileSearchConfig: {
+            selectedFiles: [],
+            selectedVectorStores: tool.vector_store_ids || [],
+            vectorStoreNames: [],
+            iterations: tool.max_iterations || 3,
+            maxResults: tool.max_num_results || 5
+          }
+        };
+      } else if (tool.type === 'py_fun_tool') {
+        return {
+          id: 'py_fun_tool',
+          name: `Function: ${tool.tool_def?.name || 'Python Function'}`,
+          icon: Code,
+          pyFunctionConfig: tool
+        };
+      }
+      // Handle other tool types with their default configurations
+      return {
+        id: tool.type,
+        name: tool.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        icon: Puzzle
+      };
+    }).filter(tool => tool !== null);
+  };
+
+  // Helper function to validate and set model from agent data using the same logic as ConfigurationPanel
+  const validateAndSetAgentModel = async (agentModelName?: string) => {
+    if (!agentModelName) {
+      // Clear model selection if no model specified
+      setModelProvider('');
+      setModelName('');
+      return;
+    }
+
+    try {
+      // Use the same API call as ConfigurationPanel to get available models
+      const providers = await apiClient.jsonRequest<any[]>('/v1/dashboard/models');
+      
+      // Build allModels array using the same logic as ConfigurationPanel
+      const apiModels = providers.flatMap(provider => 
+        provider.supportedModels
+          .filter((model: any) => !model.isEmbeddingModel) // Filter out embedding models
+          .map((model: any) => ({
+            ...model,
+            providerName: provider.name,
+            providerDescription: provider.description
+          }))
+      );
+
+      // Get models from localStorage (own models) - same as ConfigurationPanel
+      let ownModels: any[] = [];
+      try {
+        const savedOwnModels = localStorage.getItem('platform_own_model');
+        if (savedOwnModels) {
+          const ownModelsData = JSON.parse(savedOwnModels);
+          ownModels = ownModelsData.supportedModels.map((model: any) => ({
+            name: model.name,
+            modelSyntax: model.modelSyntax,
+            providerName: ownModelsData.name,
+            providerDescription: ownModelsData.description,
+            isEmbeddingModel: false
+          }));
+        }
+      } catch (error) {
+        console.error('Error loading own models from localStorage:', error);
+      }
+
+      // Combine own models and API models (same as ConfigurationPanel)
+      const allModels = [...ownModels, ...apiModels];
+
+      // Find the agent's model in the available models
+      const foundModel = allModels.find((model: any) => 
+        model.modelSyntax === agentModelName || model.name === agentModelName
+      );
+
+      if (foundModel) {
+        // Extract provider and model name from modelSyntax
+        if (foundModel.modelSyntax && foundModel.modelSyntax.includes('@')) {
+          const [providerName, modelNamePart] = foundModel.modelSyntax.split('@');
+          setModelProvider(providerName);
+          setModelName(modelNamePart);
+        } else {
+          setModelProvider(foundModel.providerName || '');
+          setModelName(foundModel.name || agentModelName);
+        }
+        console.log(`Agent model "${agentModelName}" found and set successfully`);
+      } else {
+        console.warn(`Agent model "${agentModelName}" not found in available models. Clearing model selection.`);
+        setModelProvider('');
+        setModelName('');
+      }
+    } catch (error) {
+      console.error('Error validating agent model:', error);
+      // If API fails, show "Select a model..." by clearing the selection
+      setModelProvider('');
+      setModelName('');
+    }
+  };
+
+  const handleAgentSelect = async (agent: any) => {
+    try {
+      // Reset all other modes
+      const resetAllModes = () => {
+        setMockyMode(false);
+        setMockyAgentData(null);
+        setModelTestMode(false);
+        setModelTestAgentData(null);
+        setModelTestUrl('');
+        setModelTestName('');
+        setModelTestApiKey('');
+        setIsTestingModel(false);
+        setShowSaveModel(false);
+        setSaveModelState(null);
+      };
+
+      resetAllModes();
+
+      // Set agent mode and data
+      const agentDataValue = {
+        name: agent.name,
+        description: agent.description,
+        systemPrompt: agent.systemPrompt,
+        tools: agent.tools || [],
+        model: agent.model,
+        temperature: agent.temperature,
+        maxTokenOutput: agent.maxTokenOutput,
+        topP: agent.topP
+      };
+      
+      setAgentMode(true);
+      setAgentData(agentDataValue);
+      
+      // Persist to localStorage
+      try {
+        localStorage.setItem('platform_agentMode', 'true');
+        localStorage.setItem('platform_agentData', JSON.stringify(agentDataValue));
+      } catch (error) {
+        console.error('Failed to persist agent data to localStorage:', error);
+      }
+
+      // Set instructions from agent system prompt
+      setInstructions(agent.systemPrompt || '');
+
+      // Set model parameters from agent data
+      setTemperature(agent.temperature || 1.0);
+      setMaxTokens(agent.maxTokenOutput || 2048);
+      setTopP(agent.topP || 1.0);
+
+      // Validate and set model
+      await validateAndSetAgentModel(agent.model);
+
+      // Transform and set tools
+      const transformedTools = transformAgentToolsToUI(agent.tools || []);
+      setSelectedTools(transformedTools);
+
+      // Reset conversation state
+      setMessages([]);
+      setConversationId(null);
+      setPreviousResponseId(null);
+
+      // Switch to responses tab
+      setActiveTab('responses');
+
+      toast.success(`Agent "${agent.name}" loaded successfully`);
+    } catch (error) {
+      console.error('Error setting up agent:', error);
+      toast.error('Failed to setup agent');
+    }
+  };
+
   const handleTabChange = (tab: string) => {
     // First, always reset any active special modes
     const resetMockyMode = () => {
@@ -1493,10 +1739,31 @@ const AiPlayground: React.FC = () => {
       }
     };
 
+    const resetAgentMode = () => {
+      if (agentMode) {
+        setAgentMode(false);
+        setAgentData(null);
+        setMessages([]);
+        setConversationId(null);
+        setPreviousResponseId(null);
+        
+        // Clear from localStorage
+        try {
+          localStorage.removeItem('platform_agentMode');
+          localStorage.removeItem('platform_agentData');
+        } catch (error) {
+          console.error('Failed to clear agent data from localStorage:', error);
+        }
+      }
+    };
+
+
+
     // Special handling for Masaic Mocky option
     if (tab === 'masaic-mocky') {
-      // Reset Model Test mode first if active
+      // Reset other modes first if active
       resetModelTestMode();
+      resetAgentMode();
       
       setActiveTab(tab);
       // Fetch agent definition
@@ -1555,8 +1822,9 @@ const AiPlayground: React.FC = () => {
 
     // Special handling for Add Model option
     if (tab === 'add-model') {
-      // Reset Mocky mode first if active
+      // Reset other modes first if active
       resetMockyMode();
+      resetAgentMode();
       
       setActiveTab(tab);
       // Fetch ModelTestAgent definition
@@ -1598,20 +1866,20 @@ const AiPlayground: React.FC = () => {
 
     // Special handling for E2B Server option
     if (tab === 'e2b-server') {
-      // Reset Mocky mode first if active
+      // Reset all modes first if active
       resetMockyMode();
-      
-      // Reset Model Test mode first if active
       resetModelTestMode();
+      resetAgentMode();
       
       setActiveTab('responses');
       setE2bModalOpen(true);
       return;
     }
 
-    // For any other tab, reset both modes
+    // For any other tab, reset all modes
     resetMockyMode();
     resetModelTestMode();
+    resetAgentMode();
 
     setActiveTab(tab);
     // Handle API Keys tab by opening the API keys modal
@@ -2296,6 +2564,7 @@ const AiPlayground: React.FC = () => {
       <PlaygroundSidebar 
         activeTab={activeTab}
         onTabChange={handleTabChange}
+        onAgentSelect={handleAgentSelect}
         className="hidden md:flex md:flex-col md:w-[10%] md:min-w-[160px]"
       />
 
@@ -2366,6 +2635,11 @@ const AiPlayground: React.FC = () => {
           <div className="flex items-center justify-between w-full">
             {/* Action Buttons - Moved to extreme left */}
             <div className="flex items-center space-x-2">
+              {agentMode && agentData && (
+                <span className="text-sm text-foreground font-medium px-2 py-1 bg-accent/50 rounded-md">
+                  {agentData.name}
+                </span>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -2401,6 +2675,8 @@ const AiPlayground: React.FC = () => {
                 Test model connectivity and validate API integration
               </span>
             )}
+
+
 
             {/* Response ID Display - Moved to right */}
             {previousResponseId && (
@@ -2533,9 +2809,15 @@ const AiPlayground: React.FC = () => {
                 <div className="absolute bottom-3 right-3">
                   <Button 
                     type="submit" 
-                    disabled={!inputValue.trim() || isLoading}
+                    disabled={!inputValue.trim() || isLoading || !modelProvider || !modelName}
                     className="h-8 w-8 p-0 bg-positive-trend hover:bg-positive-trend/90 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={inputValue.trim() ? "Send message" : "Type a message to send"}
+                    title={
+                      !modelProvider || !modelName 
+                        ? "Select a model to send messages" 
+                        : !inputValue.trim() 
+                        ? "Type a message to send" 
+                        : "Send message"
+                    }
                   >
                     {isLoading ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -2558,6 +2840,8 @@ const AiPlayground: React.FC = () => {
       lastRequest={lastRequest}
       baseUrl={apiUrl}
     />
+
+
     </>
   );
 };
