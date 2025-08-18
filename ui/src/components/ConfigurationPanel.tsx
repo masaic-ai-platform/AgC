@@ -46,6 +46,7 @@ import ModelSelectionModal from './ModelSelectionModal';
 import ConfigurationSettingsModal from './ConfigurationSettingsModal';
 import SystemPromptGenerator from './SystemPromptGenerator';
 import MCPModal from './MCPModal';
+import E2BModal from './E2BModal';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 
@@ -75,6 +76,7 @@ interface Tool {
   mcpConfig?: any; // For MCP server tools
   fileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[] }; // For file search tools
   agenticFileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[]; iterations: number; maxResults: number }; // For agentic file search tools
+  pyFunctionConfig?: any; // For Py function tools
 }
 
 interface ConfigurationPanelProps {
@@ -136,6 +138,10 @@ interface ConfigurationPanelProps {
   // API Keys modal trigger
   openApiKeysModal?: boolean;
   onApiKeysModalChange?: (open: boolean) => void;
+  
+  // E2B modal trigger
+  openE2bModal?: boolean;
+  onE2bModalChange?: (open: boolean) => void;
   jsonSchemaContent: string;
   setJsonSchemaContent: (content: string) => void;
   jsonSchemaName: string | null;
@@ -195,6 +201,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   onResetConversation,
   openApiKeysModal = false,
   onApiKeysModalChange = (open: boolean) => {},
+  openE2bModal = false,
+  onE2bModalChange = (open: boolean) => {},
   jsonSchemaContent,
   setJsonSchemaContent,
   jsonSchemaName,
@@ -219,6 +227,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const [editingMCP, setEditingMCP] = useState<Tool | null>(null);
   const [editingFileSearch, setEditingFileSearch] = useState<Tool | null>(null);
   const [editingAgenticFileSearch, setEditingAgenticFileSearch] = useState<Tool | null>(null);
+  const [editingPyFunction, setEditingPyFunction] = useState<Tool | null>(null);
   const [apiKeysModalOpen, setApiKeysModalOpen] = useState(false);
   const [requiredProvider, setRequiredProvider] = useState<string | undefined>(undefined);
   const [pendingModelSelection, setPendingModelSelection] = useState<string | null>(null);
@@ -465,6 +474,17 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         // Add the new MCP server
         onSelectedToolsChange([...selectedTools, tool]);
       }
+    } else if (tool.id === 'py_fun_tool') {
+      // If editing an existing Py function, remove the old one first
+      if (editingPyFunction) {
+        const updatedTools = selectedTools.filter(t => 
+          !(t.id === 'py_fun_tool' && t.pyFunctionConfig?.tool_def.name === editingPyFunction.pyFunctionConfig?.tool_def.name)
+        );
+        onSelectedToolsChange([...updatedTools, tool]);
+      } else {
+        // Add the new Py function
+        onSelectedToolsChange([...selectedTools, tool]);
+      }
     } else {
       // For other tools, check by id only
       if (!selectedTools.find(t => t.id === tool.id)) {
@@ -483,6 +503,43 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     } else if (toolId === 'mcp_server' && toolIndex !== undefined) {
       // For MCP servers, remove by index since we allow multiple
       const updatedTools = selectedTools.filter((_, index) => index !== toolIndex);
+      onSelectedToolsChange(updatedTools);
+    } else if (toolId === 'py_fun_tool' && toolIndex !== undefined) {
+      // For PyFunction tools, remove by index since we allow multiple
+      const updatedTools = selectedTools.filter((_, index) => index !== toolIndex);
+      
+      // Also remove the Py function from localStorage
+      try {
+        const toolToRemove = selectedTools[toolIndex];
+        if (toolToRemove && toolToRemove.pyFunctionConfig) {
+          const existingTools = localStorage.getItem('platform_py_fun_tools');
+          if (existingTools) {
+            const toolsMap = JSON.parse(existingTools);
+            const functionNameToRemove = toolToRemove.pyFunctionConfig.tool_def.name;
+            
+            // Handle both array and object formats for backward compatibility
+            if (Array.isArray(toolsMap)) {
+              // Old array format - convert to object and remove
+              const newToolsMap: { [key: string]: any } = {};
+              toolsMap.forEach((tool: any) => {
+                if (tool.tool_def.name !== functionNameToRemove) {
+                  newToolsMap[tool.tool_def.name] = tool;
+                }
+              });
+              localStorage.setItem('platform_py_fun_tools', JSON.stringify(newToolsMap));
+            } else {
+              // New object format - remove by key
+              if (toolsMap[functionNameToRemove]) {
+                delete toolsMap[functionNameToRemove];
+                localStorage.setItem('platform_py_fun_tools', JSON.stringify(toolsMap));
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to remove Py function from localStorage:', error);
+      }
+      
       onSelectedToolsChange(updatedTools);
     } else {
       // Remove by id for other tools
@@ -507,6 +564,10 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     setEditingAgenticFileSearch(tool);
   };
 
+  const handlePyFunctionEdit = (tool: Tool) => {
+    setEditingPyFunction(tool);
+  };
+
   // Get tool color based on type
   const getToolColor = (toolId: string) => {
     switch (toolId) {
@@ -518,6 +579,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         return 'critical-alert';
       case 'agentic_file_search':
         return 'negative-trend';
+      case 'py_fun_tool':
+        return 'opportunity';
       case 'image_generation':
         return 'neutral';
       case 'think':
@@ -808,6 +871,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                   const displayName = tool.agenticFileSearchConfig.vectorStoreNames.length > 0 ? tool.agenticFileSearchConfig.vectorStoreNames.join(', ') : 'Agentic File Search';
                   return `${displayName} (${tool.agenticFileSearchConfig.iterations})`;
                 }
+                if (tool.id === 'py_fun_tool' && tool.pyFunctionConfig) {
+                  return tool.pyFunctionConfig.tool_def.name || 'Python Function';
+                }
                 return tool.name;
               };
               
@@ -816,8 +882,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
               const isMCP = tool.id === 'mcp_server';
               const isFileSearch = tool.id === 'file_search';
               const isAgenticFileSearch = tool.id === 'agentic_file_search';
-              const isClickable = isFunction || isMCP || isFileSearch || isAgenticFileSearch;
-              const toolKey = (isFunction || isMCP) ? `${tool.id}-${index}` : tool.id;
+              const isPyFunction = tool.id === 'py_fun_tool';
+              const isClickable = isFunction || isMCP || isFileSearch || isAgenticFileSearch || isPyFunction;
+              const toolKey = (isFunction || isMCP || isPyFunction) ? `${tool.id}-${index}` : tool.id;
               
               // Check if file search tools should be disabled
               const isToolDisabled = (isFileSearch || isAgenticFileSearch) && !isVectorStoreEnabled;
@@ -841,6 +908,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                       isMCP ? () => handleMCPEdit(tool) :
                       isFileSearch ? () => handleFileSearchEdit(tool) :
                       isAgenticFileSearch ? () => handleAgenticFileSearchEdit(tool) :
+                      isPyFunction ? () => handlePyFunctionEdit(tool) :
                       undefined
                     ) : (e) => {
                       e.preventDefault();
@@ -861,6 +929,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                       if (tool.id === 'function') {
                         handleToolRemove(tool.id, tool.functionDefinition);
                       } else if (tool.id === 'mcp_server') {
+                        handleToolRemove(tool.id, undefined, index);
+                      } else if (tool.id === 'py_fun_tool') {
                         handleToolRemove(tool.id, undefined, index);
                       } else {
                         handleToolRemove(tool.id);
@@ -906,6 +976,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
               onEditingFileSearchChange={setEditingFileSearch}
               editingAgenticFileSearch={editingAgenticFileSearch}
               onEditingAgenticFileSearchChange={setEditingAgenticFileSearch}
+              editingPyFunction={editingPyFunction}
+              onEditingPyFunctionChange={setEditingPyFunction}
+              onOpenE2BModal={() => onE2bModalChange(true)}
               getMCPToolByLabel={getMCPToolByLabel}
             >
               <Button
@@ -1248,6 +1321,12 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           }
         }}
         requiredProvider={requiredProvider}
+      />
+
+      {/* E2B Modal */}
+      <E2BModal
+        open={openE2bModal}
+        onOpenChange={onE2bModalChange}
       />
     </div>
   );

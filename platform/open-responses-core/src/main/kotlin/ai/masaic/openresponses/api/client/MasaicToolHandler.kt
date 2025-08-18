@@ -356,7 +356,6 @@ class MasaicToolHandler(
         openAIClient: OpenAIClient,
     ): MasaicToolCallResult {
         logger.debug { "Processing tool calls from ChatCompletion: ${chatCompletion.id()}" }
-
         // Create context with alias mappings
         val aliasMap = toolService.buildAliasMap(params.tools().orElse(emptyList()))
         val context = ToolRequestContext(aliasMap, params)
@@ -533,23 +532,7 @@ class MasaicToolHandler(
                                 context,
                                 parentObservation,
                             ) { toolResult ->
-                                // This callback style is for the streaming version, adapt for non-streaming
-                                var regularToolResult: String? = null
-                                try {
-                                    regularToolResult =
-                                        toolService.executeTool(
-                                            function.name(),
-                                            function.arguments(),
-                                            params,
-                                            openAIClient,
-                                            {},
-                                            mapOf("toolId" to tool.id()),
-                                            context,
-                                        )
-                                } catch (e: Exception) {
-                                    logger.error(e) { "Error executing tool ${function.name()}: ${e.message}" }
-                                    regularToolResult = "Error executing tool ${function.name()}: ${e.message}"
-                                }
+                                val regularToolResult: String? = toolResult
 
                                 if (regularToolResult != null) {
                                     // Add the function call to response items
@@ -733,7 +716,15 @@ class MasaicToolHandler(
             if (toolService.getFunctionTool(function.name(), context) != null) {
                 logger.info { "Executing tool: ${function.name()} with ID: ${function.id()}" }
                 val toolDefinition = toolService.getAvailableTool(function.name())
-                val eventPrefix = if (toolDefinition?.protocol == ToolProtocol.MCP) "response.mcp_call.${function.name().lowercase().replace("^\\W".toRegex(), "_")}" else "response.${function.name().lowercase().replace("^\\W".toRegex(), "_")}"
+                val funNameForEventPrefix = function.name().lowercase().replace("^\\W".toRegex(), "_")
+                val eventPrefix =
+                    if (toolDefinition?.protocol == ToolProtocol.MCP) {
+                        "response.mcp_call.$funNameForEventPrefix"
+                    } else if (toolDefinition?.protocol == ToolProtocol.PY_CODE) {
+                        "response.agc.$funNameForEventPrefix"
+                    } else {
+                        "response.$funNameForEventPrefix"
+                    }
                 eventEmitter.invoke(
                     ServerSentEvent
                         .builder<String>()
@@ -745,26 +736,30 @@ class MasaicToolHandler(
                                         "item_id" to (function.id().getOrNull() ?: function.callId()),
                                         "output_index" to index.toString(),
                                         "type" to "$eventPrefix.in_progress",
+                                        "tool_args" to function.arguments(),
                                     ),
                                 ),
                         ).build(),
                 )
 
-                eventEmitter.invoke(
-                    ServerSentEvent
-                        .builder<String>()
-                        .event("$eventPrefix.executing")
-                        .data(
-                            " " +
-                                objectMapper.writeValueAsString(
-                                    mapOf<String, String>(
-                                        "item_id" to (function.id().getOrNull() ?: function.callId()),
-                                        "output_index" to index.toString(),
-                                        "type" to "$eventPrefix.executing",
+                if (toolDefinition?.protocol != ToolProtocol.PY_CODE) {
+                    eventEmitter.invoke(
+                        ServerSentEvent
+                            .builder<String>()
+                            .event("$eventPrefix.executing")
+                            .data(
+                                " " +
+                                    objectMapper.writeValueAsString(
+                                        mapOf<String, String>(
+                                            "item_id" to (function.id().getOrNull() ?: function.callId()),
+                                            "output_index" to index.toString(),
+                                            "type" to "$eventPrefix.executing",
+                                        ),
                                     ),
-                                ),
-                        ).build(),
-                )
+                            ).build(),
+                    )
+                }
+
                 if (function.name() == IMAGE_GENERATION_TOOL_NAME) {
                     eventEmitter.invoke(
                         ServerSentEvent
@@ -956,6 +951,7 @@ class MasaicToolHandler(
                                                     "item_id" to function.id().toString(),
                                                     "output_index" to index.toString(),
                                                     "type" to "$eventPrefix.completed",
+                                                    "tool_result" to toolResult,
                                                 ),
                                             ),
                                     ).build(),

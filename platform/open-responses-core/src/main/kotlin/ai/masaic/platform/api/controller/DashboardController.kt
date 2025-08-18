@@ -1,25 +1,29 @@
 package ai.masaic.platform.api.controller
 
 import ai.masaic.openresponses.api.model.*
+import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.*
+import ai.masaic.openresponses.tool.mcp.CallToolResponse
+import ai.masaic.openresponses.tool.mcp.MCPServerInfo
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
-import ai.masaic.platform.api.config.ModelSettings
+import ai.masaic.openresponses.tool.mcp.MCPToolRegistry
+import ai.masaic.platform.api.config.*
+import ai.masaic.platform.api.interpreter.CodeExecResult
+import ai.masaic.platform.api.interpreter.CodeExecuteReq
+import ai.masaic.platform.api.interpreter.CodeRunnerService
 import ai.masaic.platform.api.model.*
 import ai.masaic.platform.api.service.ModelService
+import ai.masaic.platform.api.service.createCompletion
 import ai.masaic.platform.api.service.messages
 import ai.masaic.platform.api.tools.FunDefGenerationTool
-import ai.masaic.platform.api.user.AuthConfig
-import ai.masaic.platform.api.user.AuthConfigProperties
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.Profile
 import org.springframework.core.io.ClassPathResource
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
-import java.time.Instant
+import java.util.*
 
 @Profile("platform")
 @RestController
@@ -31,12 +35,10 @@ class DashboardController(
     private val modelService: ModelService,
     private val modelSettings: ModelSettings,
     private val funDefGenerationTool: FunDefGenerationTool,
-    private val buildProperties: BuildProperties,
-    private val configProperties: AuthConfigProperties,
+    private val platformInfo: PlatformInfo,
+    private val mcpToolRegistry: MCPToolRegistry,
+    private val codeRunnerService: CodeRunnerService,
 ) {
-    @Value("\${open-responses.store.vector.search.provider:file}")
-    private val vectorSearchProviderType = ""
-
     private val mapper = jacksonObjectMapper()
     private lateinit var modelProviders: Set<ModelProvider>
 
@@ -197,6 +199,16 @@ ${request.existingPrompt}
             tools.map {
                 it.copy(name = it.name?.replace("${mcpListToolsRequest.serverLabel}_", ""))
             }
+
+        mcpListToolsRequest.testMcpTool.forEach {
+            val mcpServerInfo = MCPServerInfo(mcpListToolsRequest.serverLabel, mcpListToolsRequest.serverUrl)
+            try {
+                executeMCPTool(it.copy(name = mcpServerInfo.qualifiedToolName(it.name)))
+            } catch (e: ResponseProcessingException) {
+                mcpToolRegistry.removeMcpServer(mcpServerInfo)
+                throw e
+            }
+        }
         return ResponseEntity.ok(updatedTools)
     }
 
@@ -210,21 +222,137 @@ ${request.existingPrompt}
     suspend fun executeMCPTool(
         @RequestBody toolRequest: ExecuteToolRequest,
     ): String {
-        val toolDefinition = toolService.findToolByName(toolRequest.name) ?: return "Tool ${toolRequest.name} not found."
-        return mcpToolExecutor.executeTool(toolDefinition, jacksonObjectMapper().writeValueAsString(toolRequest.arguments), null, null) ?: "no response from ${toolRequest.name}"
+        val toolDefinition = toolService.findToolByName(toolRequest.name) ?: throw ResponseProcessingException("Tool ${toolRequest.name} not found.")
+        val toolResponse = mcpToolExecutor.executeTool(toolDefinition, mapper.writeValueAsString(toolRequest.arguments), null, null) ?: throw ResponseProcessingException("no response returned by tool ${toolRequest.name}")
+        val callToolResponse: CallToolResponse = mapper.readValue(toolResponse)
+        return if (callToolResponse.isError) throw ResponseProcessingException(callToolResponse.content) else toolResponse
     }
 
     @GetMapping("/platform/info")
-    fun getPlatformInfo(): PlatformInfo {
-        val vectorStoreInfo = if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
-        return PlatformInfo(
-            version = "v${buildProperties.version}",
-            buildTime = buildProperties.time,
-            modelSettings = ModelSettings(modelSettings.settingsType, "", ""),
-            vectorStoreInfo = vectorStoreInfo,
-            authConfig = AuthConfig(configProperties.enabled),
-        )
+    fun getPlatformInfo() = platformInfo
+
+    @PostMapping("/agc/functions:suggest")
+    suspend fun configureFunction(
+        @RequestBody request: SuggestPyFunDetailsRequest,
+        @RequestHeader("Authorization") authHeader: String? = null,
+    ): ResponseEntity<SuggestPyFunDetailsResponse> {
+        val suggestionsPrompt =
+            """
+Code Validation Prompt (Simplified)
+
+You are a Python code validation assistant.
+You will be given only Python code as input.
+Analyze it and return a JSON object in the following structure:
+
+{
+  "suggestedFunctionDetails": {
+    "name": "string",
+    "description": "string",
+    "parameters": { }   // valid JSON Schema for function parameters
+  },
+  "testData": { },       // example JSON test data to call the function
+  "isCodeValid": true,   // or false
+  "codeProblem": "string or null"
+}
+
+
+⸻
+
+Rules
+	1.	Validation
+	•	Ensure the input consists only of valid Python code lines.
+	•	If syntax errors exist → return "isCodeValid": false and set "codeProblem" with the error.
+	•	If the code is not Python at all → return "isCodeValid": false and "codeProblem": "Not valid Python code".
+	2.	Pandas Restriction
+	•	Code may use Pandas internally.
+	•	But if any function parameter is of type pandas.DataFrame, mark invalid:
+
+"isCodeValid": false,
+"codeProblem": "Function parameters cannot use Pandas DataFrame. Use dicts or lists instead."
+
+
+	3.	Function Metadata Extraction
+	•	Extract:
+	•	name: the function name. It should be exactly same as the entrypoint function defined in the code.   
+	•	description: meaningful one-liner based on docstring or code purpose.
+	•	parameters: generate JSON Schema (https://json-schema.org/) for function parameters.
+	•	If no function is defined → "isCodeValid": false, "codeProblem": "No function definition found".
+	4.	Test Data
+	•	Generate a small JSON example input matching the parameter schema.
+	•	If no valid parameters → "testData": null.
+
+⸻
+
+Example Input
+
+def add(a: int, b: int) -> int:
+    return a + b
+
+Example Output
+
+{
+  "suggestedFunctionDetails": {
+    "name": "add",
+    "description": "Adds two integers and returns the sum.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "a": { "type": "integer" },
+        "b": { "type": "integer" }
+      },
+      "required": ["a", "b"]
     }
+  },
+  "testData": { "a": 10, "b": 20 },
+  "isCodeValid": true,
+  "codeProblem": null
+}
+            """.trimIndent()
+
+        val userMessage =
+            """
+Code:
+${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF_8)}
+            """.trimIndent()
+
+        val finalSettings = modelSettings.resolveSystemSettings(ModelInfo.fromApiKey(authHeader, request.modelInfo?.model))
+        val createCompletionRequest =
+            CreateCompletionRequest(
+                messages =
+                    messages {
+                        systemMessage(suggestionsPrompt)
+                        userMessage(userMessage)
+                    },
+                model = finalSettings.qualifiedModelName,
+                stream = false,
+                store = false,
+            )
+        var response: SuggestPyFunDetailsResponse? = null
+        try {
+            response = modelService.createCompletion<SuggestPyFunDetailsResponse>(createCompletionRequest, finalSettings.apiKey)
+        } catch (ex: Exception) {
+            throw ResponseProcessingException("Unable to create suggestions due to error ${ex.message}")
+        }
+
+        val functionDetails = request.functionDetails
+        val suggestedFunctionResponse = response.suggestedFunctionDetails
+        val finalSuggestedFunDetails = ConfigureFunDetails(name = suggestedFunctionResponse?.name, description = functionDetails?.description ?: suggestedFunctionResponse?.description, parameters = suggestedFunctionResponse?.parameters ?: functionDetails?.parameters)
+        val finalResponse = response.copy(suggestedFunctionDetails = finalSuggestedFunDetails, testData = response.testData ?: request.testData)
+
+        return ResponseEntity.ok(finalResponse)
+    }
+
+    @PostMapping("/functions/{name}:execute")
+    suspend fun executeFunction(
+        @PathVariable name: String,
+        @RequestBody funExecuteReq: CodeExecuteReq,
+    ): ResponseEntity<CodeExecResult> =
+        ResponseEntity.ok(
+            codeRunnerService.runCode(
+                funExecuteReq.copy(funName = name, encodedCode = funExecuteReq.encodedCode),
+                eventEmitter = { },
+            ),
+        )
 }
 
 data class ExecuteToolRequest(
@@ -232,14 +360,22 @@ data class ExecuteToolRequest(
     val arguments: Map<String, Any>,
 )
 
-data class PlatformInfo(
-    val version: String,
-    val buildTime: Instant,
-    val modelSettings: ModelSettings,
-    val vectorStoreInfo: VectorStoreInfo,
-    val authConfig: AuthConfig,
+data class SuggestPyFunDetailsRequest(
+    val encodedCode: String,
+    val functionDetails: ConfigureFunDetails? = null,
+    val testData: MutableMap<String, Any>? = null,
+    val modelInfo: ModelInfo?,
 )
 
-data class VectorStoreInfo(
-    val isEnabled: Boolean,
+data class ConfigureFunDetails(
+    val name: String? = null,
+    val description: String? = null,
+    val parameters: MutableMap<String, Any>? = null,
+)
+
+data class SuggestPyFunDetailsResponse(
+    val suggestedFunctionDetails: ConfigureFunDetails? = null,
+    val testData: MutableMap<String, Any>? = null,
+    val isCodeValid: Boolean,
+    val codeProblem: String? = null,
 )

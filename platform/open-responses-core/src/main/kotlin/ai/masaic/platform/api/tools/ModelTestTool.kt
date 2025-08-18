@@ -38,27 +38,15 @@ class ModelTestTool : PlatformNativeTool(PlatformToolsNames.MODEL_TEST_TOOL) {
         if (cityNameNode.isNull) return "Parameter city_name is not received. It is mandatory"
         val cityName = cityNameNode.asText()
         delay(3 * 1000)
-        return when (cityName.lowercase()) {
-            "new delhi" -> newDelhiMockResponse
-            else -> newYorkMockResponse
-        }
+        return sanFranMockResponse
     }
 
-    private val newDelhiMockResponse =
+    private val sanFranMockResponse =
         """
 {
-  "temperature": "32",
+  "temperature": "16",
   "unit": "Celsius",
-  "feelsLike": "hot and humid"
-}
-        """.trimIndent()
-
-    private val newYorkMockResponse =
-        """
-{
-  "temperature": "24",
-  "unit": "Celsius",
-  "feelsLike": "pleasant with light breeze"
+  "feelsLike": "pleasant with light rain."
 }
         """.trimIndent()
 }

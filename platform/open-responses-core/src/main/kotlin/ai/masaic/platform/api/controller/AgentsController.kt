@@ -33,9 +33,9 @@ class AgentsController {
                     PlatformAgentMeta(
                         name = "ModelTestAgent",
                         description = "This agent tests compatibility of model with platform",
-                        greetingMessage = "Hi, let me test Model with query: \"Tell me the weather of new delhi\"",
+                        greetingMessage = "Hi, let me test Model with query: \"Tell me the weather of San Francisco\"",
                         systemPrompt = modelTestPrompt,
-                        userMessage = "Tell me the weather of new delhi",
+                        userMessage = "Tell me the weather of San Francisco",
                         tools = modelTestTools,
                     )
                 }

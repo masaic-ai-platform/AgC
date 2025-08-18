@@ -61,6 +61,7 @@ interface Tool {
   mcpConfig?: any; // For MCP server tools
   fileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[] }; // For file search tools
   agenticFileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[]; iterations: number; maxResults: number }; // For agentic file search tools
+  pyFunctionConfig?: any; // For Py function tools
 }
 
 const getProviderApiKey = (provider: string): string => {
@@ -116,6 +117,7 @@ const AiPlayground: React.FC = () => {
   // Playground state
   const [activeTab, setActiveTab] = useState('responses');
   const [apiKeysModalOpen, setApiKeysModalOpen] = useState(false);
+  const [e2bModalOpen, setE2bModalOpen] = useState(false);
   
   const [jsonSchemaContent, setJsonSchemaContent] = useState('');
   const [jsonSchemaName, setJsonSchemaName] = useState<string | null>(null);
@@ -197,6 +199,7 @@ const AiPlayground: React.FC = () => {
     const savedMCPTools = loadMCPToolsFromStorage();
     const savedFileSearchTools = loadFileSearchToolsFromStorage();
     const savedAgenticFileSearchTools = loadAgenticFileSearchToolsFromStorage();
+    const savedPyFunctionTools = loadPyFunctionToolsFromStorage();
     
     // Don't load apiKey from localStorage - it's managed by getProviderApiKey function
     setBaseUrl(savedBaseUrl);
@@ -214,7 +217,7 @@ const AiPlayground: React.FC = () => {
     setTextFormat(savedTextFormat);
     setToolChoice(savedToolChoice);
     setPromptMessages(savedPromptMessages);
-    setSelectedTools([...savedOtherTools, ...savedMCPTools, ...savedFileSearchTools, ...savedAgenticFileSearchTools]);
+    setSelectedTools([...savedOtherTools, ...savedMCPTools, ...savedFileSearchTools, ...savedAgenticFileSearchTools, ...savedPyFunctionTools]);
   }, []);
 
   // Save settings to localStorage whenever they change
@@ -240,15 +243,18 @@ const AiPlayground: React.FC = () => {
     const mcpTools = selectedTools.filter(tool => tool.id === 'mcp_server');
     const fileSearchTools = selectedTools.filter(tool => tool.id === 'file_search');
     const agenticFileSearchTools = selectedTools.filter(tool => tool.id === 'agentic_file_search');
+    const pyFunctionTools = selectedTools.filter(tool => tool.id === 'py_fun_tool');
     const otherTools = selectedTools.filter(tool => 
       tool.id !== 'mcp_server' && 
       tool.id !== 'file_search' && 
-      tool.id !== 'agentic_file_search'
+      tool.id !== 'agentic_file_search' &&
+      tool.id !== 'py_fun_tool'
     );
     
     saveMCPToolsToStorage(mcpTools);
     saveFileSearchToolsToStorage(fileSearchTools);
     saveAgenticFileSearchToolsToStorage(agenticFileSearchTools);
+    savePyFunctionToolsToStorage(pyFunctionTools);
     localStorage.setItem('aiPlayground_otherTools', JSON.stringify(otherTools));
   }, [apiKey, baseUrl, modelProvider, modelName, imageModelProvider, imageModelName, imageProviderKey, selectedVectorStore, instructions, temperature, maxTokens, topP, storeLogs, textFormat, toolChoice, promptMessages, selectedTools]);
 
@@ -468,6 +474,57 @@ const AiPlayground: React.FC = () => {
     localStorage.setItem('platform_agenticFileSearchTools', JSON.stringify(agenticFileSearchToolsMap));
   };
 
+  // Py function tools persistence
+  const loadPyFunctionToolsFromStorage = (): Tool[] => {
+    try {
+      const stored = localStorage.getItem('platform_py_fun_tools');
+      if (!stored) return [];
+      
+      const pyFunctionToolsMap = JSON.parse(stored);
+      const pyFunctionTools: Tool[] = [];
+      
+      // Handle both array and object formats for backward compatibility
+      if (Array.isArray(pyFunctionToolsMap)) {
+        // Old array format - convert to new format
+        pyFunctionToolsMap.forEach((tool: any) => {
+          pyFunctionTools.push({
+            id: 'py_fun_tool',
+            name: tool.tool_def.name,
+            icon: Code,
+            pyFunctionConfig: tool
+          });
+        });
+      } else {
+        // New object format
+        Object.values(pyFunctionToolsMap).forEach((tool: any) => {
+          pyFunctionTools.push({
+            id: 'py_fun_tool',
+            name: tool.tool_def.name,
+            icon: Code,
+            pyFunctionConfig: tool
+          });
+        });
+      }
+      
+      return pyFunctionTools;
+    } catch (error) {
+      console.error('Error loading Py function tools from storage:', error);
+      return [];
+    }
+  };
+
+  const savePyFunctionToolsToStorage = (tools: Tool[]) => {
+    const pyFunctionTools = tools.filter(tool => tool.id === 'py_fun_tool' && tool.pyFunctionConfig);
+    const pyFunctionToolsMap: Record<string, any> = {};
+    
+    pyFunctionTools.forEach(tool => {
+      const functionName = tool.pyFunctionConfig!.tool_def.name;
+      pyFunctionToolsMap[functionName] = tool.pyFunctionConfig;
+    });
+    
+    localStorage.setItem('platform_py_fun_tools', JSON.stringify(pyFunctionToolsMap));
+  };
+
   const generateResponse = async (prompt: string) => {
     const provider = modelProvider;
     const apiKeyForProvider = getProviderApiKey(provider);
@@ -650,6 +707,33 @@ const AiPlayground: React.FC = () => {
           return { type: 'mock_generation_tool' };
         } else if (tool.id === 'mock_save_tool') {
           return { type: 'mock_save_tool' };
+        } else if (tool.id === 'py_fun_tool' && tool.pyFunctionConfig) {
+          // Get E2B server configuration from localStorage
+          const e2bConfig = localStorage.getItem('platform_e2b_mcp');
+          let codeInterpreter = {};
+          if (e2bConfig) {
+            try {
+              const e2bData = JSON.parse(e2bConfig);
+              codeInterpreter = {
+                server_label: e2bData.server_label || '',
+                url: e2bData.url || '',
+                apiKey: e2bData.apiKey || ''
+              };
+            } catch (error) {
+              console.error('Error parsing E2B configuration:', error);
+            }
+          }
+          
+          return {
+            type: 'py_fun_tool',
+            tool_def: {
+              name: tool.pyFunctionConfig.tool_def.name,
+              description: tool.pyFunctionConfig.tool_def.description,
+              parameters: tool.pyFunctionConfig.tool_def.parameters
+            },
+            code: tool.pyFunctionConfig.code,
+            code_interpreter: codeInterpreter
+          };
         }
         // Add other tool types as needed
         return null;
@@ -707,7 +791,7 @@ const AiPlayground: React.FC = () => {
       let isStreaming = false;
       let contentBlocks: ContentBlock[] = [];
       let currentTextBlock: ContentBlock | null = null;
-      let activeToolExecutions = new Map<string, ToolExecution>();
+      const activeToolExecutions = new Map<string, ToolExecution>();
 
       // Track the last SSE event name to properly handle custom events like "error"
       let lastEvent: string | null = null;
@@ -792,6 +876,32 @@ const AiPlayground: React.FC = () => {
                     if (data.response?.id) {
                       responseId = data.response.id;
                     }
+                    // Mark all in-progress tool executions as completed when response completes
+                    activeToolExecutions.forEach((execution, key) => {
+                      if (execution.status === 'in_progress') {
+                        execution.status = 'completed';
+                      }
+                    });
+                    
+                    // Update tool progress blocks with completed status
+                    contentBlocks.forEach(block => {
+                      if (block.type === 'tool_progress' && block.toolExecutions) {
+                        block.toolExecutions = Array.from(activeToolExecutions.values());
+                      }
+                    });
+                    
+                    // Remove inline loading when response is completed
+                    const blocksWithoutLoading = removeInlineLoading(contentBlocks);
+                    
+                    // If no content blocks exist, create a default text block
+                    let finalBlocks = blocksWithoutLoading;
+                    if (finalBlocks.length === 0) {
+                      finalBlocks = [{ type: 'text' as const, content: 'Response completed' }];
+                    }
+                    
+                    // If no streaming content was received, use a default message or empty string
+                    const finalContent = streamingContent || 'Response completed';
+                    updateMessage(finalBlocks, finalContent);
                   } else if (data.type === 'response.output_text.delta') {
                     // Start or continue streaming
                     if (!isStreaming) {
@@ -891,6 +1001,59 @@ const AiPlayground: React.FC = () => {
                           
                           // Add inline loading when tools complete, indicating we're waiting for next text stream
                           const blocksWithLoading = addInlineLoading(contentBlocks);
+                          contentBlocks = blocksWithLoading; // Update local contentBlocks array
+                          updateMessage(blocksWithLoading, streamingContent);
+                        }
+                      }
+                    }
+                  } else if (data.type && data.type.startsWith('response.agc.')) {
+                    // Handle Py function tool events
+                    const typeParts = data.type.split('.');
+                    if (typeParts.length >= 4) {
+                      const toolName = typeParts[2];
+                      const status = typeParts[3];
+                      
+                      if (status === 'executing' || status === 'in_progress') {
+                        // Add new Py function tool execution
+                        const toolExecution: ToolExecution = {
+                          serverName: 'agc',
+                          toolName,
+                          status: 'in_progress'
+                        };
+                        activeToolExecutions.set(`agc_${toolName}`, toolExecution);
+                        
+                        // Find existing tool progress block or create new one
+                        let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
+                        if (!toolProgressBlock) {
+                          toolProgressBlock = {
+                            type: 'tool_progress',
+                            toolExecutions: Array.from(activeToolExecutions.values())
+                          };
+                          contentBlocks.push(toolProgressBlock);
+                        } else {
+                          // Update existing tool progress block
+                          toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
+                        }
+                        currentTextBlock = null; // Reset text block for potential next text
+                        
+                        updateMessage(contentBlocks, streamingContent);
+                      } else if (status === 'completed') {
+                        // Update Py function tool execution status
+                        const toolExecution = activeToolExecutions.get(`agc_${toolName}`);
+                        if (toolExecution) {
+                          toolExecution.status = 'completed';
+                          
+                          // Update the last tool progress block
+                          for (let i = contentBlocks.length - 1; i >= 0; i--) {
+                            if (contentBlocks[i].type === 'tool_progress') {
+                              contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
+                              break;
+                            }
+                          }
+                          
+                          // Add inline loading when tools complete, indicating we're waiting for next text stream
+                          const blocksWithLoading = addInlineLoading(contentBlocks);
+                          contentBlocks = blocksWithLoading; // Update local contentBlocks array
                           updateMessage(blocksWithLoading, streamingContent);
                         }
                       }
@@ -935,6 +1098,7 @@ const AiPlayground: React.FC = () => {
                       
                       // Add inline loading when tools complete, indicating we're waiting for next text stream
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   } else if (data.type === 'response.agentic_search.in_progress') {
@@ -1005,6 +1169,7 @@ const AiPlayground: React.FC = () => {
                       
                       // Add inline loading when tools complete, indicating we're waiting for next text stream
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   } else if (data.type === 'response.fun_req_gathering_tool.in_progress') {
@@ -1039,6 +1204,7 @@ const AiPlayground: React.FC = () => {
                         }
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   } else if (data.type === 'response.fun_def_generation_tool.in_progress') {
@@ -1103,6 +1269,7 @@ const AiPlayground: React.FC = () => {
                         }
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   } else if (data.type === 'response.mock_generation_tool.in_progress') {
@@ -1132,6 +1299,7 @@ const AiPlayground: React.FC = () => {
                         }
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   } else if (data.type === 'response.mock_save_tool.in_progress') {
@@ -1161,6 +1329,7 @@ const AiPlayground: React.FC = () => {
                         }
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   }
@@ -1188,6 +1357,19 @@ const AiPlayground: React.FC = () => {
         }
       }
 
+      // Final message update to ensure loading state is properly cleared
+      if (contentBlocks.length > 0) {
+        const finalBlocks = removeInlineLoading(contentBlocks);
+        
+        // If no content blocks exist after removing loading, create a default text block
+        if (finalBlocks.length === 0) {
+          finalBlocks.push({ type: 'text' as const, content: 'Response completed' });
+        }
+        
+        const finalContent = streamingContent || 'Response completed';
+        updateMessage(finalBlocks, finalContent);
+      }
+
       // Update previous response ID for next request
       if (responseId) {
         setPreviousResponseId(responseId);
@@ -1207,6 +1389,16 @@ const AiPlayground: React.FC = () => {
       ));
     } finally {
       setIsLoading(false);
+      
+      // Ensure the assistant message is properly finalized
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantMessageId
+          ? {
+              ...msg,
+              isLoading: false
+            }
+          : msg
+      ));
       
       // Focus the textarea after streaming completes
       setTimeout(() => {
@@ -1401,6 +1593,19 @@ const AiPlayground: React.FC = () => {
           console.error(err);
           toast.error('Error fetching Model Test Agent');
         });
+      return;
+    }
+
+    // Special handling for E2B Server option
+    if (tab === 'e2b-server') {
+      // Reset Mocky mode first if active
+      resetMockyMode();
+      
+      // Reset Model Test mode first if active
+      resetModelTestMode();
+      
+      setActiveTab('responses');
+      setE2bModalOpen(true);
       return;
     }
 
@@ -1629,7 +1834,7 @@ const AiPlayground: React.FC = () => {
       let isStreaming = false;
       let contentBlocks: ContentBlock[] = [];
       let currentTextBlock: ContentBlock | null = null;
-      let activeToolExecutions = new Map<string, ToolExecution>();
+      const activeToolExecutions = new Map<string, ToolExecution>();
       let lastEvent: string | null = null;
       let responseCompleted = false;
       let toolCompleted = false;
@@ -1718,6 +1923,33 @@ const AiPlayground: React.FC = () => {
                       setPreviousResponseId(responseId);
                     }
                     responseCompleted = true;
+                    
+                    // Mark all in-progress tool executions as completed when response completes
+                    activeToolExecutions.forEach((execution, key) => {
+                      if (execution.status === 'in_progress') {
+                        execution.status = 'completed';
+                      }
+                    });
+                    
+                    // Update tool progress blocks with completed status
+                    contentBlocks.forEach(block => {
+                      if (block.type === 'tool_progress' && block.toolExecutions) {
+                        block.toolExecutions = Array.from(activeToolExecutions.values());
+                      }
+                    });
+                    
+                    // Remove inline loading when response is completed
+                    const blocksWithoutLoading = removeInlineLoading(contentBlocks);
+                    
+                    // If no content blocks exist, create a default text block
+                    let finalBlocks = blocksWithoutLoading;
+                    if (finalBlocks.length === 0) {
+                      finalBlocks = [{ type: 'text' as const, content: 'Response completed' }];
+                    }
+                    
+                    // If no streaming content was received, use a default message or empty string
+                    const finalContent = streamingContent || 'Response completed';
+                    updateMessage(finalBlocks, finalContent);
                     
                     // Determine save model state based on completion status
                     if (toolCompleted) {
@@ -1817,6 +2049,7 @@ const AiPlayground: React.FC = () => {
                         }
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
+                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
                       updateMessage(blocksWithLoading, streamingContent);
                     }
                   }
@@ -1839,7 +2072,7 @@ const AiPlayground: React.FC = () => {
                 }
               : msg
           ));
-          setIsTestingModel(false);
+                    setIsTestingModel(false);
           setSaveModelState('error');
           setShowSaveModel(true);
         } finally {
@@ -1847,7 +2080,30 @@ const AiPlayground: React.FC = () => {
         }
       }
 
-    } catch (error) {
+      // Final message update to ensure loading state is properly cleared
+      if (contentBlocks.length > 0) {
+        const finalBlocks = removeInlineLoading(contentBlocks);
+        
+        // If no content blocks exist after removing loading, create a default text block
+        if (finalBlocks.length === 0) {
+          finalBlocks.push({ type: 'text' as const, content: 'Response completed' });
+        }
+        
+        const finalContent = streamingContent || 'Response completed';
+        updateMessage(finalBlocks, finalContent);
+      }
+
+      // Ensure the assistant message is properly finalized
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantMessageId
+          ? {
+              ...msg,
+              isLoading: false
+            }
+          : msg
+      ));
+
+      } catch (error) {
       console.error('Error making model test API call:', error);
       setMessages(prev => prev.map(msg =>
         msg.id === assistantMessageId
@@ -2014,6 +2270,8 @@ const AiPlayground: React.FC = () => {
           onResetConversation={resetConversation}
           openApiKeysModal={apiKeysModalOpen}
           onApiKeysModalChange={setApiKeysModalOpen}
+          openE2bModal={e2bModalOpen}
+          onE2bModalChange={setE2bModalOpen}
           jsonSchemaContent={jsonSchemaContent}
           setJsonSchemaContent={setJsonSchemaContent}
           jsonSchemaName={jsonSchemaName}
@@ -2082,6 +2340,8 @@ const AiPlayground: React.FC = () => {
         onResetConversation={resetConversation}
         openApiKeysModal={apiKeysModalOpen}
         onApiKeysModalChange={setApiKeysModalOpen}
+        openE2bModal={e2bModalOpen}
+        onE2bModalChange={setE2bModalOpen}
         jsonSchemaContent={jsonSchemaContent}
         setJsonSchemaContent={setJsonSchemaContent}
         jsonSchemaName={jsonSchemaName}

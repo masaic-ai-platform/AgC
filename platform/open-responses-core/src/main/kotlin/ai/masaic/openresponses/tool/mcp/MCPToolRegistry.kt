@@ -116,6 +116,10 @@ class MCPToolRegistry {
         serverRepository[mcpServerInfo.serverIdentifier()] = mcpServerInfo
     }
 
+    fun removeMcpServer(mcpServerInfo: MCPServerInfo) {
+        serverRepository.remove(mcpServerInfo.serverIdentifier())
+    }
+
     /**
      * Finds a tool by name.
      *

@@ -53,7 +53,7 @@ suspend inline fun <reified T> ModelService.createCompletion(
         jacksonObjectMapper()
             .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false)
 
-    return mapper.readValue(payloadJson)
+    return mapper.readValue(payloadJson.replace("```json", ""))
 }
 
 // 1) Top‐level entry point

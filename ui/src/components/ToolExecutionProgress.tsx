@@ -118,6 +118,8 @@ const ToolExecutionProgress: React.FC<ToolExecutionProgressProps> = ({ toolExecu
         return 'File Search';
       case 'agentic_search':
         return 'Agentic Search';
+      case 'agc':
+        return 'AgC';
       case 'fun_req_gathering_tool':
         return 'Fun Req Assembler';
       case 'fun_def_generation_tool':
@@ -151,6 +153,8 @@ const ToolExecutionProgress: React.FC<ToolExecutionProgressProps> = ({ toolExecu
                 <Search className="w-3 h-3 text-positive-trend" />
               ) : serverName === 'agentic_search' ? (
                 <FileSearch className="w-3 h-3 text-positive-trend" />
+              ) : serverName === 'agc' ? (
+                <Code className="w-3 h-3 text-positive-trend" />
               ) : serverName === 'fun_req_gathering_tool' ? (
                 <Puzzle className="w-3 h-3 text-positive-trend" />
               ) : serverName === 'fun_def_generation_tool' ? (
@@ -178,21 +182,23 @@ const ToolExecutionProgress: React.FC<ToolExecutionProgressProps> = ({ toolExecu
               // Get display text for different tool types
               const getToolDisplayText = (tool: ToolExecution) => {
                 if (tool.serverName === 'file_search') {
-                  return tool.status === 'in_progress' ? 'Search in progress' : 'Search completed';
+                  return 'Search';
                 } else if (tool.serverName === 'agentic_search') {
-                  return tool.status === 'in_progress' ? 'Agentic Search in progress' : 'Agentic Search completed';
+                  return 'Agentic Search';
+                } else if (tool.serverName === 'agc') {
+                  return tool.toolName;
                 } else if (tool.serverName === 'fun_req_gathering_tool') {
-                  return tool.status === 'in_progress' ? 'Understanding requirement' : 'Completed';
+                  return 'Fun Req Assembler';
                 } else if (tool.serverName === 'fun_def_generation_tool') {
-                  return tool.status === 'in_progress' ? 'Function definition generating' : 'Function definition generated';
+                  return 'Fun Def Generator';
                 } else if (tool.serverName === 'mock_fun_save_tool') {
-                  return tool.status === 'in_progress' ? 'Saving mock function' : 'Mock function saved';
+                  return 'Mock Function Save';
                 } else if (tool.serverName === 'mock_generation_tool') {
-                  return tool.status === 'in_progress' ? 'Understanding mock requirements' : 'Completed';
+                  return 'Mock Generator';
                 } else if (tool.serverName === 'mock_save_tool') {
-                  return tool.status === 'in_progress' ? 'Saving mock' : 'Mock saved';
+                  return 'Mock Save';
                 } else if (tool.serverName === 'get_weather_by_city') {
-                  return tool.status === 'in_progress' ? 'Tool called' : 'Tool call completed';
+                  return 'get_weather_by_city';
                 }
                 return tool.toolName;
               };

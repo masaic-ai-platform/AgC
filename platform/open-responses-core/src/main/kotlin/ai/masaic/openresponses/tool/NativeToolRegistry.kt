@@ -54,6 +54,10 @@ open class NativeToolRegistry(
 
     fun findAll(): List<ToolDefinition> = toolRepository.values.toList()
 
+    fun add(tool: ToolDefinition) {
+        toolRepository[tool.name] = tool
+    }
+
     /**
      * Executes a native tool using unified context and parameters.
      *

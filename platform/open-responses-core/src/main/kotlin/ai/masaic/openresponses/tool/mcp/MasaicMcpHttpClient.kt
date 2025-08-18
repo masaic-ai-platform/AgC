@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.tool.mcp
 
+import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.api.service.ResponseTimeoutException
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolHosting
@@ -15,7 +16,9 @@ import dev.langchain4j.mcp.client.Converter
 import dev.langchain4j.mcp.client.DefaultMcpClient
 import dev.langchain4j.mcp.client.transport.McpTransport
 import dev.langchain4j.mcp.client.transport.stdio.StdioMcpTransport
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import okhttp3.Headers
 import okhttp3.MediaType.Companion.toMediaType
@@ -278,7 +281,7 @@ class HttpSseTransport(
             }
 
             if (code in 400..503) { // TODO: doing minimal handling now.
-                throw Exception("mcp server request failed with code=$code and response returned is: ${resp.body!!.string()}")
+                throw ResponseProcessingException("mcp server request failed with code=$code and response returned is: ${resp.body!!.string()}")
             }
 
             // Regular JSON body
@@ -302,7 +305,7 @@ class HttpSseTransport(
         client.newCall(request).execute().use { resp ->
             val code = resp.code
             if (code in 400..503) {
-                throw Exception("mcp server request failed with code=$code and response returned is: ${resp.body!!.string()}")
+                throw ResponseProcessingException("mcp server request failed with code=$code and response returned is: ${resp.body!!.string()}")
             }
 
             val ct = resp.header("Content-Type").orEmpty()
@@ -377,12 +380,12 @@ class HttpSseTransport(
                     return send(payload, sessionId, onEvent, headers, retryCount + 1)
                 } else {
                     log.error { "Failed to reconnect after 4 attempts. Giving up." }
-                    throw Exception("mcp server request failed with code=$code after 4 retry attempts")
+                    throw ResponseProcessingException("mcp server request failed with code=$code after 4 retry attempts")
                 }
             }
 
             if (code in 400..503) { // TODO: doing minimal handling now.
-                throw Exception("mcp server request failed with code=$code and response returned is: ${resp.body!!.string()}")
+                throw ResponseProcessingException("mcp server request failed with code=$code and response returned is: ${resp.body!!.string()}")
             }
 
             if (ct.startsWith("text/event-stream") && onEvent != null) {
@@ -551,9 +554,11 @@ class McpSyncClient private constructor(
         if (listenSSE) {
             return listenCallTool(request, headers)
         }
-
-        val resp = transport.send(payload = request.toRpc(3), sessionId = sessionId, headers = headers)
-        return resp.toString()
+        log.debug { "calling ${request.name} with args=${request.params}" }
+        val resp = mapper.readTree(transport.send(payload = request.toRpc(3), sessionId = sessionId, headers = headers))
+        val toolResult = mapper.writeValueAsString(Converter.extractResult(resp))
+        log.debug { "response from tool: $toolResult" }
+        return toolResult
     }
 
     private suspend fun listenCallTool(
@@ -599,3 +604,8 @@ data class CallToolRequest(
             "params" to mapOf("name" to name, "arguments" to params),
         )
 }
+
+data class CallToolResponse(
+    val isError: Boolean = false,
+    val content: String,
+)

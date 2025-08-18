@@ -15,6 +15,7 @@ import { ChevronLeft, ChevronRight, Eye, EyeOff, Plus, X, Loader2, Check, Edit }
 import { MCP } from '@lobehub/icons';
 import { API_URL } from '@/config';
 import { apiClient } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface MCPModalProps {
   open: boolean;
@@ -106,7 +107,7 @@ const MCPModal: React.FC<MCPModalProps> = ({
     
     try {
       // Prepare headers based on authentication type
-      let headers: Record<string, string> = {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
 
@@ -155,8 +156,16 @@ const MCPModal: React.FC<MCPModalProps> = ({
 
     } catch (error) {
       console.error('Failed to connect to MCP server:', error);
+      
+      // Extract error message from the error object
+      let errorMessage = 'Failed to connect to MCP server';
+      
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = (error as Error).message;
+      }
+      
+      toast.error(errorMessage);
       setIsConnecting(false);
-      // You might want to show an error message here
     }
   };
 
@@ -167,7 +176,7 @@ const MCPModal: React.FC<MCPModalProps> = ({
     
     try {
       // Use initialConfig values directly instead of state that might not be set yet
-      let headers: Record<string, string> = {
+      const headers: Record<string, string> = {
         'Content-Type': 'application/json'
       };
 
@@ -213,8 +222,16 @@ const MCPModal: React.FC<MCPModalProps> = ({
 
     } catch (error) {
       console.error('Failed to fetch tools for editing:', error);
+      
+      // Extract error message from the error object
+      let errorMessage = 'Failed to fetch tools for editing';
+      
+      if (error && typeof error === 'object' && 'message' in error) {
+        errorMessage = (error as Error).message;
+      }
+      
+      toast.error(errorMessage);
       setIsConnecting(false);
-      // You might want to show an error message here
     }
   };
 

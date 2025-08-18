@@ -13,6 +13,7 @@ import {
   Shield,
   Sparkles,
   Plus,
+  Server,
   LogOut
 } from 'lucide-react';
 
@@ -40,6 +41,7 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
     // New clickable option directly below Observability
     { id: 'masaic-mocky', label: 'Masaic Mocky', icon: Sparkles, clickable: true },
     { id: 'add-model', label: 'Add Model', icon: Plus, clickable: true },
+    { id: 'e2b-server', label: 'E2B Server', icon: Server, clickable: true },
     { id: 'compliance', label: 'Compliance', icon: Shield },
   ];
 

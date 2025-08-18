@@ -84,6 +84,36 @@ data class AgenticSeachTool(
     val modelInfo: ModelInfo?,
 ) : Tool
 
+data class PyFunTool(
+    override val type: String,
+    @JsonProperty("tool_def") val functionDetails: FunctionDetails,
+    val code: String,
+    val deps: List<String> = emptyList(),
+    @JsonProperty("code_interpreter") val interpreterServer: PyInterpreterServer? = null,
+) : Tool {
+    fun platformToolName() = type
+
+    fun interpreterServerName() = "code_interpreter"
+}
+
+data class FunctionDetails(
+    val type: String = "function",
+    val description: String,
+    val name: String,
+    val parameters: MutableMap<String, Any> = mutableMapOf(),
+    val strict: Boolean = true,
+) {
+    init {
+        parameters["additionalProperties"] = false
+    }
+}
+
+data class PyInterpreterServer(
+    @JsonProperty("server_label") val serverLabel: String,
+    val url: String,
+    val apiKey: String,
+)
+
 /**
  * Configuration for ranking search results.
  *
@@ -115,6 +145,7 @@ data class RankingOptions(
     JsonSubTypes.Type(value = AgenticSeachTool::class, name = "agentic_search"),
     JsonSubTypes.Type(value = MCPTool::class, name = "mcp"),
     JsonSubTypes.Type(value = ImageGenerationTool::class, name = "image_generation"),
+    JsonSubTypes.Type(value = PyFunTool::class, name = "py_fun_tool"),
 )
 interface Tool {
     val type: String

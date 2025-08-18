@@ -12,13 +12,15 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.core.JsonValue
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseStreamEvent
+import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ResponseStatusException
 import java.math.BigDecimal
 
+@Profile("!platform")
 @Component
-class PayloadFormatter(
+open class PayloadFormatter(
     private val toolService: ToolService,
     private val mapper: ObjectMapper,
 ) {
@@ -36,7 +38,7 @@ class PayloadFormatter(
      * @param tools The original list of tools in the request
      * @return The updated list of tools
      */
-    private suspend fun updateToolsInRequest(tools: List<Tool>?): MutableList<Tool>? {
+    protected suspend fun updateToolsInRequest(tools: List<Tool>?): MutableList<Tool>? {
         val updatedTools = mutableListOf<Tool>()
         tools?.forEach {
             when (it) {
@@ -53,6 +55,13 @@ class PayloadFormatter(
                     val mcpToolFunctions = toolService.getRemoteMcpTools(it)
                     if (mcpToolFunctions.isEmpty()) throw IllegalStateException("No MCP tools found for ${it.serverLabel}, ${it.serverUrl}")
                     updatedTools.addAll(mcpToolFunctions)
+                }
+
+                is PyFunTool -> {
+                    throw ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "${it.platformToolName()} is not supported outside platform deployment.",
+                    )
                 }
 
                 else -> {
