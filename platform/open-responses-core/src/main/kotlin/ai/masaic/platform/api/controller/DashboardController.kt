@@ -16,6 +16,7 @@ import ai.masaic.platform.api.service.ModelService
 import ai.masaic.platform.api.service.createCompletion
 import ai.masaic.platform.api.service.messages
 import ai.masaic.platform.api.tools.FunDefGenerationTool
+import ai.masaic.platform.api.tools.McpMockServer
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.springframework.context.annotation.Profile
@@ -211,12 +212,6 @@ ${request.existingPrompt}
         }
         return ResponseEntity.ok(updatedTools)
     }
-
-    @GetMapping("/tools", produces = [MediaType.APPLICATION_JSON_VALUE])
-    fun getTools(): ResponseEntity<List<ToolMetadata>> =
-        toolService.listAvailableTools().let {
-            ResponseEntity.ok(it)
-        }
 
     @PostMapping("/tools/mcp/execute", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun executeMCPTool(

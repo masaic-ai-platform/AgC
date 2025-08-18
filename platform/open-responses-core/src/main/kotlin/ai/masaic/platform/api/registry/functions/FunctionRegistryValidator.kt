@@ -31,10 +31,6 @@ class FunctionRegistryValidator {
      * Validates pip requirement strings.
      */
     fun validateDeps(deps: List<String>): ValidationResult {
-        if (deps.isEmpty()) {
-            return ValidationResult.Error(ErrorCodes.INVALID_DEPS, "Dependencies list cannot be empty")
-        }
-
         val invalidDeps = deps.filter { !isValidPipRequirement(it) }
         return if (invalidDeps.isEmpty()) {
             ValidationResult.Success
@@ -47,24 +43,6 @@ class FunctionRegistryValidator {
     }
 
     /**
-     * Validates Python code (basic validation without schema inference).
-     */
-    fun validateCode(code: String): ValidationResult =
-        when {
-            code.isBlank() ->
-                ValidationResult.Error(
-                    ErrorCodes.INVALID_CODE,
-                    "Code cannot be blank",
-                )
-            !code.contains("def run") ->
-                ValidationResult.Error(
-                    ErrorCodes.INVALID_CODE,
-                    "Code must contain 'run' function definition",
-                )
-            else -> ValidationResult.Success
-        }
-
-    /**
      * Validates a complete function creation request.
      */
     fun validateCreateRequest(request: FunctionCreate): ValidationResult {
@@ -73,9 +51,6 @@ class FunctionRegistryValidator {
 
         val depsValidation = validateDeps(request.deps)
         if (depsValidation is ValidationResult.Error) return depsValidation
-
-        val codeValidation = validateCode(request.code)
-        if (codeValidation is ValidationResult.Error) return codeValidation
 
         if (request.description.isBlank()) {
             return ValidationResult.Error("INVALID_DESCRIPTION", "Description cannot be blank")
@@ -91,11 +66,6 @@ class FunctionRegistryValidator {
         request.deps?.let { deps ->
             val depsValidation = validateDeps(deps)
             if (depsValidation is ValidationResult.Error) return depsValidation
-        }
-
-        request.code?.let { code ->
-            val codeValidation = validateCode(code)
-            if (codeValidation is ValidationResult.Error) return codeValidation
         }
 
         request.description?.let { description ->

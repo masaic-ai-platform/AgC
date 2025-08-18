@@ -8,7 +8,7 @@ import java.time.Instant
  * Function document stored in MongoDB.
  * Matches the minimal specification without schema inference.
  */
-@Document(collection = "function_registry")
+@Document(collection = "compute_function_registry")
 data class FunctionDoc(
     @Id
     val name: String,
@@ -16,8 +16,8 @@ data class FunctionDoc(
     val runtime: Runtime,
     val deps: List<String>,
     val code: String,
-    val inputSchema: Map<String, Any>? = null,
-    val outputSchema: Map<String, Any>? = null,
+    val inputSchema: MutableMap<String, Any> = mutableMapOf(),
+    val outputSchema: MutableMap<String, Any> = mutableMapOf(),
     val createdAt: Instant,
     val updatedAt: Instant,
 )
@@ -41,6 +41,7 @@ data class FunctionCreate(
     val description: String,
     val deps: List<String>,
     val code: String,
+    val inputSchema: MutableMap<String, Any>
 )
 
 /**

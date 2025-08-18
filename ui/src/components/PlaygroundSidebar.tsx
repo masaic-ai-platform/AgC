@@ -39,7 +39,7 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
     { id: 'vector-store', label: 'Vector Store', icon: Database },
     { id: 'observability', label: 'Observability', icon: BarChart3, link: 'https://communal-lionfish.in.signoz.cloud/home' },
     // New clickable option directly below Observability
-    { id: 'masaic-mocky', label: 'Masaic Mocky', icon: Sparkles, clickable: true },
+    { id: 'masaic-mocky', label: 'Mocky', icon: Sparkles, clickable: true },
     { id: 'add-model', label: 'Add Model', icon: Plus, clickable: true },
     { id: 'e2b-server', label: 'E2B Server', icon: Server, clickable: true },
     { id: 'compliance', label: 'Compliance', icon: Shield },

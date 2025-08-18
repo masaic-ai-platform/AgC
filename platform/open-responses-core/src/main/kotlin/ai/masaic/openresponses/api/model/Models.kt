@@ -81,7 +81,7 @@ data class AgenticSeachTool(
     val enableTemperatureTuning: Boolean? = null,
     @JsonProperty("enable_top_p_tuning")
     val enableTopPTuning: Boolean? = null,
-    val modelInfo: ModelInfo?,
+    val modelInfo: ModelInfo? = null,
 ) : Tool
 
 data class PyFunTool(

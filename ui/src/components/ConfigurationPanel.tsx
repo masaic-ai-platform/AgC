@@ -33,7 +33,8 @@ import {
   Loader2,
   Copy,
   Check,
-  RefreshCw
+  RefreshCw,
+  Save
 } from 'lucide-react';
 import { MCP } from '@lobehub/icons';
 import { API_URL } from '@/config';
@@ -49,6 +50,7 @@ import MCPModal from './MCPModal';
 import E2BModal from './E2BModal';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import SaveAgentModal from './SaveAgentModal';
 
 interface Model {
   name: string;
@@ -665,6 +667,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const { platformInfo } = usePlatformInfo();
   const isVectorStoreEnabled = platformInfo?.vectorStoreInfo?.isEnabled ?? true;
 
+  const [saveAgentModalOpen, setSaveAgentModalOpen] = useState(false);
+
   return (
     <div className={cn("bg-background border-r border-border h-full overflow-y-auto", className)}>
       <div className="p-4 h-full flex flex-col">
@@ -1242,13 +1246,26 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         {!mockyMode && !modelTestMode && (
         <div className="mt-6 flex flex-col flex-grow min-h-0">
           <div className="flex items-center justify-between mb-3 flex-shrink-0">
-            <Label className="text-sm font-medium">System message</Label>
-            <SystemPromptGenerator 
-              onGenerate={setInstructions} 
-              existingPrompt={instructions} 
-              isLoading={isGeneratingPrompt}
-              onLoadingChange={setIsGeneratingPrompt}
-            />
+            <div className="flex items-center space-x-3">
+              <Label className="text-sm font-medium">System message</Label>
+              <SystemPromptGenerator 
+                onGenerate={setInstructions} 
+                existingPrompt={instructions} 
+                isLoading={isGeneratingPrompt}
+                onLoadingChange={setIsGeneratingPrompt}
+                tools={selectedTools || []}
+                modelName={modelName}
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSaveAgentModalOpen(true)}
+              className="flex items-center space-x-2 hover:bg-positive-trend/10 hover:text-positive-trend focus:bg-positive-trend/10 focus:text-positive-trend"
+            >
+              <Save className="h-4 w-4" />
+              <span>Save Agent</span>
+            </Button>
           </div>
           <div className="relative flex-grow min-h-0">
             <Button
@@ -1327,6 +1344,15 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       <E2BModal
         open={openE2bModal}
         onOpenChange={onE2bModalChange}
+      />
+
+      {/* Save Agent Modal */}
+      <SaveAgentModal
+        open={saveAgentModalOpen}
+        onOpenChange={setSaveAgentModalOpen}
+        systemPrompt={instructions}
+        tools={selectedTools || []}
+        modelName={modelName}
       />
     </div>
   );

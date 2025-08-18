@@ -39,8 +39,8 @@ class FunctionRegistryService(
                 runtime = Runtime(Runtime.PYTHON),
                 deps = request.deps,
                 code = request.code,
-                inputSchema = null, // Will be populated by schema inference later
-                outputSchema = null, // Will be populated by schema inference later
+                inputSchema = request.inputSchema, // Will be populated by schema inference later
+                outputSchema = mutableMapOf(), // Will be populated by schema inference later
                 createdAt = now,
                 updatedAt = now,
             )

@@ -190,6 +190,9 @@ class PlatformCoreConfig {
 
         @Bean
         fun mocksRepository(mongoTemplate: ReactiveMongoTemplate) = MongoMocksRepository(mongoTemplate)
+
+        @Bean
+        fun agentRepository(mongoTemplate: ReactiveMongoTemplate) = MongoAgentRepository(mongoTemplate)
     }
 
     @Configuration
@@ -204,6 +207,9 @@ class PlatformCoreConfig {
 
         @Bean
         fun mocksRepository() = InMemoryMocksRepository()
+
+        @Bean
+        fun agentRepository() = InMemoryAgentRepository()
     }
 
     @Configuration
