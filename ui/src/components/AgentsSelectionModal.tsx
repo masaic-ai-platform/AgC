@@ -47,14 +47,37 @@ const AgentsSelectionModal: React.FC<AgentsSelectionModalProps> = ({
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
 
+  const getAgentsHeaders = async (): Promise<HeadersInit> => {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    // Only add X-Google-Token if auth is enabled (no Authorization header for agents API)
+    try {
+      const response = await fetch(`${API_URL}/v1/dashboard/platform/info`);
+      const platformInfo = await response.json();
+      const authEnabled = platformInfo.authConfig?.enabled || false;
+      
+      if (authEnabled) {
+        const googleToken = localStorage.getItem('google_token');
+        if (googleToken) {
+          headers['X-Google-Token'] = googleToken;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to check auth status:', error);
+    }
+
+    return headers;
+  };
+
   const fetchAgents = async () => {
     setLoading(true);
     try {
+      const headers = await getAgentsHeaders();
       const response = await fetch(`${API_URL}/v1/agents`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
       });
 
       if (!response.ok) {
@@ -74,11 +97,10 @@ const AgentsSelectionModal: React.FC<AgentsSelectionModalProps> = ({
 
   const fetchAgentDetails = async (agentName: string) => {
     try {
+      const headers = await getAgentsHeaders();
       const response = await fetch(`${API_URL}/v1/agents/${agentName}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers,
       });
 
       if (!response.ok) {

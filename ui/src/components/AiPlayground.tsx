@@ -86,6 +86,31 @@ const isValidUrl = (url: string): boolean => {
 };
 
 const AiPlayground: React.FC = () => {
+  // Helper function for agents API calls (no Authorization header, only X-Google-Token if applicable)
+  const getAgentsHeaders = async (): Promise<HeadersInit> => {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    // Only add X-Google-Token if auth is enabled (no Authorization header for agents API)
+    try {
+      const response = await fetch(`${API_URL}/v1/dashboard/platform/info`);
+      const platformInfo = await response.json();
+      const authEnabled = platformInfo.authConfig?.enabled || false;
+      
+      if (authEnabled) {
+        const googleToken = localStorage.getItem('google_token');
+        if (googleToken) {
+          headers['X-Google-Token'] = googleToken;
+        }
+      }
+    } catch (error) {
+      console.warn('Failed to check auth status:', error);
+    }
+
+    return headers;
+  };
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -1646,10 +1671,9 @@ const AiPlayground: React.FC = () => {
   const handleAgentSaved = async (agentName: string, agentDescription: string) => {
     try {
       // Fetch the saved agent details from the API
+      const headers = await getAgentsHeaders();
       const response = await fetch(`${API_URL}/v1/agents/${agentName}`, {
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-        },
+        headers,
       });
 
       if (!response.ok) {
@@ -1840,7 +1864,9 @@ const AiPlayground: React.FC = () => {
       
       setActiveTab(tab);
       // Fetch agent definition
-      fetch(`${API_URL}/v1/agents/Masaic-Mocky`)
+      getAgentsHeaders().then(headers => {
+        return fetch(`${API_URL}/v1/agents/Masaic-Mocky`, { headers });
+      })
         .then(res => res.json())
         .then(data => {
           if (data) {
@@ -1902,7 +1928,9 @@ const AiPlayground: React.FC = () => {
       
       setActiveTab(tab);
       // Fetch ModelTestAgent definition
-      fetch(`${API_URL}/v1/agents/ModelTestAgent`)
+      getAgentsHeaders().then(headers => {
+        return fetch(`${API_URL}/v1/agents/ModelTestAgent`, { headers });
+      })
         .then(res => res.json())
         .then(data => {
           if (data) {
