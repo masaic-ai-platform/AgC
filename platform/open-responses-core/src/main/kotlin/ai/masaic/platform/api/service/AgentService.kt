@@ -280,9 +280,9 @@ class AgentService(
 
     private fun getBuiltInAgent(agentName: String): PlatformAgent? =
         when (agentName) {
-            "Masaic-Mocky" -> {
+            "masaic-mocky" -> {
                 PlatformAgent(
-                    name = "Masaic-Mocky",
+                    name = "masaic-mocky",
                     description = "Mocky: Expert in making mock MCP servers quickly",
                     greetingMessage = "Hi, this is Mocky. Let me know the quick mock functions you would like to create.",
                     systemPrompt = mockyPrompt,
@@ -290,9 +290,9 @@ class AgentService(
                     kind = AgentClass(AgentClass.SYSTEM),
                 )
             }
-            "ModelTestAgent" -> {
+            "modeltestagent" -> {
                 PlatformAgent(
-                    name = "ModelTestAgent",
+                    name = "modeltestagent",
                     description = "This agent tests compatibility of model with platform",
                     greetingMessage = "Hi, let me test Model with query: \"Tell me the weather of San Francisco\"",
                     systemPrompt = modelTestPrompt,
@@ -301,9 +301,9 @@ class AgentService(
                     kind = AgentClass(AgentClass.SYSTEM),
                 )
             }
-            "AgentBuilder" -> {
+            "agent-builder" -> {
                 PlatformAgent(
-                    name = "AgC0",
+                    name = "agent-builder",
                     description = "This agent can build agents using available model, tools and system instructions",
                     greetingMessage = "Hi, this is AgC0 agent, I can help you in building agent that can run on my Agentic Compute (AgC)",
                     systemPrompt = agC0Prompt,

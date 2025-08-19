@@ -30,7 +30,7 @@ class AgentServiceTest {
     fun `getAgent should return built-in agent when name matches`() =
         runTest {
             // Given
-            val agentName = "Masaic-Mocky"
+            val agentName = "masaic-mocky"
 
             // When
             val result = agentService.getAgent(agentName)
@@ -38,7 +38,7 @@ class AgentServiceTest {
             // Then
             assertNotNull(result)
             result?.let { agent ->
-                assertEquals("Masaic-Mocky", agent.name)
+                assertEquals("masaic-mocky", agent.name)
                 assertEquals("Mocky: Expert in making mock MCP servers quickly", agent.description)
                 assertEquals("Hi, this is Mocky. Let me know the quick mock functions you would like to create.", agent.greetingMessage)
                 assertTrue(agent.systemPrompt.contains("Function Requirement Gathering"))
@@ -51,7 +51,7 @@ class AgentServiceTest {
     fun `getAgent should return built-in ModelTestAgent when name matches`() =
         runTest {
             // Given
-            val agentName = "ModelTestAgent"
+            val agentName = "modeltestagent"
 
             // When
             val result = agentService.getAgent(agentName)
@@ -59,7 +59,7 @@ class AgentServiceTest {
             // Then
             assertNotNull(result)
             result?.let { agent ->
-                assertEquals("ModelTestAgent", agent.name)
+                assertEquals("modeltestagent", agent.name)
                 assertEquals("This agent tests compatibility of model with platform", agent.description)
                 assertEquals("Hi, let me test Model with query: \"Tell me the weather of San Francisco\"", agent.greetingMessage)
                 assertTrue(agent.systemPrompt.contains("Weather Information Provider"))
@@ -72,7 +72,7 @@ class AgentServiceTest {
     fun `getAgent should return built-in AgentBuilder when name matches`() =
         runTest {
             // Given
-            val agentName = "AgentBuilder"
+            val agentName = "agent-builder"
 
             // When
             val result = agentService.getAgent(agentName)
@@ -80,7 +80,7 @@ class AgentServiceTest {
             // Then
             assertNotNull(result)
             result?.let { agent ->
-                assertEquals("AgC0", agent.name)
+                assertEquals("agent-builder", agent.name)
                 assertEquals("This agent can build agents using available model, tools and system instructions", agent.description)
                 assertEquals("Hi, this is AgC0 agent, I can help you in building agent that can run on my Agentic Compute (AgC)", agent.greetingMessage)
                 assertEquals("system", agent.kind.kind)
@@ -127,7 +127,7 @@ class AgentServiceTest {
     fun `deleteAgent should return false for built-in agents`() =
         runTest {
             // Given
-            val agentName = "Masaic-Mocky"
+            val agentName = "masaic-mocky"
 
             // When
             val result = agentService.deleteAgent(agentName)
