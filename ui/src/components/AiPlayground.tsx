@@ -1863,12 +1863,19 @@ const AiPlayground: React.FC = () => {
       resetAgentBuilderMode();
       
       setActiveTab(tab);
-      // Fetch agent definition
-      getAgentsHeaders().then(headers => {
-        return fetch(`${API_URL}/v1/agents/Masaic-Mocky`, { headers });
-      })
-        .then(res => res.json())
-        .then(data => {
+      
+      // Fetch agent definition with proper async/await
+      (async () => {
+        try {
+          const headers = await getAgentsHeaders();
+          const response = await fetch(`${API_URL}/v1/agents/Masaic-Mocky`, { headers });
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch Masaic Mocky agent');
+          }
+          
+          const data = await response.json();
+          
           if (data) {
             setMockyMode(true);
             setMockyAgentData({
@@ -1911,11 +1918,11 @@ const AiPlayground: React.FC = () => {
           } else {
             toast.error('Failed to load Masaic Mocky agent data');
           }
-        })
-        .catch(err => {
+        } catch (err) {
           console.error(err);
-          toast.error('Error fetching Masaic Mocky agent');
-        });
+          toast.error('Failed to load Masaic Mocky agent data');
+        }
+      })();
       return;
     }
 
@@ -1927,12 +1934,19 @@ const AiPlayground: React.FC = () => {
       resetAgentBuilderMode();
       
       setActiveTab(tab);
-      // Fetch ModelTestAgent definition
-      getAgentsHeaders().then(headers => {
-        return fetch(`${API_URL}/v1/agents/ModelTestAgent`, { headers });
-      })
-        .then(res => res.json())
-        .then(data => {
+      
+      // Fetch ModelTestAgent definition with proper async/await
+      (async () => {
+        try {
+          const headers = await getAgentsHeaders();
+          const response = await fetch(`${API_URL}/v1/agents/ModelTestAgent`, { headers });
+          
+          if (!response.ok) {
+            throw new Error('Failed to fetch ModelTestAgent');
+          }
+          
+          const data = await response.json();
+          
           if (data) {
             setModelTestMode(true);
             setModelTestAgentData({
@@ -1958,11 +1972,11 @@ const AiPlayground: React.FC = () => {
           } else {
             toast.error('Failed to load Model Test Agent data');
           }
-        })
-        .catch(err => {
+        } catch (err) {
           console.error(err);
-          toast.error('Error fetching Model Test Agent');
-        });
+          toast.error('Failed to load Model Test Agent data');
+        }
+      })();
       return;
     }
 
