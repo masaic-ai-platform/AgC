@@ -163,6 +163,96 @@ class ApiClient {
   async rawRequest(endpoint: string, options: RequestInit = {}): Promise<Response> {
     return this.request(endpoint, options);
   }
+
+  // Helper method for agents API calls (excludes Authorization header, only includes X-Google-Token if applicable)
+  private async getAgentsHeaders(): Promise<HeadersInit> {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+
+    // Only add X-Google-Token if auth is enabled (no Authorization header for agents API)
+    const authEnabled = await this.isAuthEnabled();
+    if (authEnabled) {
+      const googleToken = this.getGoogleToken();
+      if (googleToken) {
+        headers['X-Google-Token'] = googleToken;
+      }
+    }
+
+    return headers;
+  }
+
+  // Agent-specific request method (no Authorization header)
+  async agentRequest(endpoint: string, options: RequestInit = {}): Promise<Response> {
+    const headers = { ...await this.getAgentsHeaders(), ...options.headers };
+
+    // Debug: Log headers being sent (only in development)
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`Agent API Request to ${endpoint}:`, {
+        headers: headers,
+        hasAuth: !!headers['Authorization'],
+        hasGoogleToken: !!headers['X-Google-Token']
+      });
+    }
+
+    try {
+      const response = await fetch(`${API_URL}${endpoint}`, {
+        ...options,
+        headers,
+      });
+
+      if (response.status === 401) {
+        // Handle authentication error
+        this.handleAuthError();
+        throw new Error('Authentication required');
+      }
+
+      return response;
+    } catch (error) {
+      // If it's an authentication error, re-throw it
+      if (error instanceof Error && error.message === 'Authentication required') {
+        throw error;
+      }
+      
+      // For other errors (network, etc.), throw a generic error
+      throw new Error('Network error');
+    }
+  }
+
+  // Helper method for JSON requests to agents endpoints
+  async agentJsonRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const response = await this.agentRequest(endpoint, options);
+    
+    if (!response.ok) {
+      // Try to get the error response body for better error messages
+      let errorMessage = `HTTP error! status: ${response.status}`;
+      try {
+        const errorBody = await response.text();
+        if (errorBody) {
+          try {
+            const errorData = JSON.parse(errorBody);
+            if (errorData.message) {
+              errorMessage = errorData.message;
+            } else {
+              errorMessage = errorBody;
+            }
+          } catch {
+            // If not JSON, use the raw text
+            errorMessage = errorBody;
+          }
+        }
+      } catch {
+        // If we can't read the response body, use the status-based message
+      }
+      
+      const error = new Error(errorMessage);
+      (error as { response?: Response; status?: number }).response = response;
+      (error as { response?: Response; status?: number }).status = response.status;
+      throw error;
+    }
+    
+    return response.json();
+  }
 }
 
 // Export singleton instance

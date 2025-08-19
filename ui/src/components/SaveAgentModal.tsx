@@ -23,6 +23,7 @@ import { Label } from '@/components/ui/label';
 import { Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { API_URL } from '@/config';
+import { apiClient } from '@/lib/api';
 
 interface SaveAgentModalProps {
   open: boolean;
@@ -49,6 +50,7 @@ const SaveAgentModal: React.FC<SaveAgentModalProps> = ({
   existingAgentDescription = '',
   onAgentSaved
 }) => {
+
   const [agentName, setAgentName] = useState('');
   const [description, setDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -184,43 +186,21 @@ const SaveAgentModal: React.FC<SaveAgentModalProps> = ({
         stream: true
       };
 
-      let url: string;
-      let method: string;
-      
       if (isUpdate && !isNameChanged) {
         // Update existing agent with same name - use PUT
-        url = `${API_URL}/v1/agents/${existingAgentName}`;
-        method = 'PUT';
+        await apiClient.agentJsonRequest(`/v1/agents/${existingAgentName}`, {
+          method: 'PUT',
+          body: JSON.stringify(agentData),
+        });
       } else {
         // Create new agent or create with new name - use POST
-        url = `${API_URL}/v1/agents`;
-        method = 'POST';
+        await apiClient.agentJsonRequest('/v1/agents', {
+          method: 'POST',
+          body: JSON.stringify(agentData),
+        });
       }
 
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(agentData),
-      });
 
-      if (!response.ok) {
-        let errorMessage = `Failed to ${isUpdate ? 'update' : 'save'} agent`;
-        try {
-          const errorData = await response.json();
-          if (errorData.message) {
-            errorMessage = errorData.message;
-          } else if (errorData.error) {
-            errorMessage = errorData.error;
-          } else {
-            errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-          }
-        } catch (parseError) {
-          errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-        }
-        throw new Error(errorMessage);
-      }
 
       const successMessage = isUpdate 
         ? (isNameChanged ? 'Agent saved as new agent successfully!' : 'Agent updated successfully!')
