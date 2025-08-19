@@ -51,6 +51,7 @@ import E2BModal from './E2BModal';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import SaveAgentModal from './SaveAgentModal';
+import AgentList from './AgentList';
 
 interface Model {
   name: string;
@@ -152,6 +153,8 @@ interface ConfigurationPanelProps {
   mockyMode?: boolean;
   // When true, shows Model Test Agent specific UI
   modelTestMode?: boolean;
+  // When true, shows Agent Builder mode with hidden sections
+  agentBuilderMode?: boolean;
   modelTestUrl?: string;
   setModelTestUrl?: (url: string) => void;
   modelTestName?: string;
@@ -166,6 +169,8 @@ interface ConfigurationPanelProps {
   agentData?: { name: string; description: string; } | null;
   // Callback when agent is saved to switch to agent context
   onAgentSaved?: (agentName: string, agentDescription: string) => void;
+  // Callback when agent is selected from agent list
+  onAgentSelect?: (agent: any) => void;
 }
 
 const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
@@ -216,6 +221,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   setJsonSchemaName,
   mockyMode = false,
   modelTestMode = false,
+  agentBuilderMode = false,
   modelTestUrl = '',
   setModelTestUrl = () => {},
   modelTestName = '',
@@ -227,7 +233,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   className = '',
   agentMode = false,
   agentData = null,
-  onAgentSaved
+  onAgentSaved,
+  onAgentSelect
 }) => {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(false);
@@ -854,8 +861,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           )}
         </div>
 
-        {/* Tools Section (hidden in Masaic Mocky mode and Model Test mode) */}
-        {!mockyMode && !modelTestMode && (
+        {/* Tools Section (hidden in Masaic Mocky mode, Model Test mode, and Agent Builder mode) */}
+        {!mockyMode && !modelTestMode && !agentBuilderMode && (
         <div className="mt-6 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center flex-wrap gap-2">
@@ -1250,8 +1257,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           </div>
         )}
 
-        {/* System Message - hidden in Masaic Mocky mode and Model Test mode */}
-        {!mockyMode && !modelTestMode && (
+        {/* System Message - hidden in Masaic Mocky mode, Model Test mode, and Agent Builder mode */}
+        {!mockyMode && !modelTestMode && !agentBuilderMode && (
         <div className="mt-6 flex flex-col flex-grow min-h-0">
           <div className="flex items-center justify-between mb-3 flex-shrink-0">
             <div className="flex items-center space-x-3">
@@ -1310,6 +1317,13 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
               </div>
             )}
           </div>
+        </div>
+        )}
+
+        {/* Agent List - shown in Agent Builder mode */}
+        {agentBuilderMode && (
+        <div className="mt-6 flex-grow min-h-0">
+          <AgentList className="h-full" onAgentSelect={onAgentSelect} />
         </div>
         )}
 

@@ -28,7 +28,7 @@ class AgentsController(
             agentService.getAgent(agentName.lowercase())
                 ?: throw AgentNotFoundException("Agent: $agentName is not supported.")
         
-        return ResponseEntity.ok(agent)
+        return ResponseEntity.ok(agent.copy(name = agent.presentableName()))
     }
 
     @PostMapping("/agents", produces = [MediaType.APPLICATION_JSON_VALUE])
@@ -50,8 +50,7 @@ class AgentsController(
 
     @GetMapping("/agents", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun listAgents(): ResponseEntity<List<PlatformAgent>> {
-        // Only returns persisted agents (not SYSTEM agents)
-        val agents = agentService.getAllAgents()
+        val agents = agentService.getAllAgents().map { it.copy(name = it.presentableName()) }
         return ResponseEntity.ok(agents)
     }
 
@@ -84,7 +83,9 @@ data class PlatformAgent(
     val stream: Boolean = true,
     @JsonIgnore
     val kind: AgentClass = AgentClass(AgentClass.OTHER),
-)
+) {
+    fun presentableName() = name.replaceFirstChar { it.uppercase() }
+}
 
 data class PlatformAgentMeta(
     @org.springframework.data.annotation.Id

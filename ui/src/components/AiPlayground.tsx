@@ -154,6 +154,9 @@ const AiPlayground: React.FC = () => {
     }
   });
 
+  // Agent Builder mode state
+  const [agentBuilderMode, setAgentBuilderMode] = useState(false);
+
   // Chat header state
   const [copiedResponseId, setCopiedResponseId] = useState(false);
 
@@ -1678,6 +1681,7 @@ const AiPlayground: React.FC = () => {
         setIsTestingModel(false);
         setShowSaveModel(false);
         setSaveModelState(null);
+        setAgentBuilderMode(false);
       };
 
       resetAllModes();
@@ -1735,6 +1739,43 @@ const AiPlayground: React.FC = () => {
     }
   };
 
+  const handleCreateAgent = () => {
+    // Reset all other modes
+    const resetAllModes = () => {
+      setMockyMode(false);
+      setMockyAgentData(null);
+      setModelTestMode(false);
+      setModelTestAgentData(null);
+      setModelTestUrl('');
+      setModelTestName('');
+      setModelTestApiKey('');
+      setIsTestingModel(false);
+      setShowSaveModel(false);
+      setSaveModelState(null);
+      setAgentMode(false);
+      setAgentData(null);
+    };
+
+    resetAllModes();
+
+    // Set agent builder mode
+    setAgentBuilderMode(true);
+    setActiveTab('agent-builder');
+    
+    // Reset conversation
+    setMessages([]);
+    setConversationId(null);
+    setPreviousResponseId(null);
+
+    // Clear agent data from localStorage if in agent mode
+    try {
+      localStorage.removeItem('platform_agentMode');
+      localStorage.removeItem('platform_agentData');
+    } catch (error) {
+      console.error('Failed to clear agent data from localStorage:', error);
+    }
+  };
+
   const handleTabChange = (tab: string) => {
     // First, always reset any active special modes
     const resetMockyMode = () => {
@@ -1781,13 +1822,21 @@ const AiPlayground: React.FC = () => {
       }
     };
 
-
+    const resetAgentBuilderMode = () => {
+      if (agentBuilderMode) {
+        setAgentBuilderMode(false);
+        setMessages([]);
+        setConversationId(null);
+        setPreviousResponseId(null);
+      }
+    };
 
     // Special handling for Masaic Mocky option
     if (tab === 'masaic-mocky') {
       // Reset other modes first if active
       resetModelTestMode();
       resetAgentMode();
+      resetAgentBuilderMode();
       
       setActiveTab(tab);
       // Fetch agent definition
@@ -1849,6 +1898,7 @@ const AiPlayground: React.FC = () => {
       // Reset other modes first if active
       resetMockyMode();
       resetAgentMode();
+      resetAgentBuilderMode();
       
       setActiveTab(tab);
       // Fetch ModelTestAgent definition
@@ -1894,6 +1944,7 @@ const AiPlayground: React.FC = () => {
       resetMockyMode();
       resetModelTestMode();
       resetAgentMode();
+      resetAgentBuilderMode();
       
       setActiveTab('responses');
       setE2bModalOpen(true);
@@ -1904,6 +1955,7 @@ const AiPlayground: React.FC = () => {
     resetMockyMode();
     resetModelTestMode();
     resetAgentMode();
+    resetAgentBuilderMode();
 
     setActiveTab(tab);
     // Handle API Keys tab by opening the API keys modal
@@ -2519,6 +2571,7 @@ const AiPlayground: React.FC = () => {
         <PlaygroundSidebar 
           activeTab={activeTab}
           onTabChange={handleTabChange}
+          onCreateAgent={handleCreateAgent}
           className="flex flex-col w-full"
         />
         {/* Configuration Panel */}
@@ -2571,6 +2624,7 @@ const AiPlayground: React.FC = () => {
           className="w-full"
           mockyMode={mockyMode}
           modelTestMode={modelTestMode}
+          agentBuilderMode={agentBuilderMode}
           modelTestUrl={modelTestUrl}
           setModelTestUrl={setModelTestUrl}
           modelTestName={modelTestName}
@@ -2579,6 +2633,10 @@ const AiPlayground: React.FC = () => {
           setModelTestApiKey={setModelTestApiKey}
           onTestModelConnectivity={handleTestModelConnectivity}
           isTestingModel={isTestingModel}
+          agentMode={agentMode}
+          agentData={agentData}
+          onAgentSaved={handleAgentSaved}
+          onAgentSelect={handleAgentSelect}
         />
       </DrawerContent>
     </Drawer>
@@ -2589,6 +2647,7 @@ const AiPlayground: React.FC = () => {
         activeTab={activeTab}
         onTabChange={handleTabChange}
         onAgentSelect={handleAgentSelect}
+        onCreateAgent={handleCreateAgent}
         className="hidden md:flex md:flex-col md:w-[10%] md:min-w-[160px]"
       />
 
@@ -2642,6 +2701,7 @@ const AiPlayground: React.FC = () => {
         className="hidden md:block md:w-[30%]"
         mockyMode={mockyMode}
         modelTestMode={modelTestMode}
+        agentBuilderMode={agentBuilderMode}
         modelTestUrl={modelTestUrl}
         setModelTestUrl={setModelTestUrl}
         modelTestName={modelTestName}
@@ -2650,6 +2710,7 @@ const AiPlayground: React.FC = () => {
         agentMode={agentMode}
         agentData={agentData}
         onAgentSaved={handleAgentSaved}
+        onAgentSelect={handleAgentSelect}
         setModelTestApiKey={setModelTestApiKey}
         onTestModelConnectivity={handleTestModelConnectivity}
         isTestingModel={isTestingModel}

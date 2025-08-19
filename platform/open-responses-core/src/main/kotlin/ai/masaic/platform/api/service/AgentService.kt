@@ -73,7 +73,10 @@ class AgentService(
     suspend fun getAllAgents(): List<PlatformAgent> {
         // Only return persisted agents (not SYSTEM agents)
         val persistedAgentMetas = agentRepository.findAll()
-        return persistedAgentMetas.map { convertToPlatformAgent(it) }
+        return persistedAgentMetas.map {
+            val agent = convertToPlatformAgent(it)
+            PlatformAgent(model = agent.model, name = agent.name, description = agent.description, systemPrompt = agent.systemPrompt)
+        }
     }
 
     suspend fun deleteAgent(agentName: String): Boolean {

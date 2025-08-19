@@ -31,6 +31,7 @@ interface AgentsSelectionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onAgentSelect: (agent: Agent) => void;
+  onCreateAgent?: () => void;
   triggerButton?: React.ReactNode;
 }
 
@@ -38,6 +39,7 @@ const AgentsSelectionModal: React.FC<AgentsSelectionModalProps> = ({
   open,
   onOpenChange,
   onAgentSelect,
+  onCreateAgent,
   triggerButton
 }) => {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -143,7 +145,22 @@ const AgentsSelectionModal: React.FC<AgentsSelectionModalProps> = ({
         align="start"
       >
         <div className="p-4 border-b">
-          <h4 className="text-sm font-medium mb-3">Select an agent</h4>
+          <div className="flex items-center justify-between mb-3">
+            <h4 className="text-sm font-medium">Select an agent</h4>
+            {onCreateAgent && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  onCreateAgent();
+                  onOpenChange(false);
+                }}
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 dark:hover:text-green-400 transition-colors"
+              >
+                Create Agent
+              </Button>
+            )}
+          </div>
           
           {/* Search Input */}
           <div className="relative">
@@ -190,24 +207,10 @@ const AgentsSelectionModal: React.FC<AgentsSelectionModalProps> = ({
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center space-x-2 mb-1">
-                        <span className="font-medium text-sm">{agent.name}</span>
-                        {agent.model && (
-                          <Badge variant="secondary" className="text-xs px-1.5 py-0">
-                            {agent.model}
-                          </Badge>
-                        )}
-                      </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {agent.description}
+                      <p className="text-sm leading-relaxed whitespace-normal break-words">
+                        <span className="font-medium">{agent.name}</span>
+                        <span className="text-muted-foreground">: {agent.description}</span>
                       </p>
-                      {agent.tools && agent.tools.length > 0 && (
-                        <div className="mt-1">
-                          <Badge variant="outline" className="text-xs px-1.5 py-0">
-                            {agent.tools.length} tool{agent.tools.length !== 1 ? 's' : ''}
-                          </Badge>
-                        </div>
-                      )}
                     </div>
                   </div>
                 </Button>
