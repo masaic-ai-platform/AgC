@@ -251,7 +251,42 @@ class ApiClient {
       throw error;
     }
     
-    return response.json();
+    // Check if response has content before trying to parse JSON
+    const contentType = response.headers.get('content-type');
+    const contentLength = response.headers.get('content-length');
+    
+    // If no content or content-length is 0, return empty object/null
+    if (contentLength === '0' || response.status === 204) {
+      return {} as T;
+    }
+    
+    // Check if response is actually JSON
+    if (!contentType || !contentType.includes('application/json')) {
+      // For non-JSON responses (like plain text), try to get the text
+      const text = await response.text();
+      if (!text) {
+        return {} as T;
+      }
+      // If it's not empty text, try to parse as JSON anyway
+      try {
+        return JSON.parse(text);
+      } catch {
+        // If parsing fails, return the text wrapped in an object
+        return { message: text } as T;
+      }
+    }
+    
+    // Try to parse JSON, handle empty responses
+    try {
+      const text = await response.text();
+      if (!text || text.trim() === '') {
+        return {} as T;
+      }
+      return JSON.parse(text);
+    } catch (error) {
+      console.warn('Failed to parse JSON response:', error);
+      return {} as T;
+    }
   }
 }
 

@@ -86,30 +86,7 @@ const isValidUrl = (url: string): boolean => {
 };
 
 const AiPlayground: React.FC = () => {
-  // Helper function for agents API calls (no Authorization header, only X-Google-Token if applicable)
-  const getAgentsHeaders = async (): Promise<HeadersInit> => {
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
 
-    // Only add X-Google-Token if auth is enabled (no Authorization header for agents API)
-    try {
-      const response = await fetch(`${API_URL}/v1/dashboard/platform/info`);
-      const platformInfo = await response.json();
-      const authEnabled = platformInfo.authConfig?.enabled || false;
-      
-      if (authEnabled) {
-        const googleToken = localStorage.getItem('google_token');
-        if (googleToken) {
-          headers['X-Google-Token'] = googleToken;
-        }
-      }
-    } catch (error) {
-      console.warn('Failed to check auth status:', error);
-    }
-
-    return headers;
-  };
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -1671,17 +1648,7 @@ const AiPlayground: React.FC = () => {
   const handleAgentSaved = async (agentName: string, agentDescription: string) => {
     try {
       // Fetch the saved agent details from the API
-      const headers = await getAgentsHeaders();
-      const response = await fetch(`${API_URL}/v1/agents/${agentName}`, {
-        headers,
-      });
-
-      if (!response.ok) {
-        console.error('Failed to fetch saved agent details');
-        return;
-      }
-
-      const agentDetails = await response.json();
+      const agentDetails = await apiClient.agentJsonRequest(`/v1/agents/${agentName}`);
       
       // Use the existing handleAgentSelect logic to switch to agent context
       await handleAgentSelect(agentDetails);
@@ -1867,14 +1834,7 @@ const AiPlayground: React.FC = () => {
       // Fetch agent definition with proper async/await
       (async () => {
         try {
-          const headers = await getAgentsHeaders();
-          const response = await fetch(`${API_URL}/v1/agents/Masaic-Mocky`, { headers });
-          
-          if (!response.ok) {
-            throw new Error('Failed to fetch Masaic Mocky agent');
-          }
-          
-          const data = await response.json();
+          const data = await apiClient.agentJsonRequest('/v1/agents/Masaic-Mocky');
           
           if (data) {
             setMockyMode(true);
@@ -1938,14 +1898,7 @@ const AiPlayground: React.FC = () => {
       // Fetch ModelTestAgent definition with proper async/await
       (async () => {
         try {
-          const headers = await getAgentsHeaders();
-          const response = await fetch(`${API_URL}/v1/agents/ModelTestAgent`, { headers });
-          
-          if (!response.ok) {
-            throw new Error('Failed to fetch ModelTestAgent');
-          }
-          
-          const data = await response.json();
+          const data = await apiClient.agentJsonRequest('/v1/agents/ModelTestAgent');
           
           if (data) {
             setModelTestMode(true);
