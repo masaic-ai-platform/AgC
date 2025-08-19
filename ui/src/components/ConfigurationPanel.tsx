@@ -161,6 +161,11 @@ interface ConfigurationPanelProps {
   onTestModelConnectivity?: () => void;
   isTestingModel?: boolean;
   className?: string;
+  // Agent context for Save Agent modal
+  agentMode?: boolean;
+  agentData?: { name: string; description: string; } | null;
+  // Callback when agent is saved to switch to agent context
+  onAgentSaved?: (agentName: string, agentDescription: string) => void;
 }
 
 const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
@@ -219,7 +224,10 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   setModelTestApiKey = () => {},
   onTestModelConnectivity = () => {},
   isTestingModel = false,
-  className = ''
+  className = '',
+  agentMode = false,
+  agentData = null,
+  onAgentSaved
 }) => {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(false);
@@ -1355,6 +1363,10 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         systemPrompt={instructions}
         tools={selectedTools || []}
         modelName={modelName}
+        isAgentContext={agentMode}
+        existingAgentName={agentData?.name || ''}
+        existingAgentDescription={agentData?.description || ''}
+        onAgentSaved={onAgentSaved}
       />
     </div>
   );

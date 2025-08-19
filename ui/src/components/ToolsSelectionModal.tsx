@@ -468,7 +468,7 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
           }
         }}
         onSave={handleFileSearchSave}
-        initialVectorStores={editingFileSearch?.fileSearchConfig?.selectedVectorStores}
+        initialVectorStores={editingFileSearch?.fileSearchConfig?.selectedVectorStores || []}
         initialSelectedFiles={editingFileSearch?.fileSearchConfig?.selectedFiles}
         initialVectorStoreNames={editingFileSearch?.fileSearchConfig?.vectorStoreNames}
       />
@@ -485,7 +485,7 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
           }
         }}
         onSave={handleAgenticFileSearchSave}
-        initialVectorStores={editingAgenticFileSearch?.agenticFileSearchConfig?.selectedVectorStores}
+        initialVectorStores={editingAgenticFileSearch?.agenticFileSearchConfig?.selectedVectorStores || []}
         initialIterations={editingAgenticFileSearch?.agenticFileSearchConfig?.iterations}
         initialMaxResults={editingAgenticFileSearch?.agenticFileSearchConfig?.maxResults}
         initialSelectedFiles={editingAgenticFileSearch?.agenticFileSearchConfig?.selectedFiles}

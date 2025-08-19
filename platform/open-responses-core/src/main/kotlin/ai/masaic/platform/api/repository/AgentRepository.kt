@@ -12,8 +12,11 @@ import java.time.Instant
 
 interface AgentRepository {
     suspend fun upsert(agentMeta: PlatformAgentMeta): PlatformAgentMeta
+
     suspend fun findByName(name: String): PlatformAgentMeta?
+
     suspend fun deleteByName(name: String): Boolean
+
     suspend fun findAll(): List<PlatformAgentMeta>
 }
 
@@ -25,20 +28,23 @@ class MongoAgentRepository(
     }
 
     override suspend fun upsert(agentMeta: PlatformAgentMeta): PlatformAgentMeta {
-        val agentWithTimestamp = agentMeta.copy(
-            createdAt = agentMeta.createdAt ?: Instant.now(),
-            updatedAt = Instant.now()
-        )
+        val agentWithTimestamp =
+            agentMeta.copy(
+                createdAt = agentMeta.createdAt ?: Instant.now(),
+                updatedAt = Instant.now(),
+            )
         return mongoTemplate.save(agentWithTimestamp, COLLECTION_NAME).awaitSingle()
     }
 
     override suspend fun findByName(name: String): PlatformAgentMeta? {
-        val query = Query.query(Criteria.where("name").regex("^${name}$", "i"))
+        // Since name is now the ID, we can query by _id directly
+        val query = Query.query(Criteria.where("_id").`is`(name))
         return mongoTemplate.findOne(query, PlatformAgentMeta::class.java, COLLECTION_NAME).awaitSingleOrNull()
     }
 
     override suspend fun deleteByName(name: String): Boolean {
-        val query = Query.query(Criteria.where("name").regex("^${name}$", "i"))
+        // Since name is now the ID, we can delete by _id directly
+        val query = Query.query(Criteria.where("_id").`is`(name))
         val result: DeleteResult = mongoTemplate.remove(query, COLLECTION_NAME).awaitSingle()
         return result.deletedCount > 0
     }
@@ -54,10 +60,11 @@ class InMemoryAgentRepository : AgentRepository {
 
     override suspend fun upsert(agentMeta: PlatformAgentMeta): PlatformAgentMeta {
         val normalizedName = agentMeta.name.lowercase()
-        val agentWithTimestamp = agentMeta.copy(
-            createdAt = agentMeta.createdAt ?: Instant.now(),
-            updatedAt = Instant.now()
-        )
+        val agentWithTimestamp =
+            agentMeta.copy(
+                createdAt = agentMeta.createdAt ?: Instant.now(),
+                updatedAt = Instant.now(),
+            )
         agents[normalizedName] = agentWithTimestamp
         return agentWithTimestamp
     }
@@ -74,9 +81,7 @@ class InMemoryAgentRepository : AgentRepository {
         return existed
     }
 
-    override suspend fun findAll(): List<PlatformAgentMeta> {
-        return agents.values.sortedByDescending { it.updatedAt }
-    }
+    override suspend fun findAll(): List<PlatformAgentMeta> = agents.values.sortedByDescending { it.updatedAt }
 
     fun clear() {
         agents.clear()

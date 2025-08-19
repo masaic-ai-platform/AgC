@@ -1,5 +1,6 @@
 package ai.masaic.platform.api.service
 
+import ai.masaic.openresponses.api.exception.AgentNotFoundException
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.platform.api.controller.*
@@ -11,39 +12,47 @@ import org.springframework.stereotype.Service
 @Service
 class AgentService(
     private val agentRepository: AgentRepository,
-    private val funRegService: FunctionRegistryService
+    private val funRegService: FunctionRegistryService,
 ) {
     private val log = LoggerFactory.getLogger(AgentService::class.java)
 
-    suspend fun saveAgent(agent: PlatformAgent) {
-        // Check if agent with same name already exists (case-insensitive)
+    suspend fun saveAgent(
+        agent: PlatformAgent,
+        isUpdate: Boolean,
+    ) {
         val existingAgent = agentRepository.findByName(agent.name)
-        if (existingAgent != null) {
-            throw ResponseProcessingException("Agent with name '${agent.name}' already exists")
+        // For updates, verify the agent exists
+        if (isUpdate && existingAgent == null) {
+            throw AgentNotFoundException("Agent '${agent.name}' not found.")
+        }
+
+        if (!isUpdate && existingAgent != null) {
+            throw ResponseProcessingException("Agent '${agent.name}' already exists.")
         }
 
         // Transform agent.tools to ToolMeta
         val toolMeta = transformToolsToToolMeta(agent.tools)
         
         // Create PlatformAgentMeta for database storage
-        val agentMeta = PlatformAgentMeta(
-            name = agent.name,
-            description = agent.description,
-            greetingMessage = agent.greetingMessage,
-            systemPrompt = agent.systemPrompt,
-            userMessage = agent.userMessage,
-            toolMeta = toolMeta,
-            formatType = agent.formatType,
-            temperature = agent.temperature,
-            maxTokenOutput = agent.maxTokenOutput,
-            topP = agent.topP,
-            store = agent.store,
-            stream = agent.stream,
-            modelInfo = agent.model?.let { ModelInfoMeta(it) },
-            kind = agent.kind
-        )
+        val agentMeta =
+            PlatformAgentMeta(
+                name = agent.name,
+                description = agent.description,
+                greetingMessage = agent.greetingMessage,
+                systemPrompt = agent.systemPrompt,
+                userMessage = agent.userMessage,
+                toolMeta = toolMeta,
+                formatType = agent.formatType,
+                temperature = agent.temperature,
+                maxTokenOutput = agent.maxTokenOutput,
+                topP = agent.topP,
+                store = agent.store,
+                stream = agent.stream,
+                modelInfo = agent.model?.let { ModelInfoMeta(it) },
+                kind = agent.kind,
+            )
 
-        // Save the agent meta to database
+        // Save the agent meta to database (upsert will handle create/update automatically)
         agentRepository.upsert(agentMeta)
     }
 
@@ -77,7 +86,10 @@ class AgentService(
         return agentRepository.deleteByName(agentName)
     }
 
-    private suspend fun convertToPlatformAgent(agentMeta: PlatformAgentMeta, tools: List<Tool>? = null): PlatformAgent {
+    private suspend fun convertToPlatformAgent(
+        agentMeta: PlatformAgentMeta,
+        tools: List<Tool>? = null,
+    ): PlatformAgent {
         // Convert toolMeta to actual Tool objects if not provided
         val resolvedTools = tools ?: convertToolMetaToTools(agentMeta.toolMeta)
         
@@ -95,7 +107,7 @@ class AgentService(
             topP = agentMeta.topP,
             store = agentMeta.store,
             stream = agentMeta.stream,
-            kind = agentMeta.kind
+            kind = agentMeta.kind,
         )
     }
 
@@ -111,8 +123,8 @@ class AgentService(
                         serverLabel = mcpToolMeta.serverLabel,
                         serverUrl = mcpToolMeta.serverUrl,
                         allowedTools = mcpToolMeta.allowedTools,
-                        headers = mcpToolMeta.headers
-                    )
+                        headers = mcpToolMeta.headers,
+                    ),
                 )
             }
 
@@ -123,20 +135,22 @@ class AgentService(
                         type = "file_search",
                         filters = fileSearchToolMeta.filters,
                         maxNumResults = fileSearchToolMeta.maxNumResults,
-                        rankingOptions = fileSearchToolMeta.rankingOptions?.let { rankingOptions ->
-                            RankingOptions(
-                                ranker = rankingOptions.ranker,
-                                scoreThreshold = rankingOptions.scoreThreshold
-                            )
-                        },
+                        rankingOptions =
+                            fileSearchToolMeta.rankingOptions?.let { rankingOptions ->
+                                RankingOptions(
+                                    ranker = rankingOptions.ranker,
+                                    scoreThreshold = rankingOptions.scoreThreshold,
+                                )
+                            },
                         vectorStoreIds = fileSearchToolMeta.vectorStoreIds,
-                        modelInfo = fileSearchToolMeta.modelInfo.let { modelInfo ->
-                            ModelInfo(
-                                bearerToken = null, // Will be resolved at runtime
-                                model = modelInfo.name
-                            )
-                        }
-                    )
+                        modelInfo =
+                            fileSearchToolMeta.modelInfo.let { modelInfo ->
+                                ModelInfo(
+                                    bearerToken = null, // Will be resolved at runtime
+                                    model = modelInfo.name,
+                                )
+                            },
+                    ),
                 )
             }
 
@@ -153,8 +167,8 @@ class AgentService(
                         enableFrequencyPenaltyTuning = agenticSearchToolMeta.enableFrequencyPenaltyTuning,
                         enableTemperatureTuning = agenticSearchToolMeta.enableTemperatureTuning,
                         enableTopPTuning = agenticSearchToolMeta.enableTopPTuning,
-                        modelInfo = ModelInfo(bearerToken = null, model = agenticSearchToolMeta.modelInfo.name)
-                    )
+                        modelInfo = ModelInfo(bearerToken = null, model = agenticSearchToolMeta.modelInfo.name),
+                    ),
                 )
             }
 
@@ -181,8 +195,8 @@ class AgentService(
                             serverLabel = tool.serverLabel,
                             serverUrl = tool.serverUrl,
                             allowedTools = tool.allowedTools,
-                            headers = tool.headers
-                        )
+                            headers = tool.headers,
+                        ),
                     )
                 }
 
@@ -191,17 +205,19 @@ class AgentService(
                         FileSearchToolMeta(
                             filters = tool.filters,
                             maxNumResults = tool.maxNumResults,
-                            rankingOptions = tool.rankingOptions?.let { rankingOptions ->
-                                RankingOptionsMeta(
-                                    ranker = rankingOptions.ranker,
-                                    scoreThreshold = rankingOptions.scoreThreshold
-                                )
-                            },
+                            rankingOptions =
+                                tool.rankingOptions?.let { rankingOptions ->
+                                    RankingOptionsMeta(
+                                        ranker = rankingOptions.ranker,
+                                        scoreThreshold = rankingOptions.scoreThreshold,
+                                    )
+                                },
                             vectorStoreIds = tool.vectorStoreIds ?: emptyList(),
-                            modelInfo = tool.modelInfo?.let { modelInfo ->
-                                ModelInfoMeta(modelInfo.model ?: throw ResponseProcessingException("Model name is required for FileSearchTool"))
-                            } ?: throw ResponseProcessingException("ModelInfo is required for FileSearchTool")
-                        )
+                            modelInfo =
+                                tool.modelInfo?.let { modelInfo ->
+                                    ModelInfoMeta(modelInfo.model ?: throw ResponseProcessingException("Model name is required for FileSearchTool"))
+                                } ?: throw ResponseProcessingException("ModelInfo is required for FileSearchTool"),
+                        ),
                     )
                 }
 
@@ -216,10 +232,11 @@ class AgentService(
                             enableFrequencyPenaltyTuning = tool.enableFrequencyPenaltyTuning,
                             enableTemperatureTuning = tool.enableTemperatureTuning,
                             enableTopPTuning = tool.enableTopPTuning,
-                            modelInfo = tool.modelInfo?.let { modelInfo ->
-                                ModelInfoMeta(modelInfo.model ?: throw ResponseProcessingException("Model name is required for AgenticSearchTool"))
-                            } ?: throw ResponseProcessingException("ModelInfo is required for AgenticSearchTool")
-                        )
+                            modelInfo =
+                                tool.modelInfo?.let { modelInfo ->
+                                    ModelInfoMeta(modelInfo.model ?: throw ResponseProcessingException("Model name is required for AgenticSearchTool"))
+                                } ?: throw ResponseProcessingException("ModelInfo is required for AgenticSearchTool"),
+                        ),
                     )
                 }
 
@@ -238,18 +255,19 @@ class AgentService(
             mcpTools = mcpTools,
             fileSearchTools = fileSearchTools,
             agenticSearchTools = agenticSearchTools,
-            pyFunTools = pyFunTools
+            pyFunTools = pyFunTools,
         )
     }
 
     private suspend fun createPyFunToolIfNotPresent(pyFunTool: PyFunTool): FunctionDoc {
-        val function = FunctionCreate(
-            name = pyFunTool.functionDetails.name,
-            description = pyFunTool.functionDetails.description,
-            deps = pyFunTool.deps,
-            code = pyFunTool.code,
-            inputSchema = pyFunTool.functionDetails.parameters
-        )
+        val function =
+            FunctionCreate(
+                name = pyFunTool.functionDetails.name,
+                description = pyFunTool.functionDetails.description,
+                deps = pyFunTool.deps,
+                code = pyFunTool.code,
+                inputSchema = pyFunTool.functionDetails.parameters,
+            )
         return try {
             funRegService.createFunction(function)
         } catch (ex: FunctionRegistryException) {
@@ -257,8 +275,8 @@ class AgentService(
         }
     }
 
-    private fun getBuiltInAgent(agentName: String): PlatformAgent? {
-        return when (agentName) {
+    private fun getBuiltInAgent(agentName: String): PlatformAgent? =
+        when (agentName) {
             "Masaic-Mocky" -> {
                 PlatformAgent(
                     name = "Masaic-Mocky",
@@ -266,7 +284,7 @@ class AgentService(
                     greetingMessage = "Hi, this is Mocky. Let me know the quick mock functions you would like to create.",
                     systemPrompt = mockyPrompt,
                     tools = mockyTools,
-                    kind = AgentClass(AgentClass.SYSTEM)
+                    kind = AgentClass(AgentClass.SYSTEM),
                 )
             }
             "ModelTestAgent" -> {
@@ -277,7 +295,7 @@ class AgentService(
                     systemPrompt = modelTestPrompt,
                     userMessage = "Tell me the weather of San Francisco",
                     tools = modelTestTools,
-                    kind = AgentClass(AgentClass.SYSTEM)
+                    kind = AgentClass(AgentClass.SYSTEM),
                 )
             }
             "AgentBuilder" -> {
@@ -286,15 +304,15 @@ class AgentService(
                     description = "This agent can build agents using available model, tools and system instructions",
                     greetingMessage = "Hi, this is AgC0 agent, I can help you in building agent that can run on my Agentic Compute (AgC)",
                     systemPrompt = agC0Prompt,
-                    kind = AgentClass(AgentClass.SYSTEM)
+                    kind = AgentClass(AgentClass.SYSTEM),
                 )
             }
             else -> null
         }
-    }
 
     // Move the built-in agent definitions here
-    private val mockyPrompt = """
+    private val mockyPrompt =
+        """
         Function Requirement Gathering, Definition Generation and Mock Creation Workflow  
         - Accept the initial user input describing the function they want to define.  
         - Pass the user input and any gathered details to fun_req_gathering_tool; analyze its feedback for missing requirements.  
@@ -319,17 +337,19 @@ class AgentService(
         - Keep the user's original requirements intact without adding any assumptions. Continue requirement gathering until fun_req_gathering_tool explicitly indicates completion, then generate and return the function definition.
         - If mock_fun_save_tool is executed then success of the tool is mandatory to proceed to next step.
         - If mocks_save_tool is executed then success of  the tool is mandatory for the workflow completion.
-    """.trimIndent()
+        """.trimIndent()
 
-    private val mockyTools = listOf(
-        MasaicManagedTool(PlatformToolsNames.FUN_DEF_GEN_TOOL),
-        MasaicManagedTool(PlatformToolsNames.FUN_REQ_GATH_TOOL),
-        MasaicManagedTool(PlatformToolsNames.MOCK_FUN_SAVE_TOOL),
-        MasaicManagedTool(PlatformToolsNames.MOCK_GEN_TOOL),
-        MasaicManagedTool(PlatformToolsNames.MOCK_SAVE_TOOL),
-    )
+    private val mockyTools =
+        listOf(
+            MasaicManagedTool(PlatformToolsNames.FUN_DEF_GEN_TOOL),
+            MasaicManagedTool(PlatformToolsNames.FUN_REQ_GATH_TOOL),
+            MasaicManagedTool(PlatformToolsNames.MOCK_FUN_SAVE_TOOL),
+            MasaicManagedTool(PlatformToolsNames.MOCK_GEN_TOOL),
+            MasaicManagedTool(PlatformToolsNames.MOCK_SAVE_TOOL),
+        )
 
-    private val modelTestPrompt = """
+    private val modelTestPrompt =
+        """
         # Weather Information Provider
 
         * Accept a city name from the user.
@@ -347,15 +367,17 @@ class AgentService(
         Output: [Weather data for New York]
 
         **Reminder: Keep responses concise and focused only on the weather data.**
-    """.trimIndent()
+        """.trimIndent()
 
-    private val modelTestTools = listOf(
-        MasaicManagedTool(PlatformToolsNames.MODEL_TEST_TOOL)
-    )
+    private val modelTestTools =
+        listOf(
+            MasaicManagedTool(PlatformToolsNames.MODEL_TEST_TOOL),
+        )
 
-    private val agC0Prompt = """
+    private val agC0Prompt =
+        """
         
-    """.trimIndent()
+        """.trimIndent()
 
     // Import the constants
     private object PlatformToolsNames {

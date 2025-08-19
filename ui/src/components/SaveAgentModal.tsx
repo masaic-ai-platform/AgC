@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -6,6 +6,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -20,6 +30,12 @@ interface SaveAgentModalProps {
   systemPrompt: string;
   tools: any[];
   modelName?: string;
+  // Agent context for updates
+  isAgentContext?: boolean;
+  existingAgentName?: string;
+  existingAgentDescription?: string;
+  // Callback to switch to agent context after saving
+  onAgentSaved?: (agentName: string, agentDescription: string) => void;
 }
 
 const SaveAgentModal: React.FC<SaveAgentModalProps> = ({
@@ -27,11 +43,28 @@ const SaveAgentModal: React.FC<SaveAgentModalProps> = ({
   onOpenChange,
   systemPrompt,
   tools,
-  modelName
+  modelName,
+  isAgentContext = false,
+  existingAgentName = '',
+  existingAgentDescription = '',
+  onAgentSaved
 }) => {
   const [agentName, setAgentName] = useState('');
   const [description, setDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [showUpdateConfirmation, setShowUpdateConfirmation] = useState(false);
+
+  // Pre-populate fields when in agent context
+  useEffect(() => {
+    if (isAgentContext && open) {
+      setAgentName(existingAgentName);
+      setDescription(existingAgentDescription);
+    } else if (!isAgentContext && open) {
+      // Clear fields for new agent
+      setAgentName('');
+      setDescription('');
+    }
+  }, [open, isAgentContext, existingAgentName, existingAgentDescription]);
 
   const transformToolsToApiFormat = (selectedTools: any[]) => {
     return selectedTools.map(tool => {
@@ -110,7 +143,29 @@ const SaveAgentModal: React.FC<SaveAgentModalProps> = ({
       return;
     }
 
+    // Determine if this is an update or create operation
+    const isUpdate = isAgentContext;
+    const isNameChanged = isUpdate && agentName.trim() !== existingAgentName;
+    
+    // If updating and name changed, show confirmation
+    if (isUpdate && isNameChanged && !showUpdateConfirmation) {
+      setShowUpdateConfirmation(true);
+      return;
+    }
+
+    // If updating existing agent with same name, show confirmation
+    if (isUpdate && !isNameChanged && !showUpdateConfirmation) {
+      setShowUpdateConfirmation(true);
+      return;
+    }
+
+    await performSave(isUpdate, isNameChanged);
+  };
+
+  const performSave = async (isUpdate: boolean, isNameChanged: boolean) => {
     setIsLoading(true);
+    setShowUpdateConfirmation(false);
+    
     try {
       // Transform tools to API format
       const transformedTools = transformToolsToApiFormat(tools);
@@ -127,12 +182,23 @@ const SaveAgentModal: React.FC<SaveAgentModalProps> = ({
         topP: 1.0,
         store: true,
         stream: true
-        // Removed: kind field as requested
       };
 
-      // Use fetch directly since authorization header is not needed for this request
-      const response = await fetch(`${API_URL}/v1/agents`, {
-        method: 'POST',
+      let url: string;
+      let method: string;
+      
+      if (isUpdate && !isNameChanged) {
+        // Update existing agent with same name - use PUT
+        url = `${API_URL}/v1/agents/${existingAgentName}`;
+        method = 'PUT';
+      } else {
+        // Create new agent or create with new name - use POST
+        url = `${API_URL}/v1/agents`;
+        method = 'POST';
+      }
+
+      const response = await fetch(url, {
+        method,
         headers: {
           'Content-Type': 'application/json',
         },
@@ -140,10 +206,9 @@ const SaveAgentModal: React.FC<SaveAgentModalProps> = ({
       });
 
       if (!response.ok) {
-        let errorMessage = 'Failed to save agent';
+        let errorMessage = `Failed to ${isUpdate ? 'update' : 'save'} agent`;
         try {
           const errorData = await response.json();
-          // Handle the specific API error format with type, message, etc.
           if (errorData.message) {
             errorMessage = errorData.message;
           } else if (errorData.error) {
@@ -152,26 +217,43 @@ const SaveAgentModal: React.FC<SaveAgentModalProps> = ({
             errorMessage = `HTTP ${response.status}: ${response.statusText}`;
           }
         } catch (parseError) {
-          // If response body is not JSON, use status text
           errorMessage = `HTTP ${response.status}: ${response.statusText}`;
         }
         throw new Error(errorMessage);
       }
 
-      toast.success(`Agent "${agentName.trim()}" saved successfully!`);
+      const successMessage = isUpdate 
+        ? (isNameChanged ? 'Agent saved as new agent successfully!' : 'Agent updated successfully!')
+        : 'Agent saved successfully!';
+      
+      toast.success(successMessage);
+      
+      // Call the callback to switch to agent context (only for non-updates or new agents)
+      if (onAgentSaved && (!isUpdate || isNameChanged)) {
+        onAgentSaved(agentName.trim(), description.trim());
+      }
+      
+      // Reset form only if not in agent context
+      if (!isAgentContext) {
+        setAgentName('');
+        setDescription('');
+      }
       onOpenChange(false);
-      setAgentName('');
-      setDescription('');
     } catch (error) {
       console.error('Error saving agent:', error);
-      if (error instanceof Error) {
-        toast.error(error.message);
-      } else {
-        toast.error('Failed to save agent');
-      }
+      toast.error(error instanceof Error ? error.message : `Failed to ${isUpdate ? 'update' : 'save'} agent`);
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleConfirmUpdate = () => {
+    const isNameChanged = agentName.trim() !== existingAgentName;
+    performSave(true, isNameChanged);
+  };
+
+  const handleCancelUpdate = () => {
+    setShowUpdateConfirmation(false);
   };
 
   const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -181,6 +263,7 @@ const SaveAgentModal: React.FC<SaveAgentModalProps> = ({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
@@ -248,6 +331,30 @@ const SaveAgentModal: React.FC<SaveAgentModalProps> = ({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Confirmation Dialog for Updates */}
+    <AlertDialog open={showUpdateConfirmation} onOpenChange={setShowUpdateConfirmation}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {agentName.trim() !== existingAgentName ? 'Save as New Agent?' : 'Update Existing Agent?'}
+          </AlertDialogTitle>
+          <AlertDialogDescription>
+            {agentName.trim() !== existingAgentName 
+              ? `You've changed the agent name from "${existingAgentName}" to "${agentName.trim()}". This will create a new agent instead of updating the existing one.`
+              : `You're about to update the existing agent "${existingAgentName}". This will overwrite the current configuration.`
+            }
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel onClick={handleCancelUpdate}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={handleConfirmUpdate}>
+            {agentName.trim() !== existingAgentName ? 'Save as New Agent' : 'Update Agent'}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+    </>
   );
 };
 

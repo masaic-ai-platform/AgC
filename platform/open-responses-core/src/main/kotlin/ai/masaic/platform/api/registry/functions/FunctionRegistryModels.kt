@@ -41,7 +41,7 @@ data class FunctionCreate(
     val description: String,
     val deps: List<String>,
     val code: String,
-    val inputSchema: MutableMap<String, Any>
+    val inputSchema: MutableMap<String, Any>,
 )
 
 /**

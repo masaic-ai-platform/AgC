@@ -1626,7 +1626,7 @@ const AiPlayground: React.FC = () => {
           setModelProvider(foundModel.providerName || '');
           setModelName(foundModel.name || agentModelName);
         }
-        console.log(`Agent model "${agentModelName}" found and set successfully`);
+
       } else {
         console.warn(`Agent model "${agentModelName}" not found in available models. Clearing model selection.`);
         setModelProvider('');
@@ -1637,6 +1637,30 @@ const AiPlayground: React.FC = () => {
       // If API fails, show "Select a model..." by clearing the selection
       setModelProvider('');
       setModelName('');
+    }
+  };
+
+  const handleAgentSaved = async (agentName: string, agentDescription: string) => {
+    try {
+      // Fetch the saved agent details from the API
+      const response = await fetch(`${API_URL}/v1/agents/${agentName}`, {
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+        },
+      });
+
+      if (!response.ok) {
+        console.error('Failed to fetch saved agent details');
+        return;
+      }
+
+      const agentDetails = await response.json();
+      
+      // Use the existing handleAgentSelect logic to switch to agent context
+      await handleAgentSelect(agentDetails);
+      
+    } catch (error) {
+      console.error('Error switching to saved agent context:', error);
     }
   };
 
@@ -2623,6 +2647,9 @@ const AiPlayground: React.FC = () => {
         modelTestName={modelTestName}
         setModelTestName={setModelTestName}
         modelTestApiKey={modelTestApiKey}
+        agentMode={agentMode}
+        agentData={agentData}
+        onAgentSaved={handleAgentSaved}
         setModelTestApiKey={setModelTestApiKey}
         onTestModelConnectivity={handleTestModelConnectivity}
         isTestingModel={isTestingModel}

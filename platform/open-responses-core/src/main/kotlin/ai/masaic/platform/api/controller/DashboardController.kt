@@ -16,7 +16,6 @@ import ai.masaic.platform.api.service.ModelService
 import ai.masaic.platform.api.service.createCompletion
 import ai.masaic.platform.api.service.messages
 import ai.masaic.platform.api.tools.FunDefGenerationTool
-import ai.masaic.platform.api.tools.McpMockServer
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import org.springframework.context.annotation.Profile

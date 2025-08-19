@@ -1,14 +1,11 @@
 package ai.masaic.platform.api.controller
 
 import ai.masaic.openresponses.api.exception.AgentNotFoundException
-import ai.masaic.openresponses.api.exception.ResourceNotFoundException
 import ai.masaic.openresponses.api.model.*
-import ai.masaic.platform.api.tools.*
 import ai.masaic.platform.api.service.AgentService
+import ai.masaic.platform.api.tools.*
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonProperty
-import org.apache.http.HttpStatus
-import org.checkerframework.checker.units.qual.Temperature
 import org.springframework.context.annotation.Profile
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -21,24 +18,34 @@ import java.time.Instant
 @RequestMapping("/v1")
 @CrossOrigin("*")
 class AgentsController(
-    private val agentService: AgentService
+    private val agentService: AgentService,
 ) {
     @GetMapping("/agents/{agentName}", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun getAgent(
         @PathVariable agentName: String,
     ): ResponseEntity<PlatformAgent> {
-        val agent = agentService.getAgent(agentName)
-            ?: throw AgentNotFoundException("Agent: $agentName is not supported.")
+        val agent =
+            agentService.getAgent(agentName.lowercase())
+                ?: throw AgentNotFoundException("Agent: $agentName is not supported.")
         
         return ResponseEntity.ok(agent)
     }
 
     @PostMapping("/agents", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun saveAgent(
-        @RequestBody agent: PlatformAgent
+        @RequestBody agent: PlatformAgent,
     ): ResponseEntity<PlatformAgent> {
-        agentService.saveAgent(agent)
+        agentService.saveAgent(agent.copy(name = agent.name.lowercase()), false)
         return ResponseEntity.created(URI.create("/agents/${agent.name}")).build()
+    }
+
+    @PutMapping("/agents/{agentName}", produces = [MediaType.APPLICATION_JSON_VALUE])
+    suspend fun updateAgent(
+        @PathVariable agentName: String,
+        @RequestBody agent: PlatformAgent,
+    ): ResponseEntity<PlatformAgent> {
+        agentService.saveAgent(agent.copy(name = agent.name.lowercase()), true)
+        return ResponseEntity.ok().build()
     }
 
     @GetMapping("/agents", produces = [MediaType.APPLICATION_JSON_VALUE])
@@ -50,9 +57,9 @@ class AgentsController(
 
     @DeleteMapping("/agents/{agentName}", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun deleteAgent(
-        @PathVariable agentName: String
+        @PathVariable agentName: String,
     ): ResponseEntity<Unit> {
-        val deleted = agentService.deleteAgent(agentName)
+        val deleted = agentService.deleteAgent(agentName.lowercase())
         return if (deleted) {
             ResponseEntity.ok().build()
         } else {
@@ -62,10 +69,10 @@ class AgentsController(
 }
 
 data class PlatformAgent(
-    val model: String ?= null,
+    val model: String? = null,
     val name: String,
     val description: String,
-    val greetingMessage: String ?= null,
+    val greetingMessage: String? = null,
     val systemPrompt: String,
     val userMessage: String? = null,
     val tools: List<Tool> = emptyList(),
@@ -76,13 +83,14 @@ data class PlatformAgent(
     val store: Boolean = true,
     val stream: Boolean = true,
     @JsonIgnore
-    val kind: AgentClass = AgentClass(AgentClass.OTHER)
+    val kind: AgentClass = AgentClass(AgentClass.OTHER),
 )
 
 data class PlatformAgentMeta(
+    @org.springframework.data.annotation.Id
     val name: String,
     val description: String,
-    val greetingMessage: String ?= null,
+    val greetingMessage: String? = null,
     val systemPrompt: String,
     val userMessage: String? = null,
     val toolMeta: ToolMeta = ToolMeta(),
@@ -92,18 +100,18 @@ data class PlatformAgentMeta(
     @JsonProperty("top_p") val topP: Double = 1.0,
     val store: Boolean = true,
     val stream: Boolean = true,
-    val modelInfo: ModelInfoMeta ?= null,
+    val modelInfo: ModelInfoMeta? = null,
     val createdAt: Instant? = null,
     val updatedAt: Instant? = null,
     @JsonIgnore
-    val kind: AgentClass = AgentClass(AgentClass.OTHER)
+    val kind: AgentClass = AgentClass(AgentClass.OTHER),
 )
 
 data class ToolMeta(
     val mcpTools: List<McpToolMeta> = emptyList(),
     val fileSearchTools: List<FileSearchToolMeta> = emptyList(),
     val agenticSearchTools: List<AgenticSearchToolMeta> = emptyList(),
-    val pyFunTools: List<PyFunToolMeta> = emptyList()
+    val pyFunTools: List<PyFunToolMeta> = emptyList(),
 )
 
 data class McpToolMeta(
@@ -146,10 +154,12 @@ data class AgenticSearchToolMeta(
     val modelInfo: ModelInfoMeta,
 )
 
-data class ModelInfoMeta(val name: String ?= null)
+data class ModelInfoMeta(
+    val name: String? = null,
+)
 
 data class PyFunToolMeta(
-    val id: String
+    val id: String,
 )
 
 data class RankingOptionsMeta(

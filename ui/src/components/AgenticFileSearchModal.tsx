@@ -97,6 +97,11 @@ const AgenticFileSearchModal: React.FC<AgenticFileSearchModalProps> = ({
   const [files, setFiles] = useState<FileItem[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<string[]>(initialSelectedFiles || []);
   const [selectedVectorStores, setSelectedVectorStores] = useState<string[]>(initialVectorStores || []);
+
+  // Update selectedVectorStores when initialVectorStores changes
+  useEffect(() => {
+    setSelectedVectorStores(initialVectorStores || []);
+  }, [initialVectorStores]);
   const [vectorStoreFiles, setVectorStoreFiles] = useState<Record<string, string[]>>({});
   const [iterations, setIterations] = useState<number>(initialIterations || 3);
   const [maxResults, setMaxResults] = useState<number>(initialMaxResults || 4);

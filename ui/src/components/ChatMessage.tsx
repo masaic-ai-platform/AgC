@@ -402,14 +402,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
       issues.push('Base64 data too short for valid image');
     }
     
-    // Log for debugging
-    console.log('Base64 validation:', {
-      originalLength: base64Content.length,
-      cleanLength: cleanBase64.length,
-      paddingNeeded,
-      isValidBase64,
-      issues
-    });
+    // Base64 validation performed for debugging
     
     return {
       isValid: isValidBase64 && issues.length <= 1, // Allow padding issues only
@@ -556,7 +549,7 @@ print(response.json())`;
                     className="max-w-full h-auto rounded-md shadow-sm max-h-[60vh] md:max-h-[512px]"
                     onError={(e) => {
                       console.error('Image failed to load');
-                      console.log('Validation issues:', validation.issues);
+
                       e.currentTarget.style.display = 'none';
                     }}
                   />
@@ -611,7 +604,7 @@ print(response.json())`;
             className="max-w-full h-auto rounded-md shadow-sm max-h-[60vh] md:max-h-[512px]"
           onError={(e) => {
               console.error('Image failed to load');
-              console.log('Validation issues:', validation.issues);
+
               e.currentTarget.style.display = 'none';
             }}
           />
