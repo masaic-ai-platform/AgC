@@ -1214,6 +1214,7 @@ class MasaicToolHandlerTest {
         every { toolService.getAvailableTool("preserveFunction") } returns mockToolMetadata
         every { mockToolMetadata.description } returns "preserveFunction"
         every { mockToolMetadata.protocol } returns ToolProtocol.NATIVE
+        every { mockToolMetadata.eventMeta } returns null
         every { toolService.getFunctionTool("preserveFunction", ofType<ToolRequestContext>()) } returns mockk()
         every { toolService.buildAliasMap(any()) } returns emptyMap()
 

@@ -56,6 +56,12 @@ open class ToolDefinition(
     open val hosting: ToolHosting,
     open val name: String,
     open val description: String,
+    open val eventMeta: ToolProgressEventMeta? = null,
+)
+
+@Serializable
+data class ToolProgressEventMeta(
+    val infix: String,
 )
 
 /**
@@ -77,7 +83,8 @@ data class NativeToolDefinition(
     override val name: String,
     override val description: String,
     val parameters: MutableMap<String, Any>,
-) : ToolDefinition(id, protocol, hosting, name, description) {
+    override val eventMeta: ToolProgressEventMeta? = null,
+) : ToolDefinition(id, protocol, hosting, name, description, eventMeta) {
     companion object {
         fun toFunctionTool(toolDefinition: NativeToolDefinition): FunctionTool =
             FunctionTool(
@@ -115,7 +122,8 @@ data class PyFunToolDefinition(
     val code: String,
     val deps: List<String> = emptyList(),
     val pyInterpreterServer: PyInterpreterServer? = null,
-) : ToolDefinition(id, protocol, hosting, name, description) {
+    override val eventMeta: ToolProgressEventMeta? = null,
+) : ToolDefinition(id, protocol, hosting, name, description, eventMeta) {
     fun toFunctionTool(): FunctionTool =
         FunctionTool(
             description = this.description,
@@ -488,4 +496,5 @@ data class ToolMetadata(
     val description: String,
     val protocol: ToolProtocol = ToolProtocol.NATIVE,
     val hosting: ToolHosting = ToolHosting.MASAIC_MANAGED,
+    val eventMeta: ToolProgressEventMeta? = null,
 )

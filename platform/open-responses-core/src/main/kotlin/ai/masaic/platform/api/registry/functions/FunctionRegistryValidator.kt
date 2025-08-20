@@ -1,12 +1,10 @@
 package ai.masaic.platform.api.registry.functions
 
-import org.springframework.stereotype.Component
 import java.util.regex.Pattern
 
 /**
  * Validates function registry data according to the minimal specification.
  */
-@Component
 class FunctionRegistryValidator {
     companion object {
         private val NAME_PATTERN = Pattern.compile("^[a-zA-Z_][a-zA-Z0-9_-]*$")

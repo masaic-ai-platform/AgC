@@ -2,6 +2,7 @@ package ai.masaic.openresponses.tool.mcp
 
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolHosting
+import ai.masaic.openresponses.tool.ToolProgressEventMeta
 import ai.masaic.openresponses.tool.ToolProtocol
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema
 import kotlinx.serialization.Serializable
@@ -52,7 +53,8 @@ data class McpToolDefinition(
     override val description: String,
     val parameters: JsonObjectSchema,
     val serverInfo: MCPServerInfo,
-) : ToolDefinition(id, protocol, hosting, name, description) {
+    override val eventMeta: ToolProgressEventMeta? = null,
+) : ToolDefinition(id, protocol, hosting, name, description, eventMeta) {
     /**
      * Secondary constructor with simplified parameter list.
      *

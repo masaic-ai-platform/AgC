@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.api.model
 
+import ai.masaic.openresponses.tool.mcp.MCPServerInfo
 import ai.masaic.platform.api.config.ModelSettings
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
@@ -435,7 +436,9 @@ data class MCPTool(
     @JsonProperty("allowed_tools")
     val allowedTools: List<String> = emptyList(),
     val headers: Map<String, String> = emptyMap(),
-) : Tool
+) : Tool {
+    fun toMCPServerInfo() = MCPServerInfo(serverLabel, serverUrl)
+}
 
 /**
  * Optional mask for inpainting within an image generation tool.

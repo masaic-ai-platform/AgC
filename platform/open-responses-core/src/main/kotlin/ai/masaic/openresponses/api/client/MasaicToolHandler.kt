@@ -715,12 +715,14 @@ class MasaicToolHandler(
 
             if (toolService.getFunctionTool(function.name(), context) != null) {
                 logger.info { "Executing tool: ${function.name()} with ID: ${function.id()}" }
-                val toolDefinition = toolService.getAvailableTool(function.name())
+                val toolMeta = toolService.getAvailableTool(function.name())
                 val funNameForEventPrefix = function.name().lowercase().replace("^\\W".toRegex(), "_")
                 val eventPrefix =
-                    if (toolDefinition?.protocol == ToolProtocol.MCP) {
+                    if (toolMeta?.eventMeta != null) {
+                        "response.${toolMeta.eventMeta.infix}.$funNameForEventPrefix"
+                    } else if (toolMeta?.protocol == ToolProtocol.MCP) {
                         "response.mcp_call.$funNameForEventPrefix"
-                    } else if (toolDefinition?.protocol == ToolProtocol.PY_CODE) {
+                    } else if (toolMeta?.protocol == ToolProtocol.PY_CODE) {
                         "response.agc.$funNameForEventPrefix"
                     } else {
                         "response.$funNameForEventPrefix"
@@ -742,7 +744,7 @@ class MasaicToolHandler(
                         ).build(),
                 )
 
-                if (toolDefinition?.protocol != ToolProtocol.PY_CODE) {
+                if (toolMeta?.protocol != ToolProtocol.PY_CODE) {
                     eventEmitter.invoke(
                         ServerSentEvent
                             .builder<String>()
@@ -781,7 +783,7 @@ class MasaicToolHandler(
                     var imageToolOutputString: Map<String, String>? = null
                     executeToolWithObservation(
                         function.name(),
-                        toolDefinition?.description ?: "not_available",
+                        toolMeta?.description ?: "not_available",
                         function.arguments(),
                         function.id().toString(),
                         mapOf("toolId" to function.id(), "eventIndex" to index),
@@ -904,7 +906,7 @@ class MasaicToolHandler(
                 } else { // Regular native tool
                     executeToolWithObservation(
                         function.name(),
-                        toolService.getAvailableTool(function.name())?.description ?: "not_available",
+                        toolMeta?.description ?: "not_available",
                         function.arguments(),
                         function.id().toString(),
                         mapOf("toolId" to function.id(), "eventIndex" to index),

@@ -3,17 +3,27 @@ package ai.masaic.platform.api.service
 import ai.masaic.openresponses.api.exception.AgentNotFoundException
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.ResponseProcessingException
+import ai.masaic.openresponses.tool.*
+import ai.masaic.openresponses.tool.mcp.nativeToolDefinition
 import ai.masaic.platform.api.controller.*
 import ai.masaic.platform.api.registry.functions.*
 import ai.masaic.platform.api.repository.AgentRepository
+import ai.masaic.platform.api.tools.PlatformMcpService
+import ai.masaic.platform.api.tools.PlatformNativeTool
+import ai.masaic.platform.api.tools.PlatformToolsNames
+import com.fasterxml.jackson.module.kotlin.readValue
+import com.openai.client.OpenAIClient
 import org.slf4j.LoggerFactory
+import org.springframework.http.codec.ServerSentEvent
 import org.springframework.stereotype.Service
 
 @Service
 class AgentService(
     private val agentRepository: AgentRepository,
     private val funRegService: FunctionRegistryService,
-) {
+    private val platformMcpService: PlatformMcpService,
+    private val toolService: ToolService,
+) : PlatformNativeTool(PlatformToolsNames.SAVE_AGENT_TOOL) {
     private val log = LoggerFactory.getLogger(AgentService::class.java)
 
     suspend fun saveAgent(
@@ -278,7 +288,7 @@ class AgentService(
         }
     }
 
-    private fun getBuiltInAgent(agentName: String): PlatformAgent? =
+    private suspend fun getBuiltInAgent(agentName: String): PlatformAgent? =
         when (agentName) {
             "masaic-mocky" -> {
                 PlatformAgent(
@@ -301,15 +311,7 @@ class AgentService(
                     kind = AgentClass(AgentClass.SYSTEM),
                 )
             }
-            "agent-builder" -> {
-                PlatformAgent(
-                    name = "agent-builder",
-                    description = "This agent can build agents using available model, tools and system instructions",
-                    greetingMessage = "Hi, this is AgC0 agent, I can help you in building agent that can run on my Agentic Compute (AgC)",
-                    systemPrompt = agC0Prompt,
-                    kind = AgentClass(AgentClass.SYSTEM),
-                )
-            }
+            "agent-builder" -> getAgentBuilder()
             else -> null
         }
 
@@ -377,23 +379,293 @@ class AgentService(
             MasaicManagedTool(PlatformToolsNames.MODEL_TEST_TOOL),
         )
 
-    private val agC0Prompt =
-        """
-        
+    private fun getAgentBuilderPrompt(
+        mockMcpServers: String,
+        pyFunTools: String,
+    ) = """
+# Agent Builder Assistant
+
+You are an expert AI agent builder for the AgC (Agentic Compute) platform. Your role is to help users create custom agents from minimal input through intelligent analysis and automatic configuration.
+
+## Your Mission:
+Create complete, functional agents from a single user request with minimal back-and-forth interaction.
+
+## Your Capabilities:
+1. **Agent Definition Generation** - Derive agent name and description from user requirements
+2. **System Prompt Generation** - Use system_prompt_generator tool to create tailored system prompts
+3. **Intelligent Tool Selection** - Automatically select applicable tools from available mock servers and py function tools
+4. **One-Shot Agent Creation** - Complete agent creation and save without requiring additional user input
+
+## PlatformAgent Definition Schema:
+You must ensure all required fields are populated before calling save_agent tool:
+
+```json
+{
+  "name": "string (required, lowercase_with_underscores, no spaces)",
+  "description": "string (required, 1-2 sentences describing agent purpose)",
+  "systemPrompt": "string (required, generated via system_prompt_generator tool)",
+  "tools": [
+    {
+      "type": "mcp", //mock mcp server
+      "server_label": "string", (containing characters and '-', no white spaces or '_')
+      "server_url": "string", (server url)
+      "allowed_tools": [ //list of functions under that tool
+        "send_email" 
+      ]
+    },
+    {
+      "type": "py_fun_tool", //python function tool
+      "tool_def": {
+        "name": "string", //name of python function 
+        "description": "string", //description of python function 
+        "parameters": {
+          "type": "object",
+          "properties": { //Json-schema of input parameters of function
+        }
+      },
+      "code": "string", //base 64 encoded python code of the function.
+    }
+  ]
+}
+```
+
+## Required Fields Validation:
+Before calling save_agent, ensure you have:
+- ✅ **name**: Valid agent name (lowercase_with_underscores)
+- ✅ **description**: Clear 1-2 sentence description
+- ✅ **systemPrompt**: Generated via system_prompt_generator tool
+- ✅ **tools**: Array of selected tools (can be empty if no applicable tools found)
+
+## Available Tool Types:
+- **MCP Tools**: Model Context Protocol tools for external integrations
+- **Py Function Tools**: Custom Python function execution
+
+## Available Mock Servers with Functions:
+$mockMcpServers
+
+## Available Py Function Tools:
+$pyFunTools
+
+## Workflow (Single-Shot Execution):
+1. **Analyze** user requirements to understand the agent's purpose
+2. **Derive** agent name (valid format: lowercase with underscores, no spaces) and description (1-2 sentences)
+3. **Generate** system prompt using system_prompt_generator tool with the user requirements
+4. **Auto-select** applicable tools by scanning:
+   - Available mock MCP servers and their functions
+   - Available py function tools
+   - Only select tools that directly support the agent's purpose
+5. **Validate** all required fields are populated according to PlatformAgent schema
+6. **Create** complete agent definition with all required and applicable optional fields
+7. **Save** agent using save_agent tool with complete PlatformAgent object
+8. **Deliver** ready-to-use agent to user
+
+## Selection Criteria for Tools:
+- **Mock MCP Servers**: Select if the agent's use case directly matches available mock functions
+- **Py Function Tools**: Select if the agent needs computational capabilities that match available functions
+- **Preference Order**: Prioritize mock servers with relevant functions, then py function tools
+- **Relevance**: Only include tools that are essential for the agent's core functionality
+
+## Schema Compliance Checklist:
+Before saving, verify:
+- [ ] Agent name follows naming convention (lowercase_with_underscores)
+- [ ] Description is meaningful and concise (1-2 sentences)
+- [ ] System prompt has been generated via system_prompt_generator tool
+- [ ] Tools array contains only applicable, properly configured tools
+- [ ] Complete PlatformAgent object is ready for save_agent tool
+
+## Response Format:
+- Be decisive and efficient
+- Provide clear reasoning for tool selections
+- Present the final agent configuration with schema validation
+- Offer immediate usage: "Your agent '[agent_name]' is ready! You can start using it now."
+- Include agent summary with selected tools and their purposes
+
+## Key Principles:
+- **Schema Compliance**: Always ensure PlatformAgent schema requirements are met
+- **Minimal Input Required**: Work with whatever the user provides
+- **Intelligent Defaults**: Make smart assumptions based on common use cases
+- **Quality over Quantity**: Select fewer, more relevant tools rather than many tools
+- **Immediate Utility**: Ensure the agent is immediately functional after creation
+
+## Example Flow:
+User: "I want a customer support agent"
+→ Analyze: Customer support needs query handling, knowledge access
+→ Derive: Name: "customer_support_agent", Description: "AI agent that handles customer inquiries and provides support assistance"
+→ Generate: System prompt for customer support using system_prompt_generator
+→ Select: Relevant mock functions (if available) for customer data, knowledge base access
+→ Validate: Check all required fields (name ✅, description ✅, systemPrompt ✅, tools ✅)
+→ Save: Complete PlatformAgent object with all configurations
+→ Deliver: "Your agent 'customer_support_agent' is ready! You can start chatting with it now."
+
+## Error Handling:
+If any required field is missing or invalid:
+1. Identify the missing/invalid field
+2. Attempt to derive/generate the missing information
+3. If unable to derive, ask user for minimal additional input
+4. Retry agent creation once complete
+
+Remember: Your goal is to create a complete, functional agent from the user's initial request without requiring additional configuration steps, while ensuring full compliance with the PlatformAgent schema.
         """.trimIndent()
 
-    // Import the constants
-    private object PlatformToolsNames {
-        const val FUN_DEF_GEN_TOOL = "fun_def_generation_tool"
-        const val FUN_REQ_GATH_TOOL = "fun_req_gathering_tool"
-        const val MOCK_FUN_SAVE_TOOL = "mock_fun_save_tool"
-        const val MOCK_GEN_TOOL = "mock_generation_tool"
-        const val MOCK_SAVE_TOOL = "mock_save_tool"
-        const val MODEL_TEST_TOOL = "get_weather_by_city"
+    private suspend fun getAgentBuilder(): PlatformAgent {
+        val mockServers = platformMcpService.getAllMockServers()
+        val availableServerDetails =
+            mockServers
+                .map { server ->
+                    val mcpTool =
+                        MCPTool(
+                            type = "mcp",
+                            serverLabel = server.serverLabel,
+                            serverUrl = server.url,
+                        )
+                    val tools = toolService.getRemoteMcpTools(mcpTool).map { it.copy(name = mcpTool.toMCPServerInfo().unQualifiedToolName(it.name ?: "not available")) }
+
+                    "Server: ${mapper.writeValueAsString(mcpTool)}\n Tools: ${mapper.writeValueAsString(tools)}"
+                }.joinToString("\n-----\n")
+
+        val functions = funRegService.getAllAvailableFunctions(false)
+        val pyFunTools =
+            functions.joinToString("\n-----\n") {
+                mapper.writeValueAsString(
+                    PyFunTool(
+                        type = "py_fun_tool",
+                        functionDetails = FunctionDetails(name = it.name, description = it.description),
+                        code = "",
+                    ),
+                )
+            }
+        val prompt = getAgentBuilderPrompt(availableServerDetails, pyFunTools)
+        return PlatformAgent(
+            name = "AgC0",
+            description = "This agent helps in building agents",
+            greetingMessage = "Hi, this is AgC0 agent, I can help you in building agent that can run on Agentic Compute (AgC)",
+            systemPrompt = prompt,
+            kind = AgentClass(AgentClass.SYSTEM),
+            tools = listOf(MasaicManagedTool(PlatformToolsNames.SYSTEM_PROMPT_GENERATOR_TOOL), MasaicManagedTool(PlatformToolsNames.SAVE_AGENT_TOOL)),
+        )
     }
 
-    private object AgentClass {
-        const val SYSTEM = "system"
-        const val OTHER = "other"
+    override fun provideToolDef(): NativeToolDefinition =
+        nativeToolDefinition {
+            name("save_agent_tool")
+            description("Save or update a platform agent with complete configuration including tools, model settings, and behavior parameters")
+            eventMeta(ToolProgressEventMeta("agc"))
+            parameters {
+                // Define the agent property with complete PlatformAgent schema
+                objectProperty(
+                    name = "agent",
+                    description = "Complete PlatformAgent object with all required fields and optional configurations",
+                    required = true,
+                ) {
+                    nullableProperty("model", "string", "AI model to use for the agent")
+                    property("name", "string", "Unique agent name (lowercase_with_underscores)", required = true)
+                    property("description", "string", "Brief description of what the agent does", required = true)
+                    nullableProperty("greetingMessage", "string", "Welcome message shown to users")
+                    property("systemPrompt", "string", "Agent behavior and personality instructions", required = true)
+                    nullableProperty("userMessage", "string", "Initial user message to start with")
+                    
+                    arrayProperty("tools", "Available tools for the agent", default = emptyList<Any>()) {
+                        itemsOneOf("MCPTool", "PyFunTool")
+                    }
+                    
+                    property("formatType", "string", "Output format", default = "text")
+                    property("temperature", "number", "Response creativity level", default = 1.0)
+                    property("max_output_tokens", "integer", "Maximum response length", default = 2048)
+                    property("top_p", "number", "Nucleus sampling parameter", default = 1.0)
+                    property("store", "boolean", "Whether to persist the agent", default = true)
+                    property("stream", "boolean", "Whether to stream responses", default = true)
+                    
+                    additionalProperties = false
+                }
+                
+                property(
+                    name = "isUpdate",
+                    type = "boolean",
+                    description = "Flag indicating whether this is an update request (true) or create request (false). Defaults to false for create.",
+                    required = false,
+                )
+
+                // Define MCPTool schema
+                definition("MCPTool") {
+                    property("type", "string", "Tool type identifier", required = true)
+                    property("server_label", "string", "Server label for identification", required = true)
+                    property("server_url", "string", "URL of the MCP server", required = true)
+                    property("require_approval", "string", "Approval requirement level", default = "never")
+                    
+                    arrayProperty("allowed_tools", "List of allowed tool functions", default = emptyList<String>()) {
+                        items("string")
+                    }
+                    
+                    objectProperty(
+                        "headers", 
+                        "HTTP headers for server communication", 
+                        default = emptyMap<String, String>(),
+                        additionalProps = true,
+                    ) {
+                        // Headers can contain any string values
+                    }
+                    
+                    additionalProperties = false
+                }
+
+                // Define PyFunTool schema
+                definition("PyFunTool") {
+                    property("type", "string", "Tool type identifier", required = true)
+                    refProperty("tool_def", "FunctionDetails", "Function definition details", required = true)
+                    property("code", "string", "Python function code", required = true)
+                    
+                    arrayProperty("deps", "Python dependencies", default = emptyList<String>()) {
+                        items("string")
+                    }
+                    
+                    nullableProperty("code_interpreter", "object", "Reference to PyInterpreterServer")
+                    
+                    additionalProperties = false
+                }
+
+                // Define FunctionDetails schema
+                definition("FunctionDetails") {
+                    property("type", "string", "Function type", default = "function", enum = listOf("function"))
+                    property("description", "string", "Function description", required = true)
+                    property("name", "string", "Function name", required = true)
+                    
+                    objectProperty(
+                        "parameters",
+                        "JSON Schema for function parameters", 
+                        default = emptyMap<String, Any>(),
+                        additionalProps = true,
+                    ) {
+                        property("additionalProperties", "boolean", enum = listOf(false))
+                    }
+                    
+                    property("strict", "boolean", "Strict parameter validation", default = true)
+                    
+                    additionalProperties = false
+                }
+
+                additionalProperties = false
+            }
+        }
+
+    override suspend fun executeTool(
+        resolvedName: String,
+        arguments: String,
+        paramsAccessor: ToolParamsAccessor,
+        client: OpenAIClient,
+        eventEmitter: (ServerSentEvent<String>) -> Unit,
+        toolMetadata: Map<String, Any>,
+        context: UnifiedToolContext,
+    ): String? {
+        // Parse the arguments to get both agent and isUpdate flag
+        val argsMap: Map<String, Any> = mapper.readValue(arguments)
+        val agent: PlatformAgent = mapper.convertValue(argsMap["agent"], PlatformAgent::class.java)
+        val isUpdate: Boolean = agentRepository.findByName(agent.name) != null
+        saveAgent(agent = agent, isUpdate = isUpdate)
+        return "Agent '${agent.name}' ${if (isUpdate) "updated" else "created"} successfully"
     }
+}
+
+object AgentClass {
+    const val SYSTEM = "system"
+    const val OTHER = "other"
 }

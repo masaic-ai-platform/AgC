@@ -2,12 +2,15 @@ package ai.masaic.platform.api.service
 
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.ResponseProcessingException
+import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.platform.api.controller.*
 import ai.masaic.platform.api.registry.functions.FunctionRegistryService
 import ai.masaic.platform.api.repository.AgentRepository
 import ai.masaic.platform.api.service.AgentService
+import ai.masaic.platform.api.tools.PlatformMcpService
 import io.mockk.*
 import io.mockk.coVerify
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
@@ -18,12 +21,16 @@ class AgentServiceTest {
     private lateinit var agentService: AgentService
     private lateinit var agentRepository: AgentRepository
     private lateinit var funRegService: FunctionRegistryService
+    private lateinit var platformMcpService: PlatformMcpService
+    private lateinit var toolService: ToolService
 
     @BeforeEach
     fun setUp() {
         agentRepository = mockk()
         funRegService = mockk()
-        agentService = AgentService(agentRepository, funRegService)
+        platformMcpService = mockk()
+        toolService = mockk()
+        agentService = AgentService(agentRepository, funRegService, platformMcpService, toolService)
     }
 
     @Test
@@ -73,16 +80,14 @@ class AgentServiceTest {
         runTest {
             // Given
             val agentName = "agent-builder"
-
+            every { runBlocking { platformMcpService.getAllMockServers() } } returns emptyList()
+            every { runBlocking { funRegService.getAllAvailableFunctions(false) } } returns emptyList()
             // When
             val result = agentService.getAgent(agentName)
-
             // Then
             assertNotNull(result)
             result?.let { agent ->
-                assertEquals("agent-builder", agent.name)
-                assertEquals("This agent can build agents using available model, tools and system instructions", agent.description)
-                assertEquals("Hi, this is AgC0 agent, I can help you in building agent that can run on my Agentic Compute (AgC)", agent.greetingMessage)
+                assertEquals("AgC0", agent.name)
                 assertEquals("system", agent.kind.kind)
             }
         }

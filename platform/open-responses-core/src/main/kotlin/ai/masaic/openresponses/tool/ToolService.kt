@@ -103,6 +103,7 @@ class ToolService(
             description = tool.description,
             protocol = tool.protocol,
             hosting = tool.hosting,
+            eventMeta = tool.eventMeta,
         )
     }
 

@@ -17,11 +17,11 @@ import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.platform.api.interpreter.CodeRunnerService
 import ai.masaic.platform.api.interpreter.PythonCodeRunnerService
+import ai.masaic.platform.api.registry.functions.FunctionRegistryRepository
+import ai.masaic.platform.api.registry.functions.FunctionRegistryService
+import ai.masaic.platform.api.registry.functions.FunctionRegistryValidator
 import ai.masaic.platform.api.repository.*
-import ai.masaic.platform.api.service.ModelService
-import ai.masaic.platform.api.service.PlatformHybridSearchService
-import ai.masaic.platform.api.service.PlatformQdrantVectorSearchProvider
-import ai.masaic.platform.api.service.PlatformVectorStoreService
+import ai.masaic.platform.api.service.*
 import ai.masaic.platform.api.tools.*
 import ai.masaic.platform.api.user.AuthConfig
 import ai.masaic.platform.api.user.AuthConfigProperties
@@ -149,6 +149,29 @@ class PlatformCoreConfig {
                 },
         )
     }
+
+    @Bean
+    fun agentService(
+        agentRepository: AgentRepository,
+        functionRegistryService: FunctionRegistryService,
+        platformMcpService: PlatformMcpService,
+        @Lazy toolService: ToolService,
+    ) = AgentService(agentRepository, functionRegistryService, platformMcpService, toolService)
+
+    @Bean
+    fun funRegistryValidator() = FunctionRegistryValidator()
+
+    @Bean
+    fun funRegService(
+        repository: FunctionRegistryRepository,
+        functionRegistryValidator: FunctionRegistryValidator,
+    ) = FunctionRegistryService(repository, functionRegistryValidator)
+
+    @Bean
+    fun systemPromptGeneratorTool(
+        modelSettings: ModelSettings,
+        @Lazy modelService: ModelService,
+    ) = SystemPromptGeneratorTool(modelSettings, modelService)
 
     @Configuration
     @Profile("platform")

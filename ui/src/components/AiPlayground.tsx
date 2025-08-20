@@ -158,6 +158,7 @@ const AiPlayground: React.FC = () => {
 
   // Agent Builder mode state
   const [agentBuilderMode, setAgentBuilderMode] = useState(false);
+  const [agentBuilderData, setAgentBuilderData] = useState<null | { systemPrompt: string; greetingMessage: string; description: string; tools: any[] }>(null);
 
   // Chat header state
   const [copiedResponseId, setCopiedResponseId] = useState(false);
@@ -575,6 +576,13 @@ const AiPlayground: React.FC = () => {
 
   const generateResponse = async (prompt: string) => {
     const provider = modelProvider;
+    
+    // Check if a model is selected
+    if (!modelName || modelName.trim() === '') {
+      toast.error('Please select a model before sending a message.');
+      return;
+    }
+    
     const apiKeyForProvider = getProviderApiKey(provider);
     if (!apiKeyForProvider) {
       toast.error('Please set your API key for the selected provider.');
@@ -653,7 +661,10 @@ const AiPlayground: React.FC = () => {
       };
     }
 
-    const effectiveInstructions = mockyMode && mockyAgentData ? mockyAgentData.systemPrompt : instructions;
+    const effectiveInstructions = 
+      mockyMode && mockyAgentData ? mockyAgentData.systemPrompt 
+      : agentBuilderMode && agentBuilderData ? agentBuilderData.systemPrompt 
+      : instructions;
 
     const requestBody: any = {
       model: `${modelProvider}@${modelName}`,
@@ -672,6 +683,8 @@ const AiPlayground: React.FC = () => {
     // Tools handling
     if (mockyMode && mockyAgentData && Array.isArray(mockyAgentData.tools) && mockyAgentData.tools.length > 0) {
       requestBody.tools = mockyAgentData.tools;
+    } else if (agentBuilderMode && agentBuilderData && Array.isArray(agentBuilderData.tools) && agentBuilderData.tools.length > 0) {
+      requestBody.tools = agentBuilderData.tools;
     } else if (selectedTools.length > 0) {
       requestBody.tools = selectedTools.map(tool => {
         if (tool.id === 'mcp_server' && tool.mcpConfig) {
@@ -840,6 +853,8 @@ const AiPlayground: React.FC = () => {
       let contentBlocks: ContentBlock[] = [];
       let currentTextBlock: ContentBlock | null = null;
       const activeToolExecutions = new Map<string, ToolExecution>();
+      // Tracks whether an unrecoverable error was received in the SSE stream
+      let encounteredStreamError = false;
 
       // Track the last SSE event name to properly handle custom events like "error"
       let lastEvent: string | null = null;
@@ -890,11 +905,30 @@ const AiPlayground: React.FC = () => {
                 try {
                   const data = JSON.parse(line.slice(6));
 
-                  // Handle explicit error events from SSE stream
-                  if (lastEvent === 'error' || (data.code && data.message && !data.type)) {
+                  // Handle explicit error events from SSE stream  
+                  // Primary check: event: error (this is the main SSE error pattern)
+                  // Secondary checks: legacy error formats for backward compatibility
+                  if (lastEvent === 'error' || (data.type === 'error') || (data.code && data.message)) {
+                    console.log('🚨 Error detected in stream!', { lastEvent, dataType: data.type, dataCode: data.code, dataMessage: data.message });
                     const errorCode = data.code || 'error';
                     const errorMsg = data.message || 'Unknown error';
                     const errorContent = `Error: [${errorCode}] ${errorMsg}`;
+
+                    // Clear all active tool executions to stop loading spinners
+                    activeToolExecutions.clear();
+                    encounteredStreamError = true;
+                    encounteredStreamError = true;
+                    
+                    // Remove any inline loading blocks and tool progress blocks
+                    const errorContentBlocks = contentBlocks.filter(block => 
+                      block.type !== 'inline_loading' && block.type !== 'tool_progress'
+                    );
+                    
+                    // Add the error content block
+                    errorContentBlocks.push({
+                      type: 'text',
+                      content: `[${errorCode}] ${errorMsg}`
+                    });
 
                     // Update assistant message with error content, stop loading state
                     setMessages(prev => prev.map(msg =>
@@ -902,18 +936,16 @@ const AiPlayground: React.FC = () => {
                         ? {
                             ...msg,
                             content: errorContent,
-                            contentBlocks: [
-                              {
-                                type: 'text',
-                                content: `[${errorCode}] ${errorMsg}`
-                              }
-                            ],
+                            contentBlocks: errorContentBlocks,
                             type: 'text',
                             hasThinkTags: false,
                             isLoading: false
                           }
                         : msg
                     ));
+
+                    // Set global loading state to false
+                    setIsLoading(false);
 
                     // Exit streaming loop on error
                     reader.cancel().catch(() => {});
@@ -1389,11 +1421,20 @@ const AiPlayground: React.FC = () => {
           }
         } catch (streamError) {
           console.error('Error reading stream:', streamError);
+          // Clear all active tool executions to stop loading spinners
+          activeToolExecutions.clear();
+          
           setMessages(prev => prev.map(msg =>
             msg.id === assistantMessageId
               ? {
                   ...msg,
                   content: `Error: Failed to read streaming response`,
+                  contentBlocks: [
+                    {
+                      type: 'text',
+                      content: 'Failed to read streaming response'
+                    }
+                  ],
                   type: 'text',
                   hasThinkTags: false,
                   isLoading: false
@@ -1406,7 +1447,7 @@ const AiPlayground: React.FC = () => {
       }
 
       // Final message update to ensure loading state is properly cleared
-      if (contentBlocks.length > 0) {
+      if (!encounteredStreamError && contentBlocks.length > 0) {
         const finalBlocks = removeInlineLoading(contentBlocks);
         
         // If no content blocks exist after removing loading, create a default text block
@@ -1424,11 +1465,18 @@ const AiPlayground: React.FC = () => {
       }
 
     } catch (error: any) {
+      // Clear any lingering tool executions and loading states on error
       setMessages(prev => prev.map(msg =>
         msg.id === assistantMessageId
           ? {
               ...msg,
               content: `Error: ${error.message}`,
+              contentBlocks: [
+                {
+                  type: 'text',
+                  content: error.message
+                }
+              ],
               type: 'text',
               hasThinkTags: false,
               isLoading: false
@@ -1749,7 +1797,7 @@ const AiPlayground: React.FC = () => {
 
     resetAllModes();
 
-    // Set agent builder mode
+    // Set agent builder mode and fetch agent data
     setAgentBuilderMode(true);
     setActiveTab('agent-builder');
     
@@ -1764,6 +1812,60 @@ const AiPlayground: React.FC = () => {
       localStorage.removeItem('platform_agentData');
     } catch (error) {
       console.error('Failed to clear agent data from localStorage:', error);
+    }
+
+    // Fetch Agent Builder agent and start conversation
+    fetchAgentBuilder();
+  };
+
+  const fetchAgentBuilder = async () => {
+    try {
+      const data = await apiClient.agentJsonRequest<any>('/v1/agents/agent-builder');
+      
+      if (data) {
+        setAgentBuilderData({
+          systemPrompt: data.systemPrompt || '',
+          greetingMessage: data.greetingMessage || '',
+          description: data.description || '',
+          tools: data.tools || []
+        });
+
+        // Reset conversation tracking ids
+        setConversationId(null);
+        setPreviousResponseId(null);
+
+        // Reset previous conversation and show greeting
+        setMessages([]);
+
+        const greetingId = Date.now().toString() + '_assistant';
+        const greetingMessage: Message = {
+          id: greetingId,
+          role: 'assistant',
+          content: '',
+          type: 'text',
+          timestamp: new Date(),
+          isLoading: true
+        };
+        setMessages([greetingMessage]);
+
+        // Artificial streaming of greeting text
+        const greetingText: string = data.greetingMessage || '';
+        let idx = 0;
+        const interval = setInterval(() => {
+          idx += 1;
+          const partial = greetingText.slice(0, idx);
+          setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
+          if (idx >= greetingText.length) {
+            clearInterval(interval);
+            setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
+          }
+        }, 25);
+      } else {
+        toast.error('Failed to load Agent Builder');
+      }
+    } catch (error) {
+      console.error('Error fetching Agent Builder:', error);
+      toast.error('Failed to load Agent Builder');
     }
   };
 
@@ -1816,6 +1918,7 @@ const AiPlayground: React.FC = () => {
     const resetAgentBuilderMode = () => {
       if (agentBuilderMode) {
         setAgentBuilderMode(false);
+        setAgentBuilderData(null);
         setMessages([]);
         setConversationId(null);
         setPreviousResponseId(null);
@@ -1834,7 +1937,7 @@ const AiPlayground: React.FC = () => {
       // Fetch agent definition with proper async/await
       (async () => {
         try {
-          const data = await apiClient.agentJsonRequest('/v1/agents/Masaic-Mocky');
+          const data = await apiClient.agentJsonRequest<any>('/v1/agents/Masaic-Mocky');
           
           if (data) {
             setMockyMode(true);
@@ -1886,6 +1989,70 @@ const AiPlayground: React.FC = () => {
       return;
     }
 
+    // Special handling for Agent Builder option
+    if (tab === 'agent-builder') {
+      // Reset other modes first if active
+      resetMockyMode();
+      resetModelTestMode();
+      resetAgentMode();
+      
+      setActiveTab(tab);
+      
+      // Fetch Agent Builder definition with proper async/await
+      (async () => {
+        try {
+          const data = await apiClient.agentJsonRequest<any>('/v1/agents/agent-builder');
+          
+          if (data) {
+            setAgentBuilderMode(true);
+            setAgentBuilderData({
+              systemPrompt: data.systemPrompt || '',
+              greetingMessage: data.greetingMessage || '',
+              description: data.description || '',
+              tools: data.tools || []
+            });
+
+            // reset conversation tracking ids
+            setConversationId(null);
+            setPreviousResponseId(null);
+
+            // Reset previous conversation and show greeting
+            setMessages([]);
+
+            const greetingId = Date.now().toString() + '_assistant';
+            const greetingMessage: Message = {
+              id: greetingId,
+              role: 'assistant',
+              content: '',
+              type: 'text',
+              timestamp: new Date(),
+              isLoading: true
+            };
+            setMessages([greetingMessage]);
+
+            // Artificial streaming of greeting text
+            const greetingText: string = data.greetingMessage || '';
+            let idx = 0;
+            const interval = setInterval(() => {
+              idx += 1;
+              const partial = greetingText.slice(0, idx);
+              setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
+              if (idx >= greetingText.length) {
+                clearInterval(interval);
+                setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
+              }
+            }, 25);
+          } else {
+            toast.error('Failed to load Agent Builder');
+          }
+        } catch (err) {
+          console.error(err);
+          toast.error('Failed to load Agent Builder');
+        }
+      })();
+      return;
+    }
+
     // Special handling for Add Model option
     if (tab === 'add-model') {
       // Reset other modes first if active
@@ -1898,7 +2065,7 @@ const AiPlayground: React.FC = () => {
       // Fetch ModelTestAgent definition with proper async/await
       (async () => {
         try {
-          const data = await apiClient.agentJsonRequest('/v1/agents/ModelTestAgent');
+          const data = await apiClient.agentJsonRequest<any>('/v1/agents/ModelTestAgent');
           
           if (data) {
             setModelTestMode(true);
@@ -2060,6 +2227,25 @@ const AiPlayground: React.FC = () => {
   const makeModelTestApiCall = async () => {
     if (!modelTestAgentData) return;
 
+    // Check if model test fields are filled
+    if (!modelTestName || modelTestName.trim() === '') {
+      toast.error('Please enter a model name for testing.');
+      setIsTestingModel(false);
+      return;
+    }
+
+    if (!modelTestUrl || modelTestUrl.trim() === '') {
+      toast.error('Please enter a model URL for testing.');
+      setIsTestingModel(false);
+      return;
+    }
+
+    if (!modelTestApiKey || modelTestApiKey.trim() === '') {
+      toast.error('Please enter an API key for testing.');
+      setIsTestingModel(false);
+      return;
+    }
+
     const assistantMessageId = Date.now().toString() + '_assistant_response';
     const assistantMessage: Message = {
       id: assistantMessageId,
@@ -2177,6 +2363,7 @@ const AiPlayground: React.FC = () => {
       let lastEvent: string | null = null;
       let responseCompleted = false;
       let toolCompleted = false;
+      let encounteredStreamError = false;
 
       const updateMessage = (blocks: ContentBlock[], fullContent: string) => {
         setMessages(prev => prev.map(msg =>
@@ -2222,11 +2409,18 @@ const AiPlayground: React.FC = () => {
                 try {
                   const data = JSON.parse(line.slice(6));
 
-                  // Handle explicit error events from SSE stream
-                  if (lastEvent === 'error' || (data.code && data.message && !data.type)) {
+                  // Handle explicit error events from SSE stream  
+                  // Primary check: event: error (this is the main SSE error pattern)
+                  // Secondary checks: legacy error formats for backward compatibility
+                  if (lastEvent === 'error' || (data.type === 'error') || (data.code && data.message)) {
+                    console.log('🚨 Error detected in stream!', { lastEvent, dataType: data.type, dataCode: data.code, dataMessage: data.message });
                     const errorCode = data.code || 'error';
                     const errorMsg = data.message || 'Unknown error';
                     const errorContent = `Error: [${errorCode}] ${errorMsg}`;
+
+                    // Clear all active tool executions to stop loading spinners
+                    activeToolExecutions.clear();
+                    encounteredStreamError = true;
 
                     // Update assistant message with error content, stop loading state
                     setMessages(prev => prev.map(msg =>
@@ -2400,18 +2594,28 @@ const AiPlayground: React.FC = () => {
           }
         } catch (streamError) {
           console.error('Error reading stream:', streamError);
+          // Clear all active tool executions to stop loading spinners
+          activeToolExecutions.clear();
+          encounteredStreamError = true;
+          
           setMessages(prev => prev.map(msg =>
             msg.id === assistantMessageId
               ? {
                   ...msg,
                   content: `Error: Failed to read streaming response`,
+                  contentBlocks: [
+                    {
+                      type: 'text',
+                      content: 'Failed to read streaming response'
+                    }
+                  ],
                   type: 'text',
                   hasThinkTags: false,
                   isLoading: false
                 }
               : msg
           ));
-                    setIsTestingModel(false);
+          setIsTestingModel(false);
           setSaveModelState('error');
           setShowSaveModel(true);
         } finally {
@@ -2420,7 +2624,7 @@ const AiPlayground: React.FC = () => {
       }
 
       // Final message update to ensure loading state is properly cleared
-      if (contentBlocks.length > 0) {
+      if (!encounteredStreamError && contentBlocks.length > 0) {
         const finalBlocks = removeInlineLoading(contentBlocks);
         
         // If no content blocks exist after removing loading, create a default text block

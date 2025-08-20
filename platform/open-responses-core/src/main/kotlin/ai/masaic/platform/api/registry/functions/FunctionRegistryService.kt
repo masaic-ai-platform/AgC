@@ -1,13 +1,11 @@
 package ai.masaic.platform.api.registry.functions
 
-import org.springframework.stereotype.Service
 import java.time.Instant
 
 /**
  * Service layer for function registry operations.
  * Handles business logic, validation, and coordinates between repository and validator.
  */
-@Service
 class FunctionRegistryService(
     private val repository: FunctionRegistryRepository,
     private val validator: FunctionRegistryValidator,
@@ -140,6 +138,28 @@ class FunctionRegistryService(
                 "DELETE_FAILED",
                 "Failed to delete function '$name'.",
             )
+        }
+    }
+
+    /**
+     * Retrieves all available functions without pagination limits.
+     * This is useful for getting a complete list of functions for agent configuration.
+     * 
+     * @param includeCode Whether to include the function code in the response (default: false for better performance)
+     * @return List of all available functions as FunctionListItem objects
+     */
+    suspend fun getAllAvailableFunctions(includeCode: Boolean = false): List<FunctionListItem> {
+        // Get all functions without limits
+        val functions = repository.findAll(limit = Int.MAX_VALUE, cursor = null)
+        
+        return functions.map { doc ->
+            if (includeCode) {
+                // Return full function document with code
+                FunctionListItem.from(doc)
+            } else {
+                // Return lightweight version without code for better performance
+                FunctionListItem.from(doc.copy(code = ""))
+            }
         }
     }
 
