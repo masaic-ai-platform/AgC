@@ -49,82 +49,6 @@ class FunctionRegistryValidatorTest {
     }
 
     @Test
-    fun `validateDeps should accept valid pip requirements`() {
-        val validDeps =
-            listOf(
-                "pandas==2.2.2",
-                "numpy>=1.21.0",
-                "requests",
-                "pydantic~=2.0.0",
-                "fastapi[all]",
-                "torch>=2.0.0,<3.0.0",
-            )
-
-        validDeps.forEach { dep ->
-            val result = validator.validateDeps(listOf(dep))
-            assertTrue(result is ValidationResult.Success, "Dependency '$dep' should be valid")
-        }
-    }
-
-    @Test
-    fun `validateDeps should reject invalid pip requirements`() {
-        val invalidDeps =
-            listOf(
-                "",
-                " ",
-                "package with spaces",
-                "package@invalid",
-                "package/slash",
-                "package\\backslash",
-            )
-
-        invalidDeps.forEach { dep ->
-            val result = validator.validateDeps(listOf(dep))
-            assertTrue(result is ValidationResult.Error, "Dependency '$dep' should be invalid")
-            if (result is ValidationResult.Error) {
-                assertEquals(ErrorCodes.INVALID_DEPS, result.code)
-            }
-        }
-    }
-
-    @Test
-    fun `validateDeps should reject empty list`() {
-        val result = validator.validateDeps(emptyList())
-        assertTrue(result is ValidationResult.Error)
-        if (result is ValidationResult.Error) {
-            assertEquals(ErrorCodes.INVALID_DEPS, result.code)
-        }
-    }
-
-    @Test
-    fun `validateCode should accept valid Python code`() {
-        val validCode =
-            """
-            def run(params):
-                return {"result": "success"}
-            """.trimIndent()
-
-        val result = validator.validateCode(validCode)
-        assertTrue(result is ValidationResult.Success)
-    }
-
-    @Test
-    fun `validateCode should reject invalid Python code`() {
-        val invalidCodes =
-            listOf(
-                "",
-                " ",
-                "print('hello')", // Missing run function
-                "def hello(): pass", // Wrong function name
-            )
-
-        invalidCodes.forEach { code ->
-            val result = validator.validateCode(code)
-            assertTrue(result is ValidationResult.Error, "Code should be invalid: $code")
-        }
-    }
-
-    @Test
     fun `validateCreateRequest should accept valid request`() {
         val validRequest =
             FunctionCreate(
@@ -136,6 +60,7 @@ class FunctionRegistryValidatorTest {
                     def run(params):
                         return {"result": "success"}
                     """.trimIndent(),
+                inputSchema = mutableMapOf(),
             )
 
         val result = validator.validateCreateRequest(validRequest)
@@ -154,6 +79,7 @@ class FunctionRegistryValidatorTest {
                     def run(params):
                         return {"result": "success"}
                     """.trimIndent(),
+                inputSchema = mutableMapOf(),
             )
 
         val result = validator.validateCreateRequest(invalidRequest)

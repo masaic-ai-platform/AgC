@@ -91,6 +91,11 @@ const FileSearchModal: React.FC<FileSearchModalProps> = ({
   const [files, setFiles] = useState<FileItem[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<string[]>(initialSelectedFiles || []);
   const [selectedVectorStores, setSelectedVectorStores] = useState<string[]>(initialVectorStores || []);
+
+  // Update selectedVectorStores when initialVectorStores changes
+  useEffect(() => {
+    setSelectedVectorStores(initialVectorStores || []);
+  }, [initialVectorStores]);
   const [vectorStoreFiles, setVectorStoreFiles] = useState<Record<string, string[]>>({});
   const [newVectorStoreName, setNewVectorStoreName] = useState('');
   const [loading, setLoading] = useState({ stores: false, files: false, vectorStoreFiles: false });

@@ -4,11 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import UnifiedCard from '@/components/ui/unified-card';
-import { Loader2, Send, Sparkles, RotateCcw, Copy, Check, Menu, Code, Brain, Image, Puzzle, Save, Layers } from 'lucide-react';
+import { Loader2, Send, Sparkles, RotateCcw, Copy, Check, Menu, Code, Brain, Image, Puzzle, Save, Layers, Search } from 'lucide-react';
 import { toast } from 'sonner';
 import ChatMessage from './ChatMessage';
 import ConfigurationPanel from './ConfigurationPanel';
 import PlaygroundSidebar from './PlaygroundSidebar';
+import AgentsSelectionModal from './AgentsSelectionModal';
 import CodeTabs from '@/playground/CodeTabs';
 import { PlaygroundRequest } from '@/playground/PlaygroundRequest';
 import { API_URL } from '@/config';
@@ -85,6 +86,8 @@ const isValidUrl = (url: string): boolean => {
 };
 
 const AiPlayground: React.FC = () => {
+
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -136,8 +139,54 @@ const AiPlayground: React.FC = () => {
   const [showSaveModel, setShowSaveModel] = useState(false);
   const [saveModelState, setSaveModelState] = useState<'success' | 'tool_issue' | 'error' | null>(null);
 
+  // Agents mode state
+  const [agentMode, setAgentMode] = useState(() => {
+    try {
+      return localStorage.getItem('platform_agentMode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [agentData, setAgentData] = useState<null | { name: string; description: string; systemPrompt: string; tools: any[]; model?: string; temperature?: number; maxTokenOutput?: number; topP?: number; }>(() => {
+    try {
+      const saved = localStorage.getItem('platform_agentData');
+      return saved ? JSON.parse(saved) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // Agent Builder mode state
+  const [agentBuilderMode, setAgentBuilderMode] = useState(false);
+  const [agentBuilderData, setAgentBuilderData] = useState<null | { systemPrompt: string; greetingMessage: string; description: string; tools: any[] }>(null);
+
   // Chat header state
   const [copiedResponseId, setCopiedResponseId] = useState(false);
+
+  // Restore agent state on page load
+  useEffect(() => {
+    if (agentMode && agentData) {
+      // Restore configuration from persisted agent data
+      setInstructions(agentData.systemPrompt || '');
+      if (agentData.temperature !== undefined) setTemperature(agentData.temperature);
+      if (agentData.maxTokenOutput !== undefined) setMaxTokens(agentData.maxTokenOutput);
+      if (agentData.topP !== undefined) setTopP(agentData.topP);
+      
+      // Restore model
+      if (agentData.model) {
+        validateAndSetAgentModel(agentData.model);
+      }
+      
+      // Transform and restore tools
+      if (agentData.tools && agentData.tools.length > 0) {
+        const transformedTools = transformAgentToolsToUI(agentData.tools);
+        setSelectedTools(transformedTools);
+      }
+      
+      // Set the active tab to responses
+      setActiveTab('responses');
+    }
+  }, []); // Only run on mount
   
   // Code snippet generator state
   const [codeModalOpen, setCodeModalOpen] = useState(false);
@@ -527,6 +576,13 @@ const AiPlayground: React.FC = () => {
 
   const generateResponse = async (prompt: string) => {
     const provider = modelProvider;
+    
+    // Check if a model is selected
+    if (!modelName || modelName.trim() === '') {
+      toast.error('Please select a model before sending a message.');
+      return;
+    }
+    
     const apiKeyForProvider = getProviderApiKey(provider);
     if (!apiKeyForProvider) {
       toast.error('Please set your API key for the selected provider.');
@@ -605,7 +661,10 @@ const AiPlayground: React.FC = () => {
       };
     }
 
-    const effectiveInstructions = mockyMode && mockyAgentData ? mockyAgentData.systemPrompt : instructions;
+    const effectiveInstructions = 
+      mockyMode && mockyAgentData ? mockyAgentData.systemPrompt 
+      : agentBuilderMode && agentBuilderData ? agentBuilderData.systemPrompt 
+      : instructions;
 
     const requestBody: any = {
       model: `${modelProvider}@${modelName}`,
@@ -624,6 +683,8 @@ const AiPlayground: React.FC = () => {
     // Tools handling
     if (mockyMode && mockyAgentData && Array.isArray(mockyAgentData.tools) && mockyAgentData.tools.length > 0) {
       requestBody.tools = mockyAgentData.tools;
+    } else if (agentBuilderMode && agentBuilderData && Array.isArray(agentBuilderData.tools) && agentBuilderData.tools.length > 0) {
+      requestBody.tools = agentBuilderData.tools;
     } else if (selectedTools.length > 0) {
       requestBody.tools = selectedTools.map(tool => {
         if (tool.id === 'mcp_server' && tool.mcpConfig) {
@@ -792,6 +853,8 @@ const AiPlayground: React.FC = () => {
       let contentBlocks: ContentBlock[] = [];
       let currentTextBlock: ContentBlock | null = null;
       const activeToolExecutions = new Map<string, ToolExecution>();
+      // Tracks whether an unrecoverable error was received in the SSE stream
+      let encounteredStreamError = false;
 
       // Track the last SSE event name to properly handle custom events like "error"
       let lastEvent: string | null = null;
@@ -842,11 +905,30 @@ const AiPlayground: React.FC = () => {
                 try {
                   const data = JSON.parse(line.slice(6));
 
-                  // Handle explicit error events from SSE stream
-                  if (lastEvent === 'error' || (data.code && data.message && !data.type)) {
+                  // Handle explicit error events from SSE stream  
+                  // Primary check: event: error (this is the main SSE error pattern)
+                  // Secondary checks: legacy error formats for backward compatibility
+                  if (lastEvent === 'error' || (data.type === 'error') || (data.code && data.message)) {
+                    console.log('🚨 Error detected in stream!', { lastEvent, dataType: data.type, dataCode: data.code, dataMessage: data.message });
                     const errorCode = data.code || 'error';
                     const errorMsg = data.message || 'Unknown error';
                     const errorContent = `Error: [${errorCode}] ${errorMsg}`;
+
+                    // Clear all active tool executions to stop loading spinners
+                    activeToolExecutions.clear();
+                    encounteredStreamError = true;
+                    encounteredStreamError = true;
+                    
+                    // Remove any inline loading blocks and tool progress blocks
+                    const errorContentBlocks = contentBlocks.filter(block => 
+                      block.type !== 'inline_loading' && block.type !== 'tool_progress'
+                    );
+                    
+                    // Add the error content block
+                    errorContentBlocks.push({
+                      type: 'text',
+                      content: `[${errorCode}] ${errorMsg}`
+                    });
 
                     // Update assistant message with error content, stop loading state
                     setMessages(prev => prev.map(msg =>
@@ -854,18 +936,16 @@ const AiPlayground: React.FC = () => {
                         ? {
                             ...msg,
                             content: errorContent,
-                            contentBlocks: [
-                              {
-                                type: 'text',
-                                content: `[${errorCode}] ${errorMsg}`
-                              }
-                            ],
+                            contentBlocks: errorContentBlocks,
                             type: 'text',
                             hasThinkTags: false,
                             isLoading: false
                           }
                         : msg
                     ));
+
+                    // Set global loading state to false
+                    setIsLoading(false);
 
                     // Exit streaming loop on error
                     reader.cancel().catch(() => {});
@@ -1341,11 +1421,20 @@ const AiPlayground: React.FC = () => {
           }
         } catch (streamError) {
           console.error('Error reading stream:', streamError);
+          // Clear all active tool executions to stop loading spinners
+          activeToolExecutions.clear();
+          
           setMessages(prev => prev.map(msg =>
             msg.id === assistantMessageId
               ? {
                   ...msg,
                   content: `Error: Failed to read streaming response`,
+                  contentBlocks: [
+                    {
+                      type: 'text',
+                      content: 'Failed to read streaming response'
+                    }
+                  ],
                   type: 'text',
                   hasThinkTags: false,
                   isLoading: false
@@ -1358,7 +1447,7 @@ const AiPlayground: React.FC = () => {
       }
 
       // Final message update to ensure loading state is properly cleared
-      if (contentBlocks.length > 0) {
+      if (!encounteredStreamError && contentBlocks.length > 0) {
         const finalBlocks = removeInlineLoading(contentBlocks);
         
         // If no content blocks exist after removing loading, create a default text block
@@ -1376,11 +1465,18 @@ const AiPlayground: React.FC = () => {
       }
 
     } catch (error: any) {
+      // Clear any lingering tool executions and loading states on error
       setMessages(prev => prev.map(msg =>
         msg.id === assistantMessageId
           ? {
               ...msg,
               content: `Error: ${error.message}`,
+              contentBlocks: [
+                {
+                  type: 'text',
+                  content: error.message
+                }
+              ],
               type: 'text',
               hasThinkTags: false,
               isLoading: false
@@ -1465,6 +1561,314 @@ const AiPlayground: React.FC = () => {
     textarea.style.height = `${newHeight}px`;
   };
 
+  // Helper function to transform agent tools to UI tool format
+  const transformAgentToolsToUI = (agentTools: any[]): Tool[] => {
+    return agentTools.map(tool => {
+      if (tool.type === 'mcp') {
+        return {
+          id: 'mcp_server',
+          name: `MCP: ${tool.server_label}`,
+          icon: Brain,
+          mcpConfig: {
+            label: tool.server_label,
+            url: tool.server_url,
+            selectedTools: tool.allowed_tools || [],
+            authentication: tool.headers && Object.keys(tool.headers).length > 0 ? 'access_token' : 'none',
+            accessToken: tool.headers?.Authorization?.replace('Bearer ', '') || '',
+            customHeaders: []
+          }
+        };
+      } else if (tool.type === 'file_search') {
+        return {
+          id: 'file_search',
+          name: 'File Search',
+          icon: Search,
+          fileSearchConfig: {
+            selectedFiles: [],
+            selectedVectorStores: tool.vector_store_ids || [],
+            vectorStoreNames: []
+          }
+        };
+      } else if (tool.type === 'agentic_search') {
+        return {
+          id: 'agentic_file_search',
+          name: 'Agentic File Search',
+          icon: Brain,
+          agenticFileSearchConfig: {
+            selectedFiles: [],
+            selectedVectorStores: tool.vector_store_ids || [],
+            vectorStoreNames: [],
+            iterations: tool.max_iterations || 3,
+            maxResults: tool.max_num_results || 5
+          }
+        };
+      } else if (tool.type === 'py_fun_tool') {
+        return {
+          id: 'py_fun_tool',
+          name: `Function: ${tool.tool_def?.name || 'Python Function'}`,
+          icon: Code,
+          pyFunctionConfig: tool
+        };
+      }
+      // Handle other tool types with their default configurations
+      return {
+        id: tool.type,
+        name: tool.type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()),
+        icon: Puzzle
+      };
+    }).filter(tool => tool !== null);
+  };
+
+  // Helper function to validate and set model from agent data using the same logic as ConfigurationPanel
+  const validateAndSetAgentModel = async (agentModelName?: string) => {
+    if (!agentModelName) {
+      // Clear model selection if no model specified
+      setModelProvider('');
+      setModelName('');
+      return;
+    }
+
+    try {
+      // Use the same API call as ConfigurationPanel to get available models
+      const providers = await apiClient.jsonRequest<any[]>('/v1/dashboard/models');
+      
+      // Build allModels array using the same logic as ConfigurationPanel
+      const apiModels = providers.flatMap(provider => 
+        provider.supportedModels
+          .filter((model: any) => !model.isEmbeddingModel) // Filter out embedding models
+          .map((model: any) => ({
+            ...model,
+            providerName: provider.name,
+            providerDescription: provider.description
+          }))
+      );
+
+      // Get models from localStorage (own models) - same as ConfigurationPanel
+      let ownModels: any[] = [];
+      try {
+        const savedOwnModels = localStorage.getItem('platform_own_model');
+        if (savedOwnModels) {
+          const ownModelsData = JSON.parse(savedOwnModels);
+          ownModels = ownModelsData.supportedModels.map((model: any) => ({
+            name: model.name,
+            modelSyntax: model.modelSyntax,
+            providerName: ownModelsData.name,
+            providerDescription: ownModelsData.description,
+            isEmbeddingModel: false
+          }));
+        }
+      } catch (error) {
+        console.error('Error loading own models from localStorage:', error);
+      }
+
+      // Combine own models and API models (same as ConfigurationPanel)
+      const allModels = [...ownModels, ...apiModels];
+
+      // Find the agent's model in the available models
+      const foundModel = allModels.find((model: any) => 
+        model.modelSyntax === agentModelName || model.name === agentModelName
+      );
+
+      if (foundModel) {
+        // Extract provider and model name from modelSyntax
+        if (foundModel.modelSyntax && foundModel.modelSyntax.includes('@')) {
+          const [providerName, modelNamePart] = foundModel.modelSyntax.split('@');
+          setModelProvider(providerName);
+          setModelName(modelNamePart);
+        } else {
+          setModelProvider(foundModel.providerName || '');
+          setModelName(foundModel.name || agentModelName);
+        }
+
+      } else {
+        console.warn(`Agent model "${agentModelName}" not found in available models. Clearing model selection.`);
+        setModelProvider('');
+        setModelName('');
+      }
+    } catch (error) {
+      console.error('Error validating agent model:', error);
+      // If API fails, show "Select a model..." by clearing the selection
+      setModelProvider('');
+      setModelName('');
+    }
+  };
+
+  const handleAgentSaved = async (agentName: string, agentDescription: string) => {
+    try {
+      // Fetch the saved agent details from the API
+      const agentDetails = await apiClient.agentJsonRequest(`/v1/agents/${agentName}`);
+      
+      // Use the existing handleAgentSelect logic to switch to agent context
+      await handleAgentSelect(agentDetails);
+      
+    } catch (error) {
+      console.error('Error switching to saved agent context:', error);
+    }
+  };
+
+  const handleAgentSelect = async (agent: any) => {
+    try {
+      // Reset all other modes
+      const resetAllModes = () => {
+        setMockyMode(false);
+        setMockyAgentData(null);
+        setModelTestMode(false);
+        setModelTestAgentData(null);
+        setModelTestUrl('');
+        setModelTestName('');
+        setModelTestApiKey('');
+        setIsTestingModel(false);
+        setShowSaveModel(false);
+        setSaveModelState(null);
+        setAgentBuilderMode(false);
+      };
+
+      resetAllModes();
+
+      // Set agent mode and data
+      const agentDataValue = {
+        name: agent.name,
+        description: agent.description,
+        systemPrompt: agent.systemPrompt,
+        tools: agent.tools || [],
+        model: agent.model,
+        temperature: agent.temperature,
+        maxTokenOutput: agent.maxTokenOutput,
+        topP: agent.topP
+      };
+      
+      setAgentMode(true);
+      setAgentData(agentDataValue);
+      
+      // Persist to localStorage
+      try {
+        localStorage.setItem('platform_agentMode', 'true');
+        localStorage.setItem('platform_agentData', JSON.stringify(agentDataValue));
+      } catch (error) {
+        console.error('Failed to persist agent data to localStorage:', error);
+      }
+
+      // Set instructions from agent system prompt
+      setInstructions(agent.systemPrompt || '');
+
+      // Set model parameters from agent data
+      setTemperature(agent.temperature || 1.0);
+      setMaxTokens(agent.maxTokenOutput || 2048);
+      setTopP(agent.topP || 1.0);
+
+      // Validate and set model
+      await validateAndSetAgentModel(agent.model);
+
+      // Transform and set tools
+      const transformedTools = transformAgentToolsToUI(agent.tools || []);
+      setSelectedTools(transformedTools);
+
+      // Reset conversation state
+      setMessages([]);
+      setConversationId(null);
+      setPreviousResponseId(null);
+
+      // Switch to responses tab
+      setActiveTab('responses');
+
+      toast.success(`Agent "${agent.name}" loaded successfully`);
+    } catch (error) {
+      console.error('Error setting up agent:', error);
+      toast.error('Failed to setup agent');
+    }
+  };
+
+  const handleCreateAgent = () => {
+    // Reset all other modes
+    const resetAllModes = () => {
+      setMockyMode(false);
+      setMockyAgentData(null);
+      setModelTestMode(false);
+      setModelTestAgentData(null);
+      setModelTestUrl('');
+      setModelTestName('');
+      setModelTestApiKey('');
+      setIsTestingModel(false);
+      setShowSaveModel(false);
+      setSaveModelState(null);
+      setAgentMode(false);
+      setAgentData(null);
+    };
+
+    resetAllModes();
+
+    // Set agent builder mode and fetch agent data
+    setAgentBuilderMode(true);
+    setActiveTab('agent-builder');
+    
+    // Reset conversation
+    setMessages([]);
+    setConversationId(null);
+    setPreviousResponseId(null);
+
+    // Clear agent data from localStorage if in agent mode
+    try {
+      localStorage.removeItem('platform_agentMode');
+      localStorage.removeItem('platform_agentData');
+    } catch (error) {
+      console.error('Failed to clear agent data from localStorage:', error);
+    }
+
+    // Fetch Agent Builder agent and start conversation
+    fetchAgentBuilder();
+  };
+
+  const fetchAgentBuilder = async () => {
+    try {
+      const data = await apiClient.agentJsonRequest<any>('/v1/agents/agent-builder');
+      
+      if (data) {
+        setAgentBuilderData({
+          systemPrompt: data.systemPrompt || '',
+          greetingMessage: data.greetingMessage || '',
+          description: data.description || '',
+          tools: data.tools || []
+        });
+
+        // Reset conversation tracking ids
+        setConversationId(null);
+        setPreviousResponseId(null);
+
+        // Reset previous conversation and show greeting
+        setMessages([]);
+
+        const greetingId = Date.now().toString() + '_assistant';
+        const greetingMessage: Message = {
+          id: greetingId,
+          role: 'assistant',
+          content: '',
+          type: 'text',
+          timestamp: new Date(),
+          isLoading: true
+        };
+        setMessages([greetingMessage]);
+
+        // Artificial streaming of greeting text
+        const greetingText: string = data.greetingMessage || '';
+        let idx = 0;
+        const interval = setInterval(() => {
+          idx += 1;
+          const partial = greetingText.slice(0, idx);
+          setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
+          if (idx >= greetingText.length) {
+            clearInterval(interval);
+            setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
+          }
+        }, 25);
+      } else {
+        toast.error('Failed to load Agent Builder');
+      }
+    } catch (error) {
+      console.error('Error fetching Agent Builder:', error);
+      toast.error('Failed to load Agent Builder');
+    }
+  };
+
   const handleTabChange = (tab: string) => {
     // First, always reset any active special modes
     const resetMockyMode = () => {
@@ -1493,16 +1897,48 @@ const AiPlayground: React.FC = () => {
       }
     };
 
+    const resetAgentMode = () => {
+      if (agentMode) {
+        setAgentMode(false);
+        setAgentData(null);
+        setMessages([]);
+        setConversationId(null);
+        setPreviousResponseId(null);
+        
+        // Clear from localStorage
+        try {
+          localStorage.removeItem('platform_agentMode');
+          localStorage.removeItem('platform_agentData');
+        } catch (error) {
+          console.error('Failed to clear agent data from localStorage:', error);
+        }
+      }
+    };
+
+    const resetAgentBuilderMode = () => {
+      if (agentBuilderMode) {
+        setAgentBuilderMode(false);
+        setAgentBuilderData(null);
+        setMessages([]);
+        setConversationId(null);
+        setPreviousResponseId(null);
+      }
+    };
+
     // Special handling for Masaic Mocky option
     if (tab === 'masaic-mocky') {
-      // Reset Model Test mode first if active
+      // Reset other modes first if active
       resetModelTestMode();
+      resetAgentMode();
+      resetAgentBuilderMode();
       
       setActiveTab(tab);
-      // Fetch agent definition
-      fetch(`${API_URL}/v1/agents/Masaic-Mocky`)
-        .then(res => res.json())
-        .then(data => {
+      
+      // Fetch agent definition with proper async/await
+      (async () => {
+        try {
+          const data = await apiClient.agentJsonRequest<any>('/v1/agents/Masaic-Mocky');
+          
           if (data) {
             setMockyMode(true);
             setMockyAgentData({
@@ -1545,24 +1981,92 @@ const AiPlayground: React.FC = () => {
           } else {
             toast.error('Failed to load Masaic Mocky agent data');
           }
-        })
-        .catch(err => {
+        } catch (err) {
           console.error(err);
-          toast.error('Error fetching Masaic Mocky agent');
-        });
+          toast.error('Failed to load Masaic Mocky agent data');
+        }
+      })();
+      return;
+    }
+
+    // Special handling for Agent Builder option
+    if (tab === 'agent-builder') {
+      // Reset other modes first if active
+      resetMockyMode();
+      resetModelTestMode();
+      resetAgentMode();
+      
+      setActiveTab(tab);
+      
+      // Fetch Agent Builder definition with proper async/await
+      (async () => {
+        try {
+          const data = await apiClient.agentJsonRequest<any>('/v1/agents/agent-builder');
+          
+          if (data) {
+            setAgentBuilderMode(true);
+            setAgentBuilderData({
+              systemPrompt: data.systemPrompt || '',
+              greetingMessage: data.greetingMessage || '',
+              description: data.description || '',
+              tools: data.tools || []
+            });
+
+            // reset conversation tracking ids
+            setConversationId(null);
+            setPreviousResponseId(null);
+
+            // Reset previous conversation and show greeting
+            setMessages([]);
+
+            const greetingId = Date.now().toString() + '_assistant';
+            const greetingMessage: Message = {
+              id: greetingId,
+              role: 'assistant',
+              content: '',
+              type: 'text',
+              timestamp: new Date(),
+              isLoading: true
+            };
+            setMessages([greetingMessage]);
+
+            // Artificial streaming of greeting text
+            const greetingText: string = data.greetingMessage || '';
+            let idx = 0;
+            const interval = setInterval(() => {
+              idx += 1;
+              const partial = greetingText.slice(0, idx);
+              setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
+              if (idx >= greetingText.length) {
+                clearInterval(interval);
+                setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
+              }
+            }, 25);
+          } else {
+            toast.error('Failed to load Agent Builder');
+          }
+        } catch (err) {
+          console.error(err);
+          toast.error('Failed to load Agent Builder');
+        }
+      })();
       return;
     }
 
     // Special handling for Add Model option
     if (tab === 'add-model') {
-      // Reset Mocky mode first if active
+      // Reset other modes first if active
       resetMockyMode();
+      resetAgentMode();
+      resetAgentBuilderMode();
       
       setActiveTab(tab);
-      // Fetch ModelTestAgent definition
-      fetch(`${API_URL}/v1/agents/ModelTestAgent`)
-        .then(res => res.json())
-        .then(data => {
+      
+      // Fetch ModelTestAgent definition with proper async/await
+      (async () => {
+        try {
+          const data = await apiClient.agentJsonRequest<any>('/v1/agents/ModelTestAgent');
+          
           if (data) {
             setModelTestMode(true);
             setModelTestAgentData({
@@ -1588,30 +2092,32 @@ const AiPlayground: React.FC = () => {
           } else {
             toast.error('Failed to load Model Test Agent data');
           }
-        })
-        .catch(err => {
+        } catch (err) {
           console.error(err);
-          toast.error('Error fetching Model Test Agent');
-        });
+          toast.error('Failed to load Model Test Agent data');
+        }
+      })();
       return;
     }
 
     // Special handling for E2B Server option
     if (tab === 'e2b-server') {
-      // Reset Mocky mode first if active
+      // Reset all modes first if active
       resetMockyMode();
-      
-      // Reset Model Test mode first if active
       resetModelTestMode();
+      resetAgentMode();
+      resetAgentBuilderMode();
       
       setActiveTab('responses');
       setE2bModalOpen(true);
       return;
     }
 
-    // For any other tab, reset both modes
+    // For any other tab, reset all modes
     resetMockyMode();
     resetModelTestMode();
+    resetAgentMode();
+    resetAgentBuilderMode();
 
     setActiveTab(tab);
     // Handle API Keys tab by opening the API keys modal
@@ -1720,6 +2226,25 @@ const AiPlayground: React.FC = () => {
 
   const makeModelTestApiCall = async () => {
     if (!modelTestAgentData) return;
+
+    // Check if model test fields are filled
+    if (!modelTestName || modelTestName.trim() === '') {
+      toast.error('Please enter a model name for testing.');
+      setIsTestingModel(false);
+      return;
+    }
+
+    if (!modelTestUrl || modelTestUrl.trim() === '') {
+      toast.error('Please enter a model URL for testing.');
+      setIsTestingModel(false);
+      return;
+    }
+
+    if (!modelTestApiKey || modelTestApiKey.trim() === '') {
+      toast.error('Please enter an API key for testing.');
+      setIsTestingModel(false);
+      return;
+    }
 
     const assistantMessageId = Date.now().toString() + '_assistant_response';
     const assistantMessage: Message = {
@@ -1838,6 +2363,7 @@ const AiPlayground: React.FC = () => {
       let lastEvent: string | null = null;
       let responseCompleted = false;
       let toolCompleted = false;
+      let encounteredStreamError = false;
 
       const updateMessage = (blocks: ContentBlock[], fullContent: string) => {
         setMessages(prev => prev.map(msg =>
@@ -1883,11 +2409,18 @@ const AiPlayground: React.FC = () => {
                 try {
                   const data = JSON.parse(line.slice(6));
 
-                  // Handle explicit error events from SSE stream
-                  if (lastEvent === 'error' || (data.code && data.message && !data.type)) {
+                  // Handle explicit error events from SSE stream  
+                  // Primary check: event: error (this is the main SSE error pattern)
+                  // Secondary checks: legacy error formats for backward compatibility
+                  if (lastEvent === 'error' || (data.type === 'error') || (data.code && data.message)) {
+                    console.log('🚨 Error detected in stream!', { lastEvent, dataType: data.type, dataCode: data.code, dataMessage: data.message });
                     const errorCode = data.code || 'error';
                     const errorMsg = data.message || 'Unknown error';
                     const errorContent = `Error: [${errorCode}] ${errorMsg}`;
+
+                    // Clear all active tool executions to stop loading spinners
+                    activeToolExecutions.clear();
+                    encounteredStreamError = true;
 
                     // Update assistant message with error content, stop loading state
                     setMessages(prev => prev.map(msg =>
@@ -2061,18 +2594,28 @@ const AiPlayground: React.FC = () => {
           }
         } catch (streamError) {
           console.error('Error reading stream:', streamError);
+          // Clear all active tool executions to stop loading spinners
+          activeToolExecutions.clear();
+          encounteredStreamError = true;
+          
           setMessages(prev => prev.map(msg =>
             msg.id === assistantMessageId
               ? {
                   ...msg,
                   content: `Error: Failed to read streaming response`,
+                  contentBlocks: [
+                    {
+                      type: 'text',
+                      content: 'Failed to read streaming response'
+                    }
+                  ],
                   type: 'text',
                   hasThinkTags: false,
                   isLoading: false
                 }
               : msg
           ));
-                    setIsTestingModel(false);
+          setIsTestingModel(false);
           setSaveModelState('error');
           setShowSaveModel(true);
         } finally {
@@ -2081,7 +2624,7 @@ const AiPlayground: React.FC = () => {
       }
 
       // Final message update to ensure loading state is properly cleared
-      if (contentBlocks.length > 0) {
+      if (!encounteredStreamError && contentBlocks.length > 0) {
         const finalBlocks = removeInlineLoading(contentBlocks);
         
         // If no content blocks exist after removing loading, create a default text block
@@ -2227,6 +2770,7 @@ const AiPlayground: React.FC = () => {
         <PlaygroundSidebar 
           activeTab={activeTab}
           onTabChange={handleTabChange}
+          onCreateAgent={handleCreateAgent}
           className="flex flex-col w-full"
         />
         {/* Configuration Panel */}
@@ -2279,6 +2823,7 @@ const AiPlayground: React.FC = () => {
           className="w-full"
           mockyMode={mockyMode}
           modelTestMode={modelTestMode}
+          agentBuilderMode={agentBuilderMode}
           modelTestUrl={modelTestUrl}
           setModelTestUrl={setModelTestUrl}
           modelTestName={modelTestName}
@@ -2287,6 +2832,10 @@ const AiPlayground: React.FC = () => {
           setModelTestApiKey={setModelTestApiKey}
           onTestModelConnectivity={handleTestModelConnectivity}
           isTestingModel={isTestingModel}
+          agentMode={agentMode}
+          agentData={agentData}
+          onAgentSaved={handleAgentSaved}
+          onAgentSelect={handleAgentSelect}
         />
       </DrawerContent>
     </Drawer>
@@ -2296,6 +2845,8 @@ const AiPlayground: React.FC = () => {
       <PlaygroundSidebar 
         activeTab={activeTab}
         onTabChange={handleTabChange}
+        onAgentSelect={handleAgentSelect}
+        onCreateAgent={handleCreateAgent}
         className="hidden md:flex md:flex-col md:w-[10%] md:min-w-[160px]"
       />
 
@@ -2349,11 +2900,16 @@ const AiPlayground: React.FC = () => {
         className="hidden md:block md:w-[30%]"
         mockyMode={mockyMode}
         modelTestMode={modelTestMode}
+        agentBuilderMode={agentBuilderMode}
         modelTestUrl={modelTestUrl}
         setModelTestUrl={setModelTestUrl}
         modelTestName={modelTestName}
         setModelTestName={setModelTestName}
         modelTestApiKey={modelTestApiKey}
+        agentMode={agentMode}
+        agentData={agentData}
+        onAgentSaved={handleAgentSaved}
+        onAgentSelect={handleAgentSelect}
         setModelTestApiKey={setModelTestApiKey}
         onTestModelConnectivity={handleTestModelConnectivity}
         isTestingModel={isTestingModel}
@@ -2366,6 +2922,11 @@ const AiPlayground: React.FC = () => {
           <div className="flex items-center justify-between w-full">
             {/* Action Buttons - Moved to extreme left */}
             <div className="flex items-center space-x-2">
+              {agentMode && agentData && (
+                <span className="text-sm text-foreground font-medium px-2 py-1 bg-accent/50 rounded-md">
+                  {agentData.name}
+                </span>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -2401,6 +2962,8 @@ const AiPlayground: React.FC = () => {
                 Test model connectivity and validate API integration
               </span>
             )}
+
+
 
             {/* Response ID Display - Moved to right */}
             {previousResponseId && (
@@ -2533,9 +3096,15 @@ const AiPlayground: React.FC = () => {
                 <div className="absolute bottom-3 right-3">
                   <Button 
                     type="submit" 
-                    disabled={!inputValue.trim() || isLoading}
+                    disabled={!inputValue.trim() || isLoading || !modelProvider || !modelName}
                     className="h-8 w-8 p-0 bg-positive-trend hover:bg-positive-trend/90 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={inputValue.trim() ? "Send message" : "Type a message to send"}
+                    title={
+                      !modelProvider || !modelName 
+                        ? "Select a model to send messages" 
+                        : !inputValue.trim() 
+                        ? "Type a message to send" 
+                        : "Send message"
+                    }
                   >
                     {isLoading ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
@@ -2558,6 +3127,8 @@ const AiPlayground: React.FC = () => {
       lastRequest={lastRequest}
       baseUrl={apiUrl}
     />
+
+
     </>
   );
 };

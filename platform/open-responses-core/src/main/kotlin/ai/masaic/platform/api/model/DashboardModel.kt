@@ -8,7 +8,8 @@ import kotlinx.serialization.Serializable
 data class ModelProvider(
     val name: String,
     val description: String,
-    val supportedModels: Set<ProvidedModel>,
+    val inferenceBaseUrl: String,
+    val supportedModels: Set<ProvidedModel>? = null,
 )
 
 @Serializable

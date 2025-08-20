@@ -40,6 +40,8 @@ class PlatformSecurityConfig {
                         .permitAll()
                         .pathMatchers("/v1/dashboard/**")
                         .authenticated()
+                        .pathMatchers("/v1/agents/**")
+                        .authenticated()
                         .anyExchange()
                         .permitAll()
                 }.addFilterAt(googleAuthFilter(googleTokenVerifier), SecurityWebFiltersOrder.AUTHENTICATION)

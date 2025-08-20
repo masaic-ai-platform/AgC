@@ -33,7 +33,8 @@ import {
   Loader2,
   Copy,
   Check,
-  RefreshCw
+  RefreshCw,
+  Save
 } from 'lucide-react';
 import { MCP } from '@lobehub/icons';
 import { API_URL } from '@/config';
@@ -49,6 +50,8 @@ import MCPModal from './MCPModal';
 import E2BModal from './E2BModal';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { toast } from 'sonner';
+import SaveAgentModal from './SaveAgentModal';
+import AgentList from './AgentList';
 
 interface Model {
   name: string;
@@ -150,6 +153,8 @@ interface ConfigurationPanelProps {
   mockyMode?: boolean;
   // When true, shows Model Test Agent specific UI
   modelTestMode?: boolean;
+  // When true, shows Agent Builder mode with hidden sections
+  agentBuilderMode?: boolean;
   modelTestUrl?: string;
   setModelTestUrl?: (url: string) => void;
   modelTestName?: string;
@@ -159,6 +164,13 @@ interface ConfigurationPanelProps {
   onTestModelConnectivity?: () => void;
   isTestingModel?: boolean;
   className?: string;
+  // Agent context for Save Agent modal
+  agentMode?: boolean;
+  agentData?: { name: string; description: string; } | null;
+  // Callback when agent is saved to switch to agent context
+  onAgentSaved?: (agentName: string, agentDescription: string) => void;
+  // Callback when agent is selected from agent list
+  onAgentSelect?: (agent: any) => void;
 }
 
 const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
@@ -209,6 +221,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   setJsonSchemaName,
   mockyMode = false,
   modelTestMode = false,
+  agentBuilderMode = false,
   modelTestUrl = '',
   setModelTestUrl = () => {},
   modelTestName = '',
@@ -217,7 +230,11 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   setModelTestApiKey = () => {},
   onTestModelConnectivity = () => {},
   isTestingModel = false,
-  className = ''
+  className = '',
+  agentMode = false,
+  agentData = null,
+  onAgentSaved,
+  onAgentSelect
 }) => {
   const [providers, setProviders] = useState<Provider[]>([]);
   const [loading, setLoading] = useState(false);
@@ -337,14 +354,15 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
   // Get all available models from providers - memoized to prevent unnecessary recalculations
   const allModels = useMemo(() => {
-    // Get models from API providers
-    const apiModels = providers.flatMap(provider => 
-      provider.supportedModels
-        .filter(model => !model.isEmbeddingModel) // Filter out embedding models
-        .map(model => ({
+    // Get models from API providers (defensive against undefined server response)
+    const safeProviders = Array.isArray(providers) ? providers : [];
+    const apiModels = safeProviders.flatMap((provider: any) =>
+      (provider?.supportedModels ?? [])
+        .filter((model: any) => !model?.isEmbeddingModel)
+        .map((model: any) => ({
           ...model,
-          providerName: provider.name,
-          providerDescription: provider.description
+          providerName: provider?.name ?? 'unknown',
+          providerDescription: provider?.description ?? ''
         }))
     );
 
@@ -354,11 +372,12 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       const savedOwnModels = localStorage.getItem('platform_own_model');
       if (savedOwnModels) {
         const ownModelsData = JSON.parse(savedOwnModels);
-        ownModels = ownModelsData.supportedModels.map((model: any) => ({
+        const supported = Array.isArray(ownModelsData?.supportedModels) ? ownModelsData.supportedModels : [];
+        ownModels = supported.map((model: any) => ({
           name: model.name,
           modelSyntax: model.modelSyntax,
-          providerName: ownModelsData.name,
-          providerDescription: ownModelsData.description,
+          providerName: ownModelsData?.name ?? 'own model',
+          providerDescription: ownModelsData?.description ?? '',
           isEmbeddingModel: false
         }));
       }
@@ -369,6 +388,45 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     // Return own models first, then API models
     return [...ownModels, ...apiModels];
   }, [providers, refreshTrigger]);
+
+  // Suggestions for model base URL sourced from providers.inferenceBaseUrl
+  const baseUrlSuggestions = useMemo((): { url: string; label: string }[] => {
+    try {
+      const safeProviders = Array.isArray(providers) ? providers : [];
+      const urlToNames = new Map<string, Set<string>>();
+      safeProviders.forEach((p: any) => {
+        const url = p?.inferenceBaseUrl as string | undefined;
+        if (typeof url === 'string' && url.trim().length > 0) {
+          const name = typeof p?.name === 'string' && p.name.trim().length > 0 ? p.name : 'provider';
+          const existing = urlToNames.get(url) ?? new Set<string>();
+          existing.add(name);
+          urlToNames.set(url, existing);
+        }
+      });
+      const result: { url: string; label: string }[] = [];
+      urlToNames.forEach((names, url) => {
+        const label = `${Array.from(names).join(', ')} — ${url}`;
+        result.push({ url, label });
+      });
+      return result;
+    } catch {
+      return [];
+    }
+  }, [providers]);
+
+  const normalizeBaseUrlInput = (val: string): string => {
+    try {
+      const httpIdx = val.indexOf('http://');
+      const httpsIdx = val.indexOf('https://');
+      const idx = httpsIdx >= 0 ? httpsIdx : httpIdx;
+      if (idx >= 0) {
+        return val.slice(idx).trim();
+      }
+      return val;
+    } catch {
+      return val;
+    }
+  };
 
   const getModelString = () => `${modelProvider}@${modelName}`;
 
@@ -665,6 +723,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const { platformInfo } = usePlatformInfo();
   const isVectorStoreEnabled = platformInfo?.vectorStoreInfo?.isEnabled ?? true;
 
+  const [saveAgentModalOpen, setSaveAgentModalOpen] = useState(false);
+
   return (
     <div className={cn("bg-background border-r border-border h-full overflow-y-auto", className)}>
       <div className="p-4 h-full flex flex-col">
@@ -696,16 +756,24 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Input
-                        placeholder="https://api.example.com/v1"
-                        value={modelTestUrl}
-                        onChange={(e) => setModelTestUrl(e.target.value)}
-                        className={`text-sm ${
-                          modelTestUrl && !modelTestUrl.match(/^https?:\/\/.+/) 
-                            ? 'border-red-500 focus:border-red-500' 
-                            : ''
-                        }`}
-                      />
+                      <div className="relative">
+                        <Input
+                          list="model-base-url-suggestions"
+                          placeholder="https://api.example.com/v1"
+                          value={modelTestUrl}
+                          onChange={(e) => setModelTestUrl(normalizeBaseUrlInput(e.target.value))}
+                          className={`text-sm ${
+                            modelTestUrl && !modelTestUrl.match(/^https?:\/\/.+/) 
+                              ? 'border-red-500 focus:border-red-500' 
+                              : ''
+                          }`}
+                        />
+                        <datalist id="model-base-url-suggestions">
+                          {baseUrlSuggestions.map((s) => (
+                            <option key={s.url} value={`${s.label}`} />
+                          ))}
+                        </datalist>
+                      </div>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p style={{ fontSize: '12px' }}>
@@ -842,8 +910,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           )}
         </div>
 
-        {/* Tools Section (hidden in Masaic Mocky mode and Model Test mode) */}
-        {!mockyMode && !modelTestMode && (
+        {/* Tools Section (hidden in Masaic Mocky mode, Model Test mode, and Agent Builder mode) */}
+        {!mockyMode && !modelTestMode && !agentBuilderMode && (
         <div className="mt-6 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center flex-wrap gap-2">
@@ -1238,17 +1306,32 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           </div>
         )}
 
-        {/* System Message - hidden in Masaic Mocky mode and Model Test mode */}
-        {!mockyMode && !modelTestMode && (
+        {/* System Message - hidden in Masaic Mocky mode, Model Test mode, and Agent Builder mode */}
+        {!mockyMode && !modelTestMode && !agentBuilderMode && (
         <div className="mt-6 flex flex-col flex-grow min-h-0">
           <div className="flex items-center justify-between mb-3 flex-shrink-0">
-            <Label className="text-sm font-medium">System message</Label>
-            <SystemPromptGenerator 
-              onGenerate={setInstructions} 
-              existingPrompt={instructions} 
-              isLoading={isGeneratingPrompt}
-              onLoadingChange={setIsGeneratingPrompt}
-            />
+            <div className="flex items-center space-x-3">
+              <Label className="text-sm font-medium">System message</Label>
+              <SystemPromptGenerator 
+                onGenerate={setInstructions} 
+                existingPrompt={instructions} 
+                isLoading={isGeneratingPrompt}
+                onLoadingChange={setIsGeneratingPrompt}
+                tools={selectedTools || []}
+                modelName={modelName}
+              />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setSaveAgentModalOpen(true)}
+              disabled={!instructions.trim()}
+              className="flex items-center space-x-2 hover:bg-positive-trend/10 hover:text-positive-trend focus:bg-positive-trend/10 focus:text-positive-trend disabled:opacity-50 disabled:cursor-not-allowed"
+              title={!instructions.trim() ? "System prompt is required to save an agent" : "Save current configuration as an agent"}
+            >
+              <Save className="h-4 w-4" />
+              <span>Save Agent</span>
+            </Button>
           </div>
           <div className="relative flex-grow min-h-0">
             <Button
@@ -1283,6 +1366,13 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
               </div>
             )}
           </div>
+        </div>
+        )}
+
+        {/* Agent List - shown in Agent Builder mode */}
+        {agentBuilderMode && (
+        <div className="mt-6 flex-grow min-h-0">
+          <AgentList className="h-full" onAgentSelect={onAgentSelect} />
         </div>
         )}
 
@@ -1327,6 +1417,19 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       <E2BModal
         open={openE2bModal}
         onOpenChange={onE2bModalChange}
+      />
+
+      {/* Save Agent Modal */}
+      <SaveAgentModal
+        open={saveAgentModalOpen}
+        onOpenChange={setSaveAgentModalOpen}
+        systemPrompt={instructions}
+        tools={selectedTools || []}
+        modelName={modelName}
+        isAgentContext={agentMode}
+        existingAgentName={agentData?.name || ''}
+        existingAgentDescription={agentData?.description || ''}
+        onAgentSaved={onAgentSaved}
       />
     </div>
   );

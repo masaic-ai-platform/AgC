@@ -1,10 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
+import AgentsSelectionModal from './AgentsSelectionModal';
 import { 
   MessageSquare, 
-  Zap, 
   Key,
   Github,
   MessageCircle,
@@ -14,24 +14,30 @@ import {
   Sparkles,
   Plus,
   Server,
-  LogOut
+  LogOut,
+  Bot
 } from 'lucide-react';
 
 interface PlaygroundSidebarProps {
   activeTab: string;
   onTabChange: (tab: string) => void;
   className?: string;
+  onAgentSelect?: (agent: any) => void;
+  onCreateAgent?: () => void;
 }
 
 const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({ 
   activeTab, 
   onTabChange,
-  className = ''
+  className = '',
+  onAgentSelect,
+  onCreateAgent
 }) => {
   const { logout, authEnabled, isAuthenticated } = useAuth();
+  const [agentsModalOpen, setAgentsModalOpen] = useState(false);
   const mainOptions = [
+    { id: 'agents', label: 'Agents', icon: Bot, clickable: true },
     { id: 'responses', label: 'AgC API', icon: MessageSquare },
-    { id: 'completions', label: 'Completions', icon: Zap, disabled: true },
   ];
 
   // Static options that appear under Completions
@@ -39,7 +45,7 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
     { id: 'vector-store', label: 'Vector Store', icon: Database },
     { id: 'observability', label: 'Observability', icon: BarChart3, link: 'https://communal-lionfish.in.signoz.cloud/home' },
     // New clickable option directly below Observability
-    { id: 'masaic-mocky', label: 'Masaic Mocky', icon: Sparkles, clickable: true },
+    { id: 'masaic-mocky', label: 'Mocky', icon: Sparkles, clickable: true },
     { id: 'add-model', label: 'Add Model', icon: Plus, clickable: true },
     { id: 'e2b-server', label: 'E2B Server', icon: Server, clickable: true },
     { id: 'compliance', label: 'Compliance', icon: Shield },
@@ -62,6 +68,43 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
         {mainOptions.map((option) => {
           const Icon = option.icon;
           const isDisabled = option.disabled;
+          const isClickable = option.clickable;
+          
+          // Special handling for agents option
+          if (option.id === 'agents') {
+            return (
+              <AgentsSelectionModal
+                key={option.id}
+                open={agentsModalOpen}
+                onOpenChange={setAgentsModalOpen}
+                onAgentSelect={(agent) => {
+                  if (onAgentSelect) {
+                    onAgentSelect(agent);
+                  }
+                  setAgentsModalOpen(false);
+                }}
+                onCreateAgent={onCreateAgent}
+                triggerButton={
+                  <Button
+                    variant={activeTab === option.id ? "secondary" : "ghost"}
+                    className={`w-full justify-start text-xs h-8 ${
+                      activeTab === option.id 
+                        ? 'bg-accent text-accent-foreground' 
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    }`}
+                    onClick={() => {
+                      setAgentsModalOpen(true);
+                      onTabChange(option.id);
+                    }}
+                  >
+                    <Icon className="h-3 w-3 mr-2" />
+                    {option.label}
+                  </Button>
+                }
+              />
+            );
+          }
+          
           return (
             <Button
               key={option.id}

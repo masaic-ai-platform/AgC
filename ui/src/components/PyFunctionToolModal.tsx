@@ -157,7 +157,7 @@ const PyFunctionToolModal: React.FC<PyFunctionToolModalProps> = ({
     if (code.trim() && !isEditing) {
       // This is where the BE API call will be made later
       // For now, we'll just show a placeholder
-      console.log('Code changed, would call BE API for suggestions');
+
     }
   }, [code, isEditing]);
 
@@ -570,7 +570,7 @@ const PyFunctionToolModal: React.FC<PyFunctionToolModalProps> = ({
         setTestError(null); // Clear any test errors
         setValidationError(null); // Clear any validation errors
         toast.success('Function executed successfully!');
-        console.log('Function output:', data.function_output);
+
       }
 
     } catch (error) {

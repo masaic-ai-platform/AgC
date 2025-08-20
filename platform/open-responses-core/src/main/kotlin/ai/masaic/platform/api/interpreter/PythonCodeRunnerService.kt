@@ -307,7 +307,7 @@ data class CodeInterpreterResult(
 )
 
 data class CodeExecResult(
-    @JsonProperty("function_output") val functionOutput: Map<String, Any> = emptyMap(),
+    @JsonProperty("function_output") val functionOutput: Any? = null,
     @JsonProperty("user_stdout") val debugStatements: String? = null,
     val error: CodeExecError? = null,
 )

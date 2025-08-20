@@ -2,6 +2,7 @@
   {
     "name": "togetherai",
     "description": "togetherai models",
+    "inferenceBaseUrl": "https://api.together.xyz/v1",
     "supportedModels": [
       {
         "name": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
@@ -12,6 +13,7 @@
   {
     "name": "claude",
     "description": "claude models",
+    "inferenceBaseUrl": "https://api.anthropic.com/v1",
     "supportedModels": [
       {
         "name": "claude-3-7-sonnet-20250219",
@@ -26,6 +28,7 @@
   {
     "name": "openai",
     "description": "openai models",
+    "inferenceBaseUrl": "https://api.openai.com/v1",
     "supportedModels": [
       {
         "name": "gpt-4.1-mini",
@@ -67,6 +70,7 @@
   {
     "name": "google",
     "description": "google models",
+    "inferenceBaseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
     "supportedModels": [
       {
         "name": "gemini-2.5-pro",
@@ -81,11 +85,22 @@
   {
     "name": "groq",
     "description": "groq models",
+    "inferenceBaseUrl": "https://api.groq.com/openai/v1",
     "supportedModels": [
       {
         "name": "qwen-qwq-32b",
         "modelSyntax": "groq@qwen-qwq-32b"
       }
     ]
+  },
+  {
+    "name": "deepseek",
+    "description": "deepseek models",
+    "inferenceBaseUrl": "https://api.deepseek.com"
+  },
+  {
+    "name": "xAI",
+    "description": "xAI models",
+    "inferenceBaseUrl": "https://api.x.ai/v1"
   }
 ]
