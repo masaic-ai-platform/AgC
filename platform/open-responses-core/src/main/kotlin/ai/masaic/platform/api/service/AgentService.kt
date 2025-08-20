@@ -6,6 +6,7 @@ import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.*
 import ai.masaic.openresponses.tool.mcp.nativeToolDefinition
 import ai.masaic.platform.api.controller.*
+import ai.masaic.platform.api.model.*
 import ai.masaic.platform.api.registry.functions.*
 import ai.masaic.platform.api.repository.AgentRepository
 import ai.masaic.platform.api.tools.PlatformMcpService
@@ -663,9 +664,4 @@ Remember: Your goal is to create a complete, functional agent from the user's in
         saveAgent(agent = agent, isUpdate = isUpdate)
         return "Agent '${agent.name}' ${if (isUpdate) "updated" else "created"} successfully"
     }
-}
-
-object AgentClass {
-    const val SYSTEM = "system"
-    const val OTHER = "other"
 }

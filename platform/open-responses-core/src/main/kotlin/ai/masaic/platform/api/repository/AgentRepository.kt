@@ -1,6 +1,6 @@
 package ai.masaic.platform.api.repository
 
-import ai.masaic.platform.api.controller.PlatformAgentMeta
+import ai.masaic.platform.api.model.PlatformAgentMeta
 import com.mongodb.client.result.DeleteResult
 import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.reactor.awaitSingleOrNull

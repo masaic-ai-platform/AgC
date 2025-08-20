@@ -4,6 +4,9 @@ import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.platform.api.controller.*
+import ai.masaic.platform.api.model.AgentClass
+import ai.masaic.platform.api.model.PlatformAgent
+import ai.masaic.platform.api.model.PlatformAgentMeta
 import ai.masaic.platform.api.registry.functions.FunctionRegistryService
 import ai.masaic.platform.api.repository.AgentRepository
 import ai.masaic.platform.api.service.AgentService
