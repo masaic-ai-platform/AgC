@@ -354,14 +354,15 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
   // Get all available models from providers - memoized to prevent unnecessary recalculations
   const allModels = useMemo(() => {
-    // Get models from API providers
-    const apiModels = providers.flatMap(provider => 
-      provider.supportedModels
-        .filter(model => !model.isEmbeddingModel) // Filter out embedding models
-        .map(model => ({
+    // Get models from API providers (defensive against undefined server response)
+    const safeProviders = Array.isArray(providers) ? providers : [];
+    const apiModels = safeProviders.flatMap((provider: any) =>
+      (provider?.supportedModels ?? [])
+        .filter((model: any) => !model?.isEmbeddingModel)
+        .map((model: any) => ({
           ...model,
-          providerName: provider.name,
-          providerDescription: provider.description
+          providerName: provider?.name ?? 'unknown',
+          providerDescription: provider?.description ?? ''
         }))
     );
 
@@ -371,11 +372,12 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       const savedOwnModels = localStorage.getItem('platform_own_model');
       if (savedOwnModels) {
         const ownModelsData = JSON.parse(savedOwnModels);
-        ownModels = ownModelsData.supportedModels.map((model: any) => ({
+        const supported = Array.isArray(ownModelsData?.supportedModels) ? ownModelsData.supportedModels : [];
+        ownModels = supported.map((model: any) => ({
           name: model.name,
           modelSyntax: model.modelSyntax,
-          providerName: ownModelsData.name,
-          providerDescription: ownModelsData.description,
+          providerName: ownModelsData?.name ?? 'own model',
+          providerDescription: ownModelsData?.description ?? '',
           isEmbeddingModel: false
         }));
       }
@@ -386,6 +388,45 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     // Return own models first, then API models
     return [...ownModels, ...apiModels];
   }, [providers, refreshTrigger]);
+
+  // Suggestions for model base URL sourced from providers.inferenceBaseUrl
+  const baseUrlSuggestions = useMemo((): { url: string; label: string }[] => {
+    try {
+      const safeProviders = Array.isArray(providers) ? providers : [];
+      const urlToNames = new Map<string, Set<string>>();
+      safeProviders.forEach((p: any) => {
+        const url = p?.inferenceBaseUrl as string | undefined;
+        if (typeof url === 'string' && url.trim().length > 0) {
+          const name = typeof p?.name === 'string' && p.name.trim().length > 0 ? p.name : 'provider';
+          const existing = urlToNames.get(url) ?? new Set<string>();
+          existing.add(name);
+          urlToNames.set(url, existing);
+        }
+      });
+      const result: { url: string; label: string }[] = [];
+      urlToNames.forEach((names, url) => {
+        const label = `${Array.from(names).join(', ')} — ${url}`;
+        result.push({ url, label });
+      });
+      return result;
+    } catch {
+      return [];
+    }
+  }, [providers]);
+
+  const normalizeBaseUrlInput = (val: string): string => {
+    try {
+      const httpIdx = val.indexOf('http://');
+      const httpsIdx = val.indexOf('https://');
+      const idx = httpsIdx >= 0 ? httpsIdx : httpIdx;
+      if (idx >= 0) {
+        return val.slice(idx).trim();
+      }
+      return val;
+    } catch {
+      return val;
+    }
+  };
 
   const getModelString = () => `${modelProvider}@${modelName}`;
 
@@ -715,16 +756,24 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <Input
-                        placeholder="https://api.example.com/v1"
-                        value={modelTestUrl}
-                        onChange={(e) => setModelTestUrl(e.target.value)}
-                        className={`text-sm ${
-                          modelTestUrl && !modelTestUrl.match(/^https?:\/\/.+/) 
-                            ? 'border-red-500 focus:border-red-500' 
-                            : ''
-                        }`}
-                      />
+                      <div className="relative">
+                        <Input
+                          list="model-base-url-suggestions"
+                          placeholder="https://api.example.com/v1"
+                          value={modelTestUrl}
+                          onChange={(e) => setModelTestUrl(normalizeBaseUrlInput(e.target.value))}
+                          className={`text-sm ${
+                            modelTestUrl && !modelTestUrl.match(/^https?:\/\/.+/) 
+                              ? 'border-red-500 focus:border-red-500' 
+                              : ''
+                          }`}
+                        />
+                        <datalist id="model-base-url-suggestions">
+                          {baseUrlSuggestions.map((s) => (
+                            <option key={s.url} value={`${s.label}`} />
+                          ))}
+                        </datalist>
+                      </div>
                     </TooltipTrigger>
                     <TooltipContent>
                       <p style={{ fontSize: '12px' }}>

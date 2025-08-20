@@ -26,7 +26,7 @@ class AgentsController(
     ): ResponseEntity<PlatformAgent> {
         val agent =
             agentService.getAgent(agentName.lowercase())
-                ?: throw AgentNotFoundException("Agent: $agentName is not supported.")
+                ?: throw AgentNotFoundException("Agent: $agentName is not found.")
         
         return ResponseEntity.ok(agent.copy(name = agent.presentableName()))
     }
@@ -62,7 +62,7 @@ class AgentsController(
         return if (deleted) {
             ResponseEntity.ok().build()
         } else {
-            ResponseEntity.notFound().build()
+            throw AgentNotFoundException("Agent: $agentName is not found.")
         }
     }
 }

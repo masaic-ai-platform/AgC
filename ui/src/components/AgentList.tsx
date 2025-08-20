@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 
 import { Card, CardContent } from '@/components/ui/card';
-import { Bot, Loader2 } from 'lucide-react';
+import { Bot, Loader2, RefreshCcw, Trash2 } from 'lucide-react';
 import { API_URL } from '@/config';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
@@ -35,6 +35,7 @@ const AgentList: React.FC<AgentListProps> = ({ className = '', onAgentSelect }) 
   const [agents, setAgents] = useState<Agent[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [deletingAgent, setDeletingAgent] = useState<string | null>(null);
 
   const fetchAgents = async () => {
     setLoading(true);
@@ -47,6 +48,20 @@ const AgentList: React.FC<AgentListProps> = ({ className = '', onAgentSelect }) 
       setAgents([]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteAgent = async (agentName: string) => {
+    try {
+      setDeletingAgent(agentName);
+      await apiClient.agentRequest(`/v1/agents/${agentName}`, { method: 'DELETE' });
+      setAgents(prev => prev.filter(a => a.name !== agentName));
+      toast.success(`Deleted agent: ${agentName}`);
+    } catch (error) {
+      console.error('Error deleting agent:', error);
+      toast.error(`Failed to delete agent: ${agentName}`);
+    } finally {
+      setDeletingAgent(null);
     }
   };
 
@@ -98,6 +113,14 @@ const AgentList: React.FC<AgentListProps> = ({ className = '', onAgentSelect }) 
         <Badge variant="secondary" className="text-xs">
           {agents.length}
         </Badge>
+        <button
+          type="button"
+          onClick={fetchAgents}
+          className="ml-auto h-8 w-8 p-0 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 flex items-center justify-center"
+          title="Refresh"
+        >
+          <RefreshCcw className="h-4 w-4" />
+        </button>
       </div>
 
       {agents.length === 0 ? (
@@ -125,9 +148,27 @@ const AgentList: React.FC<AgentListProps> = ({ className = '', onAgentSelect }) 
                       <span className="font-medium">{agent.name}</span>
                       <span className="text-muted-foreground">: {agent.description}</span>
                     </p>
-                    {isSelecting && (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground ml-2 mt-0.5" />
-                    )}
+                    <div className="flex items-center space-x-2 ml-2">
+                      {isSelecting && (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mt-0.5" />
+                      )}
+                      <button
+                        type="button"
+                        className="h-8 w-8 p-0 rounded-md text-red-500 hover:bg-red-500/10 flex items-center justify-center"
+                        title="Delete agent"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteAgent(agent.name);
+                        }}
+                        disabled={deletingAgent === agent.name}
+                      >
+                        {deletingAgent === agent.name ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

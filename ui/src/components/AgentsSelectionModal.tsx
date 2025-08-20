@@ -7,7 +7,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, Search, Bot, Check } from 'lucide-react';
+import { Loader2, Search, Bot, Check, Trash2 } from 'lucide-react';
 import { API_URL } from '@/config';
 import { apiClient } from '@/lib/api';
 import { toast } from 'sonner';
@@ -47,6 +47,7 @@ const AgentsSelectionModal: React.FC<AgentsSelectionModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedAgent, setSelectedAgent] = useState<string | null>(null);
+  const [deletingAgent, setDeletingAgent] = useState<string | null>(null);
 
   const fetchAgents = async () => {
     setLoading(true);
@@ -61,6 +62,20 @@ const AgentsSelectionModal: React.FC<AgentsSelectionModalProps> = ({
       setLoading(false);
     }
   };
+  const handleDeleteAgent = async (agentName: string) => {
+    try {
+      setDeletingAgent(agentName);
+      await apiClient.agentRequest(`/v1/agents/${agentName}`, { method: 'DELETE' });
+      setAgents(prev => prev.filter(a => a.name !== agentName));
+      toast.success(`Deleted agent: ${agentName}`);
+    } catch (error) {
+      console.error('Error deleting agent:', error);
+      toast.error(`Failed to delete agent: ${agentName}`);
+    } finally {
+      setDeletingAgent(null);
+    }
+  };
+
 
   const fetchAgentDetails = async (agentName: string) => {
     try {
@@ -170,29 +185,46 @@ const AgentsSelectionModal: React.FC<AgentsSelectionModalProps> = ({
           ) : (
             <div className="p-2 space-y-1">
               {filteredAgents.map((agent) => (
-                <Button
-                  key={agent.name}
-                  variant="ghost"
-                  className="w-full justify-start h-auto p-3 text-left hover:bg-accent/50"
-                  onClick={() => handleAgentSelect(agent)}
-                  disabled={selectedAgent === agent.name}
-                >
-                  <div className="flex items-start space-x-3 w-full">
-                    <div className="flex-shrink-0 mt-0.5">
-                      {selectedAgent === agent.name ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-primary" />
-                      ) : (
-                        <Bot className="h-4 w-4 text-muted-foreground" />
-                      )}
+                <div key={agent.name} className="flex items-center group">
+                  <Button
+                    variant="ghost"
+                    className="flex-1 justify-start h-auto p-3 text-left hover:bg-accent/50 rounded-none"
+                    onClick={() => handleAgentSelect(agent)}
+                    disabled={selectedAgent === agent.name}
+                  >
+                    <div className="flex items-start space-x-3 w-full">
+                      <div className="flex-shrink-0 mt-0.5">
+                        {selectedAgent === agent.name ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                        ) : (
+                          <Bot className="h-4 w-4 text-muted-foreground" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm leading-relaxed whitespace-normal break-words">
+                          <span className="font-medium">{agent.name}</span>
+                          <span className="text-muted-foreground">: {agent.description}</span>
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm leading-relaxed whitespace-normal break-words">
-                        <span className="font-medium">{agent.name}</span>
-                        <span className="text-muted-foreground">: {agent.description}</span>
-                      </p>
-                    </div>
-                  </div>
-                </Button>
+                  </Button>
+                  <button
+                    type="button"
+                    className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity rounded-md text-red-500 hover:bg-red-500/10 flex items-center justify-center mr-1"
+                    title="Delete agent"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteAgent(agent.name);
+                    }}
+                    disabled={deletingAgent === agent.name}
+                  >
+                    {deletingAgent === agent.name ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
               ))}
             </div>
           )}
