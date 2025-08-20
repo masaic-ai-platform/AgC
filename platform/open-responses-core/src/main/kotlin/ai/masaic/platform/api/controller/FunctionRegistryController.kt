@@ -16,7 +16,7 @@ import org.springframework.web.server.ResponseStatusException
  */
 @Profile("platform")
 @RestController
-@RequestMapping("/api/registry")
+@RequestMapping("/v1/registry")
 @CrossOrigin("*")
 class FunctionRegistryController(
     private val functionRegistryService: FunctionRegistryService,

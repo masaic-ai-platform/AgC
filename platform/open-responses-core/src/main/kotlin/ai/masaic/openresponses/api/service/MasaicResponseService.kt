@@ -529,7 +529,7 @@ class ResponseTimeoutException(
  *
  * @param message The error message
  */
-class ResponseProcessingException(
+open class ResponseProcessingException(
     message: String,
 ) : RuntimeException(message)
 

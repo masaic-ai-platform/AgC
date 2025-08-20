@@ -206,43 +206,61 @@ const PyFunctionToolModal: React.FC<PyFunctionToolModalProps> = ({
       })() : undefined
     };
 
-    // Save to localStorage using object structure with function names as keys
-    const existingTools = localStorage.getItem('platform_py_fun_tools');
-    let toolsMap: { [key: string]: PyFunctionTool } = {};
-    
-    if (existingTools) {
+    // NEW: Save on server first
+    (async () => {
       try {
-        const existingArray = JSON.parse(existingTools);
-        // Convert existing array to object format
-        if (Array.isArray(existingArray)) {
-          existingArray.forEach((tool: PyFunctionTool) => {
-            toolsMap[tool.tool_def.name] = tool;
-          });
-        } else {
-          // Already in object format
-          toolsMap = existingArray;
+        await apiClient.jsonRequest('/v1/registry/functions', {
+          method: 'POST',
+          body: JSON.stringify({
+            name: tool.tool_def.name,
+            description: tool.tool_def.description,
+            code: tool.code,
+            inputSchema: tool.tool_def.parameters
+          })
+        });
+      } catch (err: any) {
+        toast.error(err?.message || 'Failed to save function on server');
+        return; // do not continue if server save fails
+      }
+
+      // Save to localStorage using object structure with function names as keys
+      const existingTools = localStorage.getItem('platform_py_fun_tools');
+      let toolsMap: { [key: string]: PyFunctionTool } = {};
+      
+      if (existingTools) {
+        try {
+          const existingArray = JSON.parse(existingTools);
+          // Convert existing array to object format
+          if (Array.isArray(existingArray)) {
+            existingArray.forEach((tool: PyFunctionTool) => {
+              toolsMap[tool.tool_def.name] = tool;
+            });
+          } else {
+            // Already in object format
+            toolsMap = existingArray;
+          }
+        } catch (error) {
+          console.error('Failed to parse existing tools:', error);
         }
-      } catch (error) {
-        console.error('Failed to parse existing tools:', error);
       }
-    }
 
-    if (isEditing && initialTool) {
-      // Update existing tool - remove old name if it changed
-      const oldName = initialTool.tool_def.name;
-      if (oldName !== tool.tool_def.name) {
-        delete toolsMap[oldName];
+      if (isEditing && initialTool) {
+        // Update existing tool - remove old name if it changed
+        const oldName = initialTool.tool_def.name;
+        if (oldName !== tool.tool_def.name) {
+          delete toolsMap[oldName];
+        }
       }
-    }
-    
-    // Add/update tool with new name as key
-    toolsMap[tool.tool_def.name] = tool;
+      
+      // Add/update tool with new name as key
+      toolsMap[tool.tool_def.name] = tool;
 
-    localStorage.setItem('platform_py_fun_tools', JSON.stringify(toolsMap));
-    
-    toast.success(`Python function tool "${name.trim()}" saved successfully!`);
-    onSave(tool);
-    onOpenChange(false);
+      localStorage.setItem('platform_py_fun_tools', JSON.stringify(toolsMap));
+      
+      toast.success(`Python function tool "${name.trim()}" saved successfully!`);
+      onSave(tool);
+      onOpenChange(false);
+    })();
   };
 
   const resetForm = () => {

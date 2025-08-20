@@ -287,6 +287,7 @@ ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF
         val finalSuggestedFunDetails = ConfigureFunDetails(name = suggestedFunctionResponse?.name, description = functionDetails?.description ?: suggestedFunctionResponse?.description, parameters = suggestedFunctionResponse?.parameters ?: functionDetails?.parameters)
         val finalResponse = response.copy(suggestedFunctionDetails = finalSuggestedFunDetails, testData = response.testData ?: request.testData)
 
+        val funName = finalResponse.suggestedFunctionDetails?.name ?: "not available"
         return ResponseEntity.ok(finalResponse)
     }
 
