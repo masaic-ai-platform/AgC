@@ -264,6 +264,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const [viewingMocks, setViewingMocks] = useState<string[] | null>(null);
   const [mcpPreview, setMcpPreview] = useState<{tools:any[], serverLabel:string}|null>(null);
   interface MCPTool { name:string; description:string; parameters:any; strict?:boolean; type?:string; }
+  const [deletingFunctions, setDeletingFunctions] = useState<string[]>([]);
 
   useEffect(() => {
     if(mockyMode){
@@ -306,6 +307,27 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     } catch (err) {
       console.error(err);
       // Authentication errors are handled by ApiClient
+    }
+  };
+
+  const deleteMockFunction = async (funcId: string) => {
+    if (!funcId) return;
+    setDeletingFunctions(prev => prev.includes(funcId) ? prev : [...prev, funcId]);
+    try {
+      const res = await apiClient.rawRequest(`/v1/dashboard/mcp/mock/functions/${funcId}`, { method: 'DELETE' });
+      if (res.ok) {
+        toast.success('Mock function deleted');
+        await Promise.all([loadMockFunctions(), loadMockServers()]);
+      } else {
+        toast.error('Failed to delete mock function');
+      }
+    } catch (err) {
+      console.error(err);
+      if (!(err instanceof Error && err.message === 'Authentication required')) {
+        toast.error('Error deleting mock function');
+      }
+    } finally {
+      setDeletingFunctions(prev => prev.filter(id => id !== funcId));
     }
   };
 
@@ -1161,6 +1183,20 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                             onClick={() => loadFunctionMocks(func.id)}
                           >
                             View Mocks
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 rounded-full hover:bg-red-500/10 text-muted-foreground hover:text-red-500"
+                            title="Delete function"
+                            onClick={() => deleteMockFunction(func.id)}
+                            disabled={deletingFunctions.includes(func.id)}
+                          >
+                            {deletingFunctions.includes(func.id) ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
                           </Button>
                         </div>
                       </div>

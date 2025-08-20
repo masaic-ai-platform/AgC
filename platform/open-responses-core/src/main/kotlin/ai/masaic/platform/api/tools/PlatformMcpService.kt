@@ -61,6 +61,35 @@ class PlatformMcpService(
         val mocks = mocksRepository.findById(functionId) ?: throw IllegalStateException("Mocks for function $functionId not found")
         return GetFunctionResponse(FunctionBodyResponse.from(functionDefinition), mocks)
     }
+
+    suspend fun deleteFunction(functionId: String) {
+        // Ensure the function exists before attempting deletion
+        mockFunRepository.findById(functionId) ?: throw IllegalStateException("Function $functionId not found")
+
+        // Delete associated mocks if present (ignore result)
+        mocksRepository.deleteById(functionId)
+
+        // Remove this function id from any mock servers that reference it.
+        // If a server only contains this single tool id, delete the server entirely.
+        val servers = mcpMockServerRepository.findAllByToolId(functionId)
+        servers.forEach { server ->
+            if (server.toolIds.contains(functionId)) {
+                if (server.toolIds.size == 1) {
+                    // This server only hosts the tool being deleted; remove the server
+                    mcpMockServerRepository.deleteById(server.id)
+                } else {
+                    val updatedServer = server.copy(toolIds = server.toolIds.filter { it != functionId })
+                    mcpMockServerRepository.upsert(updatedServer)
+                }
+            }
+        }
+
+        // Finally delete the function definition
+        val deleted = mockFunRepository.deleteById(functionId)
+        if (!deleted) {
+            throw IllegalStateException("Failed to delete function $functionId")
+        }
+    }
 }
 
 class PlatformMcpClientFactory(
