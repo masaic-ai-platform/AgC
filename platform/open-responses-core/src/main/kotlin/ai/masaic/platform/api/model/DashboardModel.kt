@@ -9,7 +9,7 @@ data class ModelProvider(
     val name: String,
     val description: String,
     val inferenceBaseUrl: String,
-    val supportedModels: Set<ProvidedModel> ?= null,
+    val supportedModels: Set<ProvidedModel>? = null,
 )
 
 @Serializable
