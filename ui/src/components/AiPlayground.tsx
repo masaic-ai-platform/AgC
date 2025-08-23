@@ -2927,6 +2927,11 @@ const AiPlayground: React.FC = () => {
                   {agentData.name}
                 </span>
               )}
+              {agentBuilderMode && (
+                <span className="text-sm text-foreground font-medium px-2 py-1 bg-accent/50 rounded-md">
+                  agent-builder
+                </span>
+              )}
               <Button
                 variant="ghost"
                 size="sm"
