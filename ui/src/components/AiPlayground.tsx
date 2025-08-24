@@ -2531,7 +2531,7 @@ const AiPlayground: React.FC = () => {
                   } else if (data.type === 'response.output_text.done') {
                     // Streaming completed for this output
                     isStreaming = false;
-                    currentTextBlock = null;
+                    currentTextBlock = null; // Reset for potential next text stream
                     if (data.text) {
                       streamingContent = data.text;
                       // Update the last text block with complete content
@@ -2925,6 +2925,11 @@ const AiPlayground: React.FC = () => {
               {agentMode && agentData && (
                 <span className="text-sm text-foreground font-medium px-2 py-1 bg-accent/50 rounded-md">
                   {agentData.name}
+                </span>
+              )}
+              {agentBuilderMode && (
+                <span className="text-sm text-foreground font-medium px-2 py-1 bg-accent/50 rounded-md">
+                  agent-builder
                 </span>
               )}
               <Button

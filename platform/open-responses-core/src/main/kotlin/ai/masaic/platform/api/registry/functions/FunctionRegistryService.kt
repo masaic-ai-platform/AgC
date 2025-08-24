@@ -1,5 +1,6 @@
 package ai.masaic.platform.api.registry.functions
 
+import ai.masaic.openresponses.api.service.ResponseProcessingException
 import java.time.Instant
 
 /**
@@ -20,14 +21,6 @@ class FunctionRegistryService(
             throw FunctionRegistryException(validationResult.code, validationResult.message)
         }
 
-        // Check if function already exists
-        if (repository.existsByName(request.name)) {
-            throw FunctionRegistryException(
-                ErrorCodes.NAME_CONFLICT,
-                "Function '${request.name}' already exists.",
-            )
-        }
-
         // Create the function document
         val now = Instant.now()
         val function =
@@ -45,6 +38,8 @@ class FunctionRegistryService(
 
         return repository.save(function)
     }
+
+    suspend fun isFunctionWithNameExists(name: String) = repository.existsByName(name)
 
     /**
      * Retrieves a function by name.
@@ -182,4 +177,4 @@ class FunctionRegistryService(
 class FunctionRegistryException(
     val code: String,
     message: String,
-) : RuntimeException(message)
+) : ResponseProcessingException(message)

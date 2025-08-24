@@ -16,9 +16,7 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.client.OpenAIClient
 import org.slf4j.LoggerFactory
 import org.springframework.http.codec.ServerSentEvent
-import org.springframework.stereotype.Service
 
-@Service
 class AgentService(
     private val agentRepository: AgentRepository,
     private val funRegService: FunctionRegistryService,

@@ -3,6 +3,7 @@ package ai.masaic.platform.api.controller
 import ai.masaic.platform.api.repository.MockFunctionRepository
 import ai.masaic.platform.api.tools.*
 import org.springframework.context.annotation.Profile
+import org.springframework.http.HttpStatusCode
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -42,6 +43,14 @@ class McpMocksController(
     ): ResponseEntity<GetFunctionResponse> {
         val functionResponse = platformMcpService.getFunction(functionId)
         return ResponseEntity.ok(functionResponse)
+    }
+
+    @DeleteMapping("/mcp/mock/functions/{functionId}", produces = [MediaType.APPLICATION_JSON_VALUE])
+    suspend fun deleteFunction(
+        @PathVariable functionId: String,
+    ): ResponseEntity<HttpStatusCode> {
+        val functionResponse = platformMcpService.deleteFunction(functionId)
+        return ResponseEntity.ok().build()
     }
 }
 

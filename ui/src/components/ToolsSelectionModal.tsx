@@ -23,6 +23,8 @@ import MCPModal from './MCPModal';
 import FileSearchModal from './FileSearchModal';
 import AgenticFileSearchModal from './AgenticFileSearchModal';
 import PyFunctionToolModal from './PyFunctionToolModal';
+import PyFunctionToolSelectionModal from './PyFunctionToolSelectionModal';
+import { toast } from 'sonner';
 
 interface Tool {
   id: string;
@@ -92,11 +94,13 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [functionModalOpen, setFunctionModalOpen] = useState(false);
-  const [functionDefinition, setFunctionDefinition] = useState('');
   const [mcpModalOpen, setMcpModalOpen] = useState(false);
   const [fileSearchModalOpen, setFileSearchModalOpen] = useState(false);
   const [agenticFileSearchModalOpen, setAgenticFileSearchModalOpen] = useState(false);
   const [pyFunctionModalOpen, setPyFunctionModalOpen] = useState(false);
+  const [pyFunctionSelectionModalOpen, setPyFunctionSelectionModalOpen] = useState(false);
+  const [functionDefinition, setFunctionDefinition] = useState('');
+  const [editingMCPConfig, setEditingMCPConfig] = useState<any>(null);
   
   const { platformInfo } = usePlatformInfo();
   const isVectorStoreEnabled = platformInfo?.vectorStoreInfo?.isEnabled ?? true;
@@ -152,11 +156,67 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
       setAgenticFileSearchModalOpen(true);
     } else if (tool.id === 'py_fun_tool') {
       setIsOpen(false);
-      setPyFunctionModalOpen(true);
+      setPyFunctionSelectionModalOpen(true);
     } else {
       onToolSelect(tool);
       setIsOpen(false);
     }
+  };
+
+  const handlePyFunctionSelect = (functionName: string) => {
+    // Function is already saved to localStorage by the selection modal
+    // Add a small delay to ensure localStorage has been updated
+    setTimeout(() => {
+      try {
+        console.log('Attempting to select function:', functionName);
+        const storedTools = localStorage.getItem('platform_py_fun_tools');
+        console.log('Stored tools:', storedTools);
+        
+        if (storedTools) {
+          const pyFunctionTools = JSON.parse(storedTools);
+          console.log('Parsed tools:', pyFunctionTools);
+          
+          // The data is stored as an array
+          const selectedFunction = Array.isArray(pyFunctionTools) 
+            ? pyFunctionTools.find((tool: any) => tool.tool_def?.name === functionName)
+            : null;
+          console.log('Found function:', selectedFunction);
+          
+          if (selectedFunction) {
+            // Create a tool object for the selected function
+            const pyFunctionTool: Tool = {
+              id: 'py_fun_tool',
+              name: `Function: ${selectedFunction.tool_def.name}`,
+              icon: Code,
+              pyFunctionConfig: selectedFunction
+            };
+            
+            console.log('Created tool object:', pyFunctionTool);
+            
+            // Add to selected tools
+            onToolSelect(pyFunctionTool);
+            toast.success(`Function "${functionName}" added to your tools!`);
+          } else {
+            console.error('Function not found in localStorage:', functionName);
+            toast.error(`Function "${functionName}" not found in storage`);
+          }
+        } else {
+          console.error('No stored tools found');
+          toast.error('No functions found in storage');
+        }
+      } catch (error) {
+        console.error('Error adding Py function tool:', error);
+        toast.error('Failed to add function to tools');
+      }
+    }, 100); // Small delay to ensure localStorage is updated
+    
+    setPyFunctionSelectionModalOpen(false);
+  };
+
+  const handleCreatePyFunction = () => {
+    // Close selection modal and open the existing PyFunctionToolModal for creation
+    setPyFunctionSelectionModalOpen(false);
+    setPyFunctionModalOpen(true);
   };
 
   const handleFunctionSave = () => {
@@ -507,6 +567,21 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
         initialTool={editingPyFunction?.pyFunctionConfig || null}
         onOpenE2BModal={onOpenE2BModal}
       />
+
+             <PyFunctionToolSelectionModal
+         open={pyFunctionSelectionModalOpen}
+         onOpenChange={(open) => {
+           setPyFunctionSelectionModalOpen(open);
+           if (!open) {
+             // Clear editing state when modal closes
+             if (onEditingPyFunctionChange) {
+               onEditingPyFunctionChange(null);
+             }
+           }
+         }}
+         onFunctionSelect={handlePyFunctionSelect}
+         onCreateFunction={handleCreatePyFunction}
+       />
     </>
   );
 };

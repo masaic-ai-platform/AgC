@@ -27,6 +27,13 @@ class InMemoryMcpMockServerRepository : McpMockServerRepository {
 
     override suspend fun findAll(): List<McpMockServer> = cache.asMap().values.sortedByDescending { it.createdAt }
 
+    override suspend fun findAllByToolId(toolId: String): List<McpMockServer> =
+        cache
+            .asMap()
+            .values
+            .filter { it.toolIds.contains(toolId) }
+            .sortedByDescending { it.createdAt }
+
     fun clear() {
         cache.invalidateAll()
     }

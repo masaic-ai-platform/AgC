@@ -19,6 +19,8 @@ interface McpMockServerRepository {
     suspend fun deleteById(id: String): Boolean
 
     suspend fun findAll(): List<McpMockServer>
+
+    suspend fun findAllByToolId(toolId: String): List<McpMockServer>
 }
 
 class MongoMcpMockServerRepository(
@@ -48,6 +50,11 @@ class MongoMcpMockServerRepository(
 
     override suspend fun findAll(): List<McpMockServer> {
         val query = Query().with(Sort.by(Sort.Direction.DESC, "createdAt"))
+        return mongoTemplate.find(query, McpMockServer::class.java, COLLECTION_NAME).collectList().awaitSingle()
+    }
+
+    override suspend fun findAllByToolId(toolId: String): List<McpMockServer> {
+        val query = Query.query(Criteria.where("toolIds").`is`(toolId))
         return mongoTemplate.find(query, McpMockServer::class.java, COLLECTION_NAME).collectList().awaitSingle()
     }
 }

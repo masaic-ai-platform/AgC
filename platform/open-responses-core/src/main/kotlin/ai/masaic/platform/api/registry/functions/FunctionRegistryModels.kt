@@ -39,9 +39,9 @@ data class Runtime(
 data class FunctionCreate(
     val name: String,
     val description: String,
-    val deps: List<String>,
+    val deps: List<String> = emptyList(),
     val code: String,
-    val inputSchema: MutableMap<String, Any>,
+    val inputSchema: MutableMap<String, Any> = mutableMapOf(),
 )
 
 /**

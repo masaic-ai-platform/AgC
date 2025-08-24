@@ -67,7 +67,6 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
       <div className="flex-1 p-2 space-y-1">
         {mainOptions.map((option) => {
           const Icon = option.icon;
-          const isDisabled = option.disabled;
           const isClickable = option.clickable;
           
           // Special handling for agents option
@@ -112,12 +111,9 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
               className={`w-full justify-start text-xs h-8 ${
                 activeTab === option.id 
                   ? 'bg-accent text-accent-foreground' 
-                  : isDisabled
-                    ? 'text-muted-foreground cursor-not-allowed opacity-60'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
               }`}
-              onClick={() => !isDisabled && onTabChange(option.id)}
-              disabled={isDisabled}
+              onClick={() => onTabChange(option.id)}
             >
               <Icon className="h-3 w-3 mr-2" />
               {option.label}
