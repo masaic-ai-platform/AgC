@@ -25,7 +25,7 @@ object GenAIObsAttributes {
     const val OPERATION_DURATION = "gen_ai.client.operation.duration"
     const val TOOL_CALL_ID = "gen_ai.tool.call.id"
     const val USER_MESSAGE = "gen_ai.user.message"
-    const val ASSISTANT_MESSAGE = "gen_ai.assistant.system"
+    const val ASSISTANT_MESSAGE = "gen_ai.assistant.message"
     const val TOOL_MESSAGE = "gen_ai.tool.message"
     const val SYSTEM_MESSAGE = "gen_ai.system.message"
     const val CHOICE = "gen_ai.choice"

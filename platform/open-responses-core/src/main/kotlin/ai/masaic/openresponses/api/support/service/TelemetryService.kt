@@ -294,7 +294,7 @@ class TelemetryService(
     ) {
         observation.lowCardinalityKeyValue(GenAIObsAttributes.OPERATION_NAME, "chat")
         observation.lowCardinalityKeyValue(GenAIObsAttributes.SYSTEM, metadata.genAISystem)
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.REQUEST_MODEL, params.model().toString())
+        observation.lowCardinalityKeyValue(GenAIObsAttributes.REQUEST_MODEL, params.model().asString())
         observation.lowCardinalityKeyValue(GenAIObsAttributes.RESPONSE_MODEL, response.model().asString())
         observation.lowCardinalityKeyValue(GenAIObsAttributes.SERVER_ADDRESS, metadata.modelProviderAddress)
         observation.lowCardinalityKeyValue(GenAIObsAttributes.SERVER_PORT, metadata.modelProviderPort)

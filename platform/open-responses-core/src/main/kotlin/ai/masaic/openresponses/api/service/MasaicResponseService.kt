@@ -175,7 +175,7 @@ class MasaicResponseService(
         headers: MultiValueMap<String, String>,
         queryParams: MultiValueMap<String, String>,
     ): Response {
-        logger.info { "Creating response with model: ${request.model()}" }
+        logger.info { "Creating response with model: ${request.model().asString()}" }
 
         val headerBuilder = createHeadersBuilder(headers)
         val queryBuilder = createQueryParamsBuilder(queryParams)
@@ -225,7 +225,7 @@ class MasaicResponseService(
         headers: MultiValueMap<String, String>,
         queryParams: MultiValueMap<String, String>,
     ): Flow<ServerSentEvent<String>> {
-        logger.info { "Creating streaming response with model: ${request.model()}" }
+        logger.info { "Creating streaming response with model: ${request.model().asString()}" }
 
         val headerBuilder = createHeadersBuilder(headers)
         val queryBuilder = createQueryParamsBuilder(queryParams)
