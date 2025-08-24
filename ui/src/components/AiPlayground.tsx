@@ -2531,7 +2531,7 @@ const AiPlayground: React.FC = () => {
                   } else if (data.type === 'response.output_text.done') {
                     // Streaming completed for this output
                     isStreaming = false;
-                    currentTextBlock = null;
+                    currentTextBlock = null; // Reset for potential next text stream
                     if (data.text) {
                       streamingContent = data.text;
                       // Update the last text block with complete content

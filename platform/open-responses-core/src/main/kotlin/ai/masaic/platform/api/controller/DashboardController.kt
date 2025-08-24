@@ -12,6 +12,7 @@ import ai.masaic.platform.api.interpreter.CodeExecResult
 import ai.masaic.platform.api.interpreter.CodeExecuteReq
 import ai.masaic.platform.api.interpreter.CodeRunnerService
 import ai.masaic.platform.api.model.*
+import ai.masaic.platform.api.registry.functions.FunctionRegistryService
 import ai.masaic.platform.api.service.ModelService
 import ai.masaic.platform.api.service.createCompletion
 import ai.masaic.platform.api.service.messages
@@ -40,6 +41,7 @@ class DashboardController(
     private val mcpToolRegistry: MCPToolRegistry,
     private val codeRunnerService: CodeRunnerService,
     private val systemPromptGeneratorTool: SystemPromptGeneratorTool,
+    private val functionRegistryService: FunctionRegistryService,
 ) {
     private val mapper = jacksonObjectMapper()
     private lateinit var modelProviders: Set<ModelProvider>
@@ -291,7 +293,7 @@ ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF
         return ResponseEntity.ok(finalResponse)
     }
 
-    @PostMapping("/functions/{name}:execute")
+    @PostMapping("/functions/{name}:execute", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun executeFunction(
         @PathVariable name: String,
         @RequestBody funExecuteReq: CodeExecuteReq,
@@ -302,6 +304,38 @@ ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF
                 eventEmitter = { },
             ),
         )
+
+    @GetMapping("/functions:names", produces = [MediaType.APPLICATION_JSON_VALUE])
+    suspend fun listFunctionNames(): ResponseEntity<List<String>> {
+        val response =
+            functionRegistryService.listFunctions(
+                query = null,
+                limit = 1000,
+                cursor = null,
+                includeCode = false,
+            )
+        return ResponseEntity.ok(response.items.map { it.name })
+    }
+
+    @GetMapping("/functions/{funName}", produces = [MediaType.APPLICATION_JSON_VALUE])
+    suspend fun getFunctionDetails(
+        @PathVariable funName: String,
+    ): ResponseEntity<SuggestPyFunDetailsResponse> {
+        val response =
+            functionRegistryService.getFunction(name = funName)
+        val funDetails =
+            SuggestPyFunDetailsResponse(
+                suggestedFunctionDetails =
+                    ConfigureFunDetails(
+                        name = response.name,
+                        description = response.description,
+                        parameters = response.inputSchema,
+                    ),
+                isCodeValid = true,
+                code = response.code,
+            )
+        return ResponseEntity.ok(funDetails)
+    }
 }
 
 data class ExecuteToolRequest(
@@ -327,4 +361,5 @@ data class SuggestPyFunDetailsResponse(
     val testData: MutableMap<String, Any>? = null,
     val isCodeValid: Boolean,
     val codeProblem: String? = null,
+    val code: String? = null,
 )
