@@ -125,13 +125,32 @@ class PlatformCoreConfig {
     @Bean
     fun platformInfo(
         @Value(value = "\${open-responses.store.vector.search.provider:file}") vectorSearchProviderType: String,
+        @Value(value = "\${otel.sdk.disabled}") otelSdkDisabled: Boolean = true,
+        @Value(value = "\${otel.exporter.otlp.endpoint}") otelEndpoint: String? = null,
         buildProperties: BuildProperties,
         modelSettings: ModelSettings,
         pyInterpreterSettings: PyInterpreterSettings,
         configProperties: AuthConfigProperties,
     ): PlatformInfo {
+        val partners = mutableListOf<Partner>()
+        if (!otelSdkDisabled) {
+            if (otelEndpoint?.contains("langfuse") == true) {
+                partners.add(PartnerGroup.langfuse)
+            } else if (otelEndpoint?.contains("signoz") == true) {
+                partners.add(PartnerGroup.signoz)
+            } else {
+                partners.add(PartnerGroup.langfuse)
+                partners.add(PartnerGroup.signoz)
+            }
+        }
+
         val vectorStoreInfo =
             if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
+
+        if (vectorStoreInfo.isEnabled) {
+            partners.add(PartnerGroup.qdrant)
+        }
+
         return PlatformInfo(
             version = "v${buildProperties.version}",
             buildTime = buildProperties.time,
@@ -147,6 +166,7 @@ class PlatformCoreConfig {
                 } else {
                     PyInterpreterSettings()
                 },
+            partners = Partners(details = partners),
         )
     }
 
@@ -318,6 +338,35 @@ class PlatformCoreConfig {
     }
 }
 
+object PartnerGroup {
+    val qdrant =
+        Partner(
+            code = "qdrant",
+            name = "Qdrant",
+            category = PartnerCategory.VECTOR_DB,
+            enabled = true,
+            deploymentLink = "https://cloud.qdrant.io",
+        )
+
+    val signoz =
+        Partner(
+            code = "signoz",
+            name = "Signoz",
+            category = PartnerCategory.OBSERVABILITY,
+            enabled = true,
+            deploymentLink = "https://signoz.io",
+        )
+
+    val langfuse =
+        Partner(
+            code = "langfuse",
+            name = "Langfuse",
+            category = PartnerCategory.EVALS,
+            enabled = true,
+            deploymentLink = "https://cloud.langfuse.com/",
+        )
+}
+
 data class ModelSettings(
     val settingsType: SystemSettingsType,
     var apiKey: String,
@@ -394,8 +443,27 @@ data class PlatformInfo(
     val vectorStoreInfo: VectorStoreInfo,
     val authConfig: AuthConfig,
     val pyInterpreterSettings: PyInterpreterSettings,
+    val partners: Partners,
 )
 
 data class VectorStoreInfo(
     val isEnabled: Boolean,
 )
+
+data class Partners(
+    val details: List<Partner>,
+)
+
+data class Partner(
+    val code: String,
+    val name: String,
+    val category: PartnerCategory,
+    val enabled: Boolean,
+    val deploymentLink: String,
+)
+
+enum class PartnerCategory {
+    VECTOR_DB,
+    EVALS,
+    OBSERVABILITY,
+}

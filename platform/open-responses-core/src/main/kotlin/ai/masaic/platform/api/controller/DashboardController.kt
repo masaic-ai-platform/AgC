@@ -178,7 +178,7 @@ ${request.description}
         return if (callToolResponse.isError) throw ResponseProcessingException(callToolResponse.content) else toolResponse
     }
 
-    @GetMapping("/platform/info")
+    @GetMapping("/platform/info", produces = [MediaType.APPLICATION_JSON_VALUE])
     fun getPlatformInfo() = platformInfo
 
     @PostMapping("/agc/functions:suggest")

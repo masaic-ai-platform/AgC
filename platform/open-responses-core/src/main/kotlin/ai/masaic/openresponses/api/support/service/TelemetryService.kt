@@ -1,6 +1,7 @@
 package ai.masaic.openresponses.api.support.service
 
 import ai.masaic.openresponses.api.model.InstrumentationMetadataInput
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.core.jsonMapper
 import com.openai.models.chat.completions.ChatCompletion
 import com.openai.models.chat.completions.ChatCompletionChunk
@@ -15,175 +16,37 @@ import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationRegistry
 import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.context.annotation.Profile
 import org.springframework.stereotype.Service
 import java.time.Duration
 import kotlin.jvm.optionals.getOrDefault
 
+@Profile("!platform")
 @Service
-class TelemetryService(
+open class TelemetryService(
     private val observationRegistry: ObservationRegistry,
     val meterRegistry: MeterRegistry,
 ) {
     private val logger = KotlinLogging.logger {}
 
     @Value("\${otel.instrumentation.genai.capture.message.content:true}")
-    private val captureMessageContent: Boolean = true
+    protected val captureMessageContent: Boolean = true
+
+    protected val mapper = jacksonObjectMapper()
 
     suspend fun emitModelInputEvents(
         observation: Observation,
         inputParams: ChatCompletionCreateParams,
         metadata: InstrumentationMetadataInput,
     ) {
-        val mapper = jsonMapper()
-        inputParams.messages().forEach { message ->
-            val (role, eventName, content) =
-                when {
-                    message.isUser() -> {
-                        val content =
-                            if (message
-                                    .user()
-                                    .get()
-                                    .content()
-                                    .isText()
-                            ) {
-                                messageContent(
-                                    message
-                                        .user()
-                                        .get()
-                                        .content()
-                                        .asText(),
-                                )
-                            } else {
-                                messageContent(mapper.writeValueAsString(message.user().get().content()))
-                            }
-                        Triple(
-                            "user",
-                            GenAIObsAttributes.USER_MESSAGE,
-                            content,
-                        )
-                    }
-                    message.isAssistant() &&
-                        message
-                            .assistant()
-                            .get()
-                            .toolCalls()
-                            .isPresent -> {
-                        val tools =
-                            message.assistant().get().toolCalls().get().map { tool ->
-                                val map = mutableMapOf("name" to tool.function().name())
-                                putIfNotEmpty(map, "arguments", messageContent(tool.function().arguments()))
-
-                                mapOf(
-                                    "id" to tool.id(),
-                                    "function" to map,
-                                )
-                            }
-                        val finalMap =
-                            mapOf(
-                                "gen_ai.system" to metadata.genAISystem,
-                                "role" to "assistant",
-                                "tool_calls" to tools,
-                            )
-                        observation.event(
-                            Observation.Event.of(GenAIObsAttributes.ASSISTANT_MESSAGE, mapper.writeValueAsString(finalMap)),
-                        )
-                        Triple("", "", "") // TODO:: to be fixed properly... workaround for tool calls message
-                    }
-                    message.isAssistant() &&
-                        message
-                            .assistant()
-                            .get()
-                            .content()
-                            .isPresent &&
-                        message
-                            .assistant()
-                            .get()
-                            .toolCalls()
-                            .isEmpty ->
-                        Triple(
-                            "assistant",
-                            GenAIObsAttributes.ASSISTANT_MESSAGE,
-                            messageContent(
-                                message
-                                    .assistant()
-                                    .get()
-                                    .content()
-                                    .get()
-                                    .asText(),
-                            ),
-                        )
-                    message.isTool() -> {
-                        val map = mutableMapOf("id" to message.tool().get().toolCallId())
-                        putIfNotEmpty(
-                            map,
-                            "content",
-                            messageContent(
-                                message
-                                    .tool()
-                                    .get()
-                                    .content()
-                                    .asText(),
-                            ),
-                        )
-                        val finalMap =
-                            mapOf(
-                                "gen_ai.system" to metadata.genAISystem,
-                                "role" to "tool",
-                                "tool_calls" to map,
-                            )
-                        observation.event(
-                            Observation.Event.of(GenAIObsAttributes.TOOL_MESSAGE, mapper.writeValueAsString(finalMap)),
-                        )
-                        Triple("", "", "") // TODO:: to be fixed properly... workaround for tool message
-                    }
-                    message.isSystem() && message.system().isPresent ->
-                        Triple(
-                            "system",
-                            GenAIObsAttributes.SYSTEM_MESSAGE,
-                            messageContent(
-                                message
-                                    .system()
-                                    .get()
-                                    .content()
-                                    .asText(),
-                            ),
-                        )
-                    message.isDeveloper() && message.developer().isPresent ->
-                        Triple(
-                            "system",
-                            GenAIObsAttributes.SYSTEM_MESSAGE,
-                            messageContent(
-                                message
-                                    .developer()
-                                    .get()
-                                    .content()
-                                    .asText(),
-                            ),
-                        )
-                    else -> null
-                } ?: return@forEach
-
-            val eventData =
-                if (content is String) {
-                    val map =
-                        mutableMapOf(
-                            "gen_ai.system" to metadata.genAISystem,
-                            "role" to role,
-                        )
-                    putIfNotEmpty(map, "content", content)
-                    map
-                } else {
-                    mapOf(
-                        "gen_ai.system" to metadata.genAISystem,
-                        "role" to role,
-                        "content" to content,
-                    )
-                }
-            if (!(role.isEmpty() && (content is String && content.isEmpty()) && eventName.isEmpty())) {
-                observation.event(
-                    Observation.Event.of(eventName, mapper.writeValueAsString(eventData)),
-                )
-            }
+        val context = TelemetryContext(metadata, captureMessageContent)
+        val normalizedMessages = inputParams.toNormalizedMessages()
+        val events = extractMessageEvents(normalizedMessages, context)
+        
+        events.forEach { event ->
+            observation.event(
+                Observation.Event.of(event.name, mapper.writeValueAsString(event)),
+            )
         }
     }
 
@@ -192,51 +55,14 @@ class TelemetryService(
         response: Response,
         metadata: InstrumentationMetadataInput,
     ) {
-        val mapper = jsonMapper()
-        if (response.output().isNotEmpty()) {
-            val toolCallMap = mutableMapOf<String, Any>()
-            response.output().forEachIndexed { index, output ->
-                if (output.isMessage()) {
-                    val eventData = mutableMapOf<String, Any>()
-                    if (response.output().size > 1) {
-                        eventData["index"] = index
-                        eventData["finish_reason"] = "stop"
-                    }
-                    eventData["gen_ai.system"] = metadata.genAISystem ?: "not_available"
-                    eventData["role"] = "assistant"
-                    if (captureMessageContent) {
-                        eventData["content"] = output.asMessage().content()
-                    }
-
-                    observation.event(
-                        Observation.Event.of(GenAIObsAttributes.CHOICE, mapper.writeValueAsString(eventData)),
-                    )
-                }
-
-                if (output.isFunctionCall()) {
-                    val toolCall = output.asFunctionCall()
-
-                    val functionDetailsMap = mutableMapOf("name" to toolCall.name())
-                    putIfNotEmpty(functionDetailsMap, "arguments", messageContent(toolCall.arguments()))
-
-                    toolCallMap["id"] = toolCall.id()
-                    toolCallMap["type"] = "function"
-                    toolCallMap["function"] = functionDetailsMap
-                }
-            }
-
-            if (toolCallMap.isNotEmpty()) {
-                val eventData =
-                    mapOf(
-                        "gen_ai.system" to metadata.genAISystem,
-                        "finish_reason" to "tool_calls",
-                        "index" to 0, // TODO:: to revisit later with deeper look in open telemetry specs
-                        "tool_calls" to toolCallMap,
-                    )
-                observation.event(
-                    Observation.Event.of(GenAIObsAttributes.CHOICE, mapper.writeValueAsString(eventData)),
-                )
-            }
+        val context = TelemetryContext(metadata, captureMessageContent)
+        val normalizedOutputs = response.toNormalizedOutput()
+        val events = extractOutputEvents(normalizedOutputs, context)
+        
+        events.forEach { event ->
+            observation.event(
+                Observation.Event.of(event.name, mapper.writeValueAsString(event)),
+            )
         }
     }
 
@@ -1045,4 +871,429 @@ class TelemetryService(
             map[key] = value
         }
     }
+
+    // ------------------------------------------------------------------------
+    // New Normalized Models and Pipeline Infrastructure
+    // ------------------------------------------------------------------------
+
+    data class NormalizedMessage(
+        val role: String,
+        val content: String?,
+        val toolCalls: List<NormalizedToolCall> = emptyList(),
+    )
+
+    data class NormalizedToolCall(
+        val id: String,
+        val name: String,
+        val arguments: String?,
+    )
+
+    data class ModelOutput(
+        val messages: List<NormalizedMessage>,
+        val finishReason: String?,
+        val usage: Usage?,
+        val index: Int = 0,
+    )
+
+    data class Usage(
+        val inputTokens: Long?,
+        val outputTokens: Long?,
+    )
+
+    // Concrete payload types instead of generic Map<String, Any?>
+    sealed class TelemetryPayload {
+        data class MessagePayload(
+            val genAiSystem: String?,
+            val role: String,
+            val content: String? = null,
+        ) : TelemetryPayload()
+
+        data class ToolCallsPayload(
+            val genAiSystem: String?,
+            val role: String,
+            val toolCalls: List<ToolCallInfo>,
+        ) : TelemetryPayload()
+
+        data class ChoicePayload(
+            val genAiSystem: String?,
+            val role: String,
+            val content: String? = null,
+            val index: Int? = null,
+            val finishReason: String? = null,
+        ) : TelemetryPayload()
+
+        data class ToolChoicePayload(
+            val genAiSystem: String?,
+            val finishReason: String,
+            val index: Int,
+            val toolCalls: ToolCallMap,
+        ) : TelemetryPayload()
+    }
+
+    data class ToolCallInfo(
+        val id: String,
+        val function: FunctionInfo,
+    )
+
+    data class FunctionInfo(
+        val name: String,
+        val arguments: String?,
+    )
+
+    data class ToolCallMap(
+        val id: String,
+        val type: String,
+        val function: FunctionInfo,
+    )
+
+    data class TelemetryEvent(
+        val name: String,
+        val role: String,
+        val payload: TelemetryPayload,
+    )
+
+    data class TelemetryContext(
+        val metadata: InstrumentationMetadataInput,
+        val captureContent: Boolean,
+    )
+
+    // ------------------------------------------------------------------------
+    // Adapters for converting provider-specific types to normalized models
+    // ------------------------------------------------------------------------
+
+    fun ChatCompletionCreateParams.toNormalizedMessages(): List<NormalizedMessage> =
+        messages()
+            .map { message ->
+                when {
+                    message.isUser() -> {
+                        val content =
+                            if (message
+                                    .user()
+                                    .get()
+                                    .content()
+                                    .isText()
+                            ) {
+                                messageContent(
+                                    message
+                                        .user()
+                                        .get()
+                                        .content()
+                                        .asText(),
+                                )
+                            } else if (message
+                                    .user()
+                                    .get()
+                                    .content()
+                                    .isArrayOfContentParts()
+                            ) {
+                                messageContent(
+                                    message
+                                        .user()
+                                        .get()
+                                        .content()
+                                        .asArrayOfContentParts()
+                                        .joinToString("\n") { it.asText().text() },
+                                )
+                            } else {
+                                messageContent(
+                                    jsonMapper().writeValueAsString(
+                                        message
+                                            .user()
+                                            .get()
+                                            .content()
+                                            .asText(),
+                                    ),
+                                )
+                            }
+                        NormalizedMessage("user", content)
+                    }
+                    message.isAssistant() &&
+                        message
+                            .assistant()
+                            .get()
+                            .toolCalls()
+                            .isPresent -> {
+                        val toolCalls =
+                            message.assistant().get().toolCalls().get().map { tool ->
+                                NormalizedToolCall(
+                                    id = tool.id(),
+                                    name = tool.function().name(),
+                                    arguments = messageContent(tool.function().arguments()),
+                                )
+                            }
+                        NormalizedMessage("assistant", null, toolCalls)
+                    }
+                    message.isAssistant() &&
+                        message
+                            .assistant()
+                            .get()
+                            .content()
+                            .isPresent && 
+                        message
+                            .assistant()
+                            .get()
+                            .toolCalls()
+                            .isEmpty -> {
+                        val content =
+                            messageContent(
+                                message
+                                    .assistant()
+                                    .get()
+                                    .content()
+                                    .get()
+                                    .asText(),
+                            )
+                        NormalizedMessage("assistant", content)
+                    }
+                    message.isTool() -> {
+                        val content =
+                            messageContent(
+                                message
+                                    .tool()
+                                    .get()
+                                    .content()
+                                    .asText(),
+                            )
+                        NormalizedMessage("tool", content)
+                    }
+                    message.isSystem() && message.system().isPresent -> {
+                        val content =
+                            messageContent(
+                                message
+                                    .system()
+                                    .get()
+                                    .content()
+                                    .asText(),
+                            )
+                        NormalizedMessage("system", content)
+                    }
+                    message.isDeveloper() && message.developer().isPresent -> {
+                        val content =
+                            messageContent(
+                                message
+                                    .developer()
+                                    .get()
+                                    .content()
+                                    .asText(),
+                            )
+                        NormalizedMessage("system", content)
+                    }
+                    else -> NormalizedMessage("unknown", null)
+                }
+            }.filter { it.role != "unknown" }
+
+    fun Response.toNormalizedOutput(): List<ModelOutput> =
+        output().mapIndexed { index, output ->
+            when {
+                output.isMessage() -> {
+                    val content =
+                        if (captureMessageContent) {
+                            output.asMessage().content().joinToString("\n") { if (it.isOutputText()) it.asOutputText().text() else "output text not found" }
+                        } else {
+                            null
+                        }
+                    ModelOutput(
+                        messages = listOf(NormalizedMessage("assistant", content)),
+                        finishReason = "stop",
+                        usage = null,
+                        index = index,
+                    )
+                }
+                output.isFunctionCall() -> {
+                    val toolCall = output.asFunctionCall()
+                    val toolCalls =
+                        listOf(
+                            NormalizedToolCall(
+                                id = toolCall.id().get(),
+                                name = toolCall.name(),
+                                arguments = messageContent(toolCall.arguments()),
+                            ),
+                        )
+                    ModelOutput(
+                        messages = listOf(NormalizedMessage("assistant", null, toolCalls)),
+                        finishReason = "tool_calls",
+                        usage = null,
+                        index = index,
+                    )
+                }
+                else ->
+                    ModelOutput(
+                        messages = emptyList(),
+                        finishReason = null,
+                        usage = null,
+                        index = index,
+                    )
+            }
+        }
+
+    // ------------------------------------------------------------------------
+    // Extractors for generating telemetry events
+    // ------------------------------------------------------------------------
+
+    fun extractMessageEvents(
+        messages: List<NormalizedMessage>,
+        context: TelemetryContext,
+    ): List<TelemetryEvent> =
+        messages.flatMap { message ->
+            val events = mutableListOf<TelemetryEvent>()
+            
+            // Add content event if present
+            if (!message.content.isNullOrEmpty()) {
+                events.add(
+                    TelemetryEvent(
+                        name =
+                            when (message.role) {
+                                "user" -> GenAIObsAttributes.USER_MESSAGE
+                                "assistant" -> GenAIObsAttributes.ASSISTANT_MESSAGE
+                                "system" -> GenAIObsAttributes.SYSTEM_MESSAGE
+                                "tool" -> GenAIObsAttributes.TOOL_MESSAGE
+                                else -> "unknown_message"
+                            },
+                        role = message.role,
+                        payload =
+                            TelemetryPayload.MessagePayload(
+                                genAiSystem = context.metadata.genAISystem,
+                                role = message.role,
+                                content = message.content,
+                            ),
+                    ),
+                )
+            }
+            
+            // Add tool calls event if present
+            if (message.toolCalls.isNotEmpty()) {
+                val toolCallsPayload =
+                    when (message.role) {
+                        "assistant" -> {
+                            val tools =
+                                message.toolCalls.map { tool ->
+                                    ToolCallInfo(
+                                        id = tool.id,
+                                        function =
+                                            FunctionInfo(
+                                                name = tool.name,
+                                                arguments = tool.arguments,
+                                            ),
+                                    )
+                                }
+                            TelemetryPayload.ToolCallsPayload(
+                                genAiSystem = context.metadata.genAISystem,
+                                role = message.role,
+                                toolCalls = tools,
+                            )
+                        }
+                        "tool" -> {
+                            val toolCall = message.toolCalls.first()
+                            TelemetryPayload.ToolCallsPayload(
+                                genAiSystem = context.metadata.genAISystem,
+                                role = message.role,
+                                toolCalls =
+                                    listOf(
+                                        ToolCallInfo(
+                                            id = toolCall.id,
+                                            function =
+                                                FunctionInfo(
+                                                    name = toolCall.name,
+                                                    arguments = toolCall.arguments,
+                                                ),
+                                        ),
+                                    ),
+                            )
+                        }
+                        else ->
+                            TelemetryPayload.ToolCallsPayload(
+                                genAiSystem = context.metadata.genAISystem,
+                                role = message.role,
+                                toolCalls = emptyList(),
+                            )
+                    }
+                
+                events.add(
+                    TelemetryEvent(
+                        name =
+                            when (message.role) {
+                                "assistant" -> GenAIObsAttributes.ASSISTANT_MESSAGE
+                                "tool" -> GenAIObsAttributes.TOOL_MESSAGE
+                                else -> "tool_calls"
+                            },
+                        role = message.role,
+                        payload = toolCallsPayload,
+                    ),
+                )
+            }
+            
+            events
+        }
+
+    fun extractOutputEvents(
+        outputs: List<ModelOutput>,
+        context: TelemetryContext,
+    ): List<TelemetryEvent> =
+        outputs.flatMap { output ->
+            val events = mutableListOf<TelemetryEvent>()
+            
+            // Add message events
+            if (output.messages.isNotEmpty()) {
+                output.messages.forEach { message ->
+                    val eventData =
+                        mutableMapOf<String, Any?>(
+                            "gen_ai.system" to context.metadata.genAISystem,
+                            "role" to "assistant",
+                        )
+                    
+                    if (outputs.size > 1) {
+                        eventData["index"] = output.index
+                        eventData["finish_reason"] = output.finishReason
+                    }
+                    
+                    if (message.content != null && context.captureContent) {
+                        eventData["content"] = message.content
+                    }
+                    
+                    events.add(
+                        TelemetryEvent(
+                            name = GenAIObsAttributes.CHOICE,
+                            role = message.role,
+                            payload =
+                                TelemetryPayload.ChoicePayload(
+                                    genAiSystem = context.metadata.genAISystem,
+                                    role = message.role,
+                                    content = message.content,
+                                    index = output.index,
+                                    finishReason = output.finishReason,
+                                ),
+                        ),
+                    )
+                }
+            }
+            
+            // Add tool calls events
+            val toolCalls = output.messages.flatMap { it.toolCalls }
+            if (toolCalls.isNotEmpty()) {
+                events.add(
+                    TelemetryEvent(
+                        name = GenAIObsAttributes.CHOICE,
+                        role = "tool",
+                        payload =
+                            TelemetryPayload.ToolChoicePayload(
+                                genAiSystem = context.metadata.genAISystem,
+                                finishReason = "tool_calls",
+                                index = output.index,
+                                toolCalls =
+                                    ToolCallMap(
+                                        id = toolCalls.first().id,
+                                        type = "function",
+                                        function =
+                                            FunctionInfo(
+                                                name = toolCalls.first().name,
+                                                arguments = toolCalls.first().arguments,
+                                            ),
+                                    ),
+                            ),
+                    ),
+                )
+            }
+            
+            events
+        }
 }

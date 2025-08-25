@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
@@ -15,8 +15,12 @@ import {
   Plus,
   Server,
   LogOut,
-  Bot
+  Bot,
+  Activity,
+  Brain,
+  Zap
 } from 'lucide-react';
+import { API_URL } from '@/config';
 
 interface PlaygroundSidebarProps {
   activeTab: string;
@@ -24,6 +28,20 @@ interface PlaygroundSidebarProps {
   className?: string;
   onAgentSelect?: (agent: any) => void;
   onCreateAgent?: () => void;
+}
+
+interface Partner {
+  code: string;
+  name: string;
+  category: 'VECTOR_DB' | 'EVALS' | 'OBSERVABILITY';
+  enabled: boolean;
+  deploymentLink: string;
+}
+
+interface PlatformInfo {
+  partners: {
+    details: Partner[];
+  };
 }
 
 const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({ 
@@ -35,16 +53,84 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
 }) => {
   const { logout, authEnabled, isAuthenticated } = useAuth();
   const [agentsModalOpen, setAgentsModalOpen] = useState(false);
+  const [platformInfo, setPlatformInfo] = useState<PlatformInfo | null>(null);
+  const [isLoadingPartners, setIsLoadingPartners] = useState(true);
+
   const mainOptions = [
     { id: 'agents', label: 'Agents', icon: Bot, clickable: true },
     { id: 'responses', label: 'AgC API', icon: MessageSquare },
   ];
 
+  // Get icon for partner category
+  const getPartnerIcon = (category: string) => {
+    switch (category) {
+      case 'VECTOR_DB':
+        return Database;
+      case 'EVALS':
+        return Brain;
+      case 'OBSERVABILITY':
+        return BarChart3;
+      default:
+        return Activity; // fallback icon
+    }
+  };
+
+  // Fetch platform info to get partner details
+  useEffect(() => {
+    const fetchPlatformInfo = async () => {
+      try {
+        setIsLoadingPartners(true);
+        const response = await fetch(`${API_URL}/v1/dashboard/platform/info`);
+        if (response.ok) {
+          const data = await response.json();
+          setPlatformInfo(data);
+          
+          // Handle userId based on auth config
+          if (data.authConfig?.enabled === false) {
+            // Auth is disabled, ensure we have a userId
+            let userId = localStorage.getItem('platform_userId');
+            if (!userId) {
+              // Generate new random userId: user_ + 9 alphanumeric chars
+              const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+              const randomId = 'user_' + Array.from({length: 9}, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+              localStorage.setItem('platform_userId', randomId);
+              console.log('Generated new userId:', randomId);
+            }
+          } else if (data.authConfig?.enabled === true) {
+            // Auth is enabled, clear userId if it exists
+            const existingUserId = localStorage.getItem('platform_userId');
+            if (existingUserId) {
+              localStorage.removeItem('platform_userId');
+              console.log('Auth enabled, cleared userId');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to fetch platform info:', error);
+      } finally {
+        setIsLoadingPartners(false);
+      }
+    };
+
+    fetchPlatformInfo();
+  }, []);
+
+  // Generate partner links dynamically
+  const partnerLinks = platformInfo?.partners?.details
+    .filter(partner => partner.enabled)
+    .map(partner => ({
+      id: `partner-${partner.code}`,
+      label: partner.name,
+      icon: getPartnerIcon(partner.category),
+      link: partner.deploymentLink,
+      category: partner.category
+    })) || [];
+
   // Static options that appear under Completions
   const staticCompletionOptions = [
-    { id: 'vector-store', label: 'Vector Store', icon: Database },
-    { id: 'observability', label: 'Observability', icon: BarChart3, link: 'https://communal-lionfish.in.signoz.cloud/home' },
-    // New clickable option directly below Observability
+    // Partner links will be dynamically inserted here
+    ...partnerLinks,
+    // New clickable option directly below partner links
     { id: 'masaic-mocky', label: 'Mocky', icon: Sparkles, clickable: true },
     { id: 'add-model', label: 'Add Model', icon: Plus, clickable: true },
     { id: 'e2b-server', label: 'E2B Server', icon: Server, clickable: true },
@@ -121,58 +207,64 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
           );
         })}
 
-        {/* Static Completion Options */}
+        {/* Partner Links and Static Completion Options */}
         <div className="space-y-1 mt-1">
-          {staticCompletionOptions.map((option) => {
-            const Icon = option.icon;
+          {isLoadingPartners ? (
+            <div className="flex items-center justify-center p-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+            </div>
+          ) : (
+            staticCompletionOptions.map((option) => {
+              const Icon = option.icon;
 
-            // External link behaviour
-            if ('link' in option && option.link) {
+              // External link behaviour for partner links
+              if ('link' in option && option.link) {
+                return (
+                  <Button
+                    key={option.id}
+                    variant="ghost"
+                    className="w-full justify-start text-xs h-8 text-muted-foreground hover:text-foreground hover:bg-accent/50"
+                    onClick={() => window.open(option.link, '_blank')}
+                  >
+                    <Icon className="h-3 w-3 mr-2" />
+                    {option.label}
+                  </Button>
+                );
+              }
+
+              // Clickable internal option (e.g., Masaic Mocky)
+              if ('clickable' in option && option.clickable) {
+                return (
+                  <Button
+                    key={option.id}
+                    variant={activeTab === option.id ? 'secondary' : 'ghost'}
+                    className={`w-full justify-start text-xs h-8 ${
+                      activeTab === option.id
+                        ? 'bg-accent text-accent-foreground'
+                        : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
+                    }`}
+                    onClick={() => onTabChange(option.id)}
+                  >
+                    <Icon className="h-3 w-3 mr-2" />
+                    {option.label}
+                  </Button>
+                );
+              }
+
+              // Default disabled static option
               return (
                 <Button
                   key={option.id}
                   variant="ghost"
-                  className="w-full justify-start text-xs h-8 text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                  onClick={() => window.open(option.link, '_blank')}
+                  className="w-full justify-start text-xs h-8 text-muted-foreground opacity-50 cursor-default"
+                  disabled
                 >
                   <Icon className="h-3 w-3 mr-2" />
                   {option.label}
                 </Button>
               );
-            }
-
-            // Clickable internal option (e.g., Masaic Mocky)
-            if ('clickable' in option && option.clickable) {
-              return (
-                <Button
-                  key={option.id}
-                  variant={activeTab === option.id ? 'secondary' : 'ghost'}
-                  className={`w-full justify-start text-xs h-8 ${
-                    activeTab === option.id
-                      ? 'bg-accent text-accent-foreground'
-                      : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
-                  }`}
-                  onClick={() => onTabChange(option.id)}
-                >
-                  <Icon className="h-3 w-3 mr-2" />
-                  {option.label}
-                </Button>
-              );
-            }
-
-            // Default disabled static option
-            return (
-              <Button
-                key={option.id}
-                variant="ghost"
-                className="w-full justify-start text-xs h-8 text-muted-foreground opacity-50 cursor-default"
-                disabled
-              >
-                <Icon className="h-3 w-3 mr-2" />
-                {option.label}
-              </Button>
-            );
-          })}
+            })
+          )}
         </div>
       </div>
 
