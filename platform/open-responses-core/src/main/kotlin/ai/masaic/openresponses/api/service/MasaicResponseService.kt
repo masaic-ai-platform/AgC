@@ -224,7 +224,8 @@ class MasaicResponseService(
         } catch (e: Exception) {
             exception = e
             logger.error { "Error creating response" }
-            throw ResponseProcessingException("Error processing response: ${e.message}")
+            throw e
+//            throw ResponseProcessingException("Error processing response: ${e.message}")
         } finally {
             exception?.let {
                 parentSpan.recordException(exception)
