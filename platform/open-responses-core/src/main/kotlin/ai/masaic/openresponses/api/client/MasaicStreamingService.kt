@@ -122,11 +122,11 @@ class MasaicStreamingService(
         val sseFlow =
             channelFlow {
                 // Link the 'chat' span to any existing HTTP span from Reactor context
-                val parentObs: Observation? =
-                    coroutineContext[ReactorContext]?.context?.get(ObservationThreadLocalAccessor.KEY)
-                val observation = telemetryService.startObservation("chat", metadata.modelName, parentObs)
+                val parentObs: Observation? = null
+//                    coroutineContext[ReactorContext]?.context?.get(ObservationThreadLocalAccessor.KEY)
+                val span = telemetryService.startOtelSpan("chat", metadata.modelName, null)
                 val createParams = parameterConverter.prepareCompletion(params)
-                telemetryService.emitModelInputEvents(observation, createParams, metadata)
+                telemetryService.emitModelInputEventsForOtelSpan(span, createParams, metadata)
                 val functionCallAccumulator = mutableMapOf<Long, MutableList<ResponseStreamEvent>>()
                 val textAccumulator = mutableMapOf<Long, MutableList<ResponseStreamEvent>>()
                 val responseOutputItemAccumulator = mutableListOf<ResponseOutputItem>()
@@ -236,7 +236,7 @@ class MasaicStreamingService(
                                     )
 
                                     logger.debug { "Response body: ${objectMapper.writeValueAsString(finalResponse)}" }
-                                    telemetryService.stopObservation(observation, finalResponse, params, metadata)
+                                    telemetryService.stopOtelSpan(span, finalResponse, params, metadata)
                                     telemetryService.stopGenAiDurationSample(metadata, params, genAiSample)
                                 }
 
@@ -320,7 +320,7 @@ class MasaicStreamingService(
                                         )
                                     }"
                                 }
-                                telemetryService.stopObservation(observation, responseWithToolRequests, params, metadata)
+                                telemetryService.stopOtelSpan(span, responseWithToolRequests, params, metadata)
                                 telemetryService.stopGenAiDurationSample(metadata, params, genAiSample)
 
                                 // internalToolItemIds is populated by convertAndPublish if a tool call matches a known internal tool.
@@ -345,17 +345,17 @@ class MasaicStreamingService(
                                     close() // Close to terminate this iteration of callbackFlow
                                 } else {
                                     // Recognized internal tools were requested, proceed to handle them.
-                                    val parentObservation =
-                                        coroutineContext[ReactorContext]?.context?.get<Observation>(
-                                            ObservationThreadLocalAccessor.KEY,
-                                        )
+                                    val parentObservation = null
+//                                        coroutineContext[ReactorContext]?.context?.get<Observation>(
+//                                            ObservationThreadLocalAccessor.KEY,
+//                                        )
 
                                     val toolStreamingResult =
                                         toolHandler.handleMasaicToolCall(
                                             params = params, // The original ResponseCreateParams for this iteration
                                             response = responseWithToolRequests, // The Response from LLM containing tool requests
                                             eventEmitter = { event -> trySend(event).isSuccess },
-                                            parentObservation = parentObservation,
+                                            parentSpan = null,
                                             openAIClient = client,
                                         )
 

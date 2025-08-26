@@ -22,22 +22,27 @@ import ai.masaic.platform.api.registry.functions.FunctionRegistryService
 import ai.masaic.platform.api.registry.functions.FunctionRegistryValidator
 import ai.masaic.platform.api.repository.*
 import ai.masaic.platform.api.service.*
+import ai.masaic.platform.api.telemtetry.PlatformTelemetryService
+import ai.masaic.platform.api.telemtetry.langfuse.LangfuseTelemetryService
 import ai.masaic.platform.api.tools.*
 import ai.masaic.platform.api.user.AuthConfig
 import ai.masaic.platform.api.user.AuthConfigProperties
 import ai.masaic.platform.api.utils.PlatformPayloadFormatter
 import ai.masaic.platform.api.validation.PlatformRequestValidator
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.observation.ObservationRegistry
+import io.opentelemetry.api.OpenTelemetry
 import io.qdrant.client.QdrantClient
+import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.info.BuildProperties
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Lazy
-import org.springframework.context.annotation.Profile
+import org.springframework.context.annotation.*
+import org.springframework.core.type.AnnotatedTypeMetadata
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
 import java.time.Instant
 
@@ -125,31 +130,14 @@ class PlatformCoreConfig {
     @Bean
     fun platformInfo(
         @Value(value = "\${open-responses.store.vector.search.provider:file}") vectorSearchProviderType: String,
-        @Value(value = "\${otel.sdk.disabled}") otelSdkDisabled: Boolean = true,
-        @Value(value = "\${otel.exporter.otlp.endpoint}") otelEndpoint: String? = null,
         buildProperties: BuildProperties,
         modelSettings: ModelSettings,
         pyInterpreterSettings: PyInterpreterSettings,
         configProperties: AuthConfigProperties,
+        partners: Partners
     ): PlatformInfo {
-        val partners = mutableListOf<Partner>()
-        if (!otelSdkDisabled) {
-            if (otelEndpoint?.contains("langfuse") == true) {
-                partners.add(PartnerGroup.langfuse)
-            } else if (otelEndpoint?.contains("signoz") == true) {
-                partners.add(PartnerGroup.signoz)
-            } else {
-                partners.add(PartnerGroup.langfuse)
-                partners.add(PartnerGroup.signoz)
-            }
-        }
-
         val vectorStoreInfo =
             if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
-
-        if (vectorStoreInfo.isEnabled) {
-            partners.add(PartnerGroup.qdrant)
-        }
 
         return PlatformInfo(
             version = "v${buildProperties.version}",
@@ -166,7 +154,7 @@ class PlatformCoreConfig {
                 } else {
                     PyInterpreterSettings()
                 },
-            partners = Partners(details = partners),
+            partners = partners,
         )
     }
 
@@ -192,6 +180,15 @@ class PlatformCoreConfig {
         modelSettings: ModelSettings,
         @Lazy modelService: ModelService,
     ) = SystemPromptGeneratorTool(modelSettings, modelService)
+
+
+    @Bean
+    @ConditionalOnMissingBean(TelemetryService::class)
+    fun platformTelemetryService(observationRegistry: ObservationRegistry, openTelemetry: OpenTelemetry, meterRegistry: MeterRegistry) = PlatformTelemetryService(observationRegistry, openTelemetry, meterRegistry)
+
+    @Bean
+    @ConditionalOnMissingBean(Partners::class)
+    fun noPartner() = emptyList<Partner>()
 
     @Configuration
     @Profile("platform")
@@ -365,6 +362,41 @@ object PartnerGroup {
             enabled = true,
             deploymentLink = "https://cloud.langfuse.com/",
         )
+}
+
+@Profile("platform")
+@Configuration
+class PartnersConfiguration(private val env: org.springframework.core.env.Environment) {
+
+    @Bean
+    fun partners(@Value(value = "\${otel.sdk.disabled}") otelSdkDisabled: Boolean = true,
+                 @Value(value = "\${otel.exporter.otlp.endpoint}") otelEndpoint: String? = null,
+                 @Value(value = "\${open-responses.store.vector.search.provider:file}") vectorSearchProviderType: String,): Partners {
+        val partners = mutableListOf<Partner>()
+
+        val forceLangfuse = env.acceptsProfiles(org.springframework.core.env.Profiles.of("langfuse"))
+        val forceSignoz   = env.acceptsProfiles(org.springframework.core.env.Profiles.of("signoz"))
+
+        if(forceLangfuse || (!otelSdkDisabled && otelEndpoint?.contains("langfuse") == true))
+            partners += PartnerGroup.langfuse
+
+        if(forceSignoz   || (!otelSdkDisabled && otelEndpoint?.contains("signoz") == true))
+            partners += PartnerGroup.signoz
+
+        val vectorStoreInfo =
+            if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
+
+        // Vector store
+        if (vectorStoreInfo.isEnabled) {
+            partners += PartnerGroup.qdrant
+        }
+
+        return Partners(details = partners)
+    }
+
+    @Bean
+    @Profile("langfuse")
+    fun langfuseTelemetryService(observationRegistry: ObservationRegistry, openTelemetry: OpenTelemetry, meterRegistry: MeterRegistry) = LangfuseTelemetryService(observationRegistry, openTelemetry, meterRegistry)
 }
 
 data class ModelSettings(

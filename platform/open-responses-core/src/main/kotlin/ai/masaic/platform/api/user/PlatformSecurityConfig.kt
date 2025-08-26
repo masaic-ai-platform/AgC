@@ -16,6 +16,7 @@ import org.springframework.security.web.server.authentication.AuthenticationWebF
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.reactive.CorsConfigurationSource
 import org.springframework.web.cors.reactive.UrlBasedCorsConfigurationSource
+import org.springframework.web.server.WebFilter
 import reactor.core.publisher.Mono
 
 @Profile("platform")
@@ -44,7 +45,9 @@ class PlatformSecurityConfig {
                         .authenticated()
                         .anyExchange()
                         .permitAll()
-                }.addFilterAt(googleAuthFilter(googleTokenVerifier), SecurityWebFiltersOrder.AUTHENTICATION)
+                }
+                .addFilterAt(googleAuthFilter(googleTokenVerifier), SecurityWebFiltersOrder.AUTHENTICATION)
+                .addFilterAfter(userSessionContextFilter(authConfigProperties), SecurityWebFiltersOrder.AUTHENTICATION)
                 .build()
         } else {
             http
@@ -52,7 +55,9 @@ class PlatformSecurityConfig {
                 .cors { it.configurationSource(corsConfigurationSource()) }
                 .authorizeExchange { authorizeExchange ->
                     authorizeExchange.anyExchange().permitAll()
-                }.build()
+                }
+                .addFilterAfter(userSessionContextFilter(authConfigProperties), SecurityWebFiltersOrder.AUTHENTICATION)
+                .build()
         }
 
     @Bean
@@ -104,7 +109,23 @@ class PlatformSecurityConfig {
     }
 
     @Bean
-    fun currentUserProvider() = CurrentLoggedInUserProvider()
+    fun userSessionContextFilter(authConfigProperties: AuthConfigProperties): WebFilter = WebFilter { exchange, chain ->
+        val sessionId = exchange.request.headers.getFirst("x-session-id")?.trim()?.takeIf { it.isNotEmpty() }
+        val headerUserId = exchange.request.headers.getFirst("x-user-id")?.trim()?.takeIf { it.isNotEmpty() }
+
+        chain
+            .filter(exchange)
+            .contextWrite { ctx ->
+                var updated = ctx
+                // Always include session id when present
+                if (sessionId != null) updated = updated.put("x-session-id", sessionId)
+                // Only include x-user-id in context when auth is disabled
+                if (!authConfigProperties.enabled && headerUserId != null) {
+                    updated = updated.put("x-user-id", headerUserId)
+                }
+                updated
+            }
+    }
 }
 
 /**

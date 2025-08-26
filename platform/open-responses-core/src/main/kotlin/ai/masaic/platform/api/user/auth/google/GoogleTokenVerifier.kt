@@ -1,6 +1,6 @@
 package ai.masaic.platform.api.user.auth.google
 
-import ai.masaic.openresponses.api.user.UserInfo
+import ai.masaic.platform.api.user.UserInfo
 import ai.masaic.platform.api.user.GoogleAuthConfig
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier
 import com.google.api.client.http.javanet.NetHttpTransport

@@ -14,6 +14,13 @@ import io.micrometer.core.instrument.Timer
 import io.micrometer.core.instrument.Timer.Sample
 import io.micrometer.observation.Observation
 import io.micrometer.observation.ObservationRegistry
+import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.SpanKind
+import io.opentelemetry.api.trace.Tracer
+import io.opentelemetry.context.Context
+import io.opentelemetry.context.ContextKey
 import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Profile
@@ -21,10 +28,12 @@ import org.springframework.stereotype.Service
 import java.time.Duration
 import kotlin.jvm.optionals.getOrDefault
 
+
 @Profile("!platform")
 @Service
 open class TelemetryService(
     private val observationRegistry: ObservationRegistry,
+    openTelemetry: OpenTelemetry,
     val meterRegistry: MeterRegistry,
 ) {
     private val logger = KotlinLogging.logger {}
@@ -33,6 +42,7 @@ open class TelemetryService(
     protected val captureMessageContent: Boolean = true
 
     protected val mapper = jacksonObjectMapper()
+    protected val tracer: Tracer = openTelemetry.getTracer("open-responses")
 
     suspend fun emitModelInputEvents(
         observation: Observation,
@@ -42,11 +52,25 @@ open class TelemetryService(
         val context = TelemetryContext(metadata, captureMessageContent)
         val normalizedMessages = inputParams.toNormalizedMessages()
         val events = extractMessageEvents(normalizedMessages, context)
-        
+
         events.forEach { event ->
             observation.event(
                 Observation.Event.of(event.name, mapper.writeValueAsString(event)),
             )
+        }
+    }
+
+    suspend fun emitModelInputEventsForOtelSpan(
+        span: Span,
+        inputParams: ChatCompletionCreateParams,
+        metadata: InstrumentationMetadataInput,
+    ) {
+        val context = TelemetryContext(metadata, captureMessageContent)
+        val normalizedMessages = inputParams.toNormalizedMessages()
+        val events = extractMessageEvents(normalizedMessages, context)
+
+        events.forEach { event ->
+            span.addEvent(event.name, Attributes.builder().put(event.name, mapper.writeValueAsString(event.payload)).build())
         }
     }
 
@@ -58,11 +82,24 @@ open class TelemetryService(
         val context = TelemetryContext(metadata, captureMessageContent)
         val normalizedOutputs = response.toNormalizedOutput()
         val events = extractOutputEvents(normalizedOutputs, context)
-        
+
         events.forEach { event ->
             observation.event(
                 Observation.Event.of(event.name, mapper.writeValueAsString(event)),
             )
+        }
+    }
+
+    fun emitModelOutputEventsForOtelSpan(
+        span: Span,
+        response: Response,
+        metadata: InstrumentationMetadataInput,
+    ) {
+        val context = TelemetryContext(metadata, captureMessageContent)
+        val normalizedOutputs = response.toNormalizedOutput()
+        val events = extractOutputEvents(normalizedOutputs, context)
+        events.forEach { event ->
+            span.addEvent(event.name, Attributes.builder().put(event.name, mapper.writeValueAsString(event.payload)).build())
         }
     }
 
@@ -138,6 +175,33 @@ open class TelemetryService(
         setOutputType(observation, params)
     }
 
+    fun setAllObservationAttributesForOtelSpan(
+        span: Span,
+        response: Response,
+        params: ResponseCreateParams,
+        metadata: InstrumentationMetadataInput,
+        finishReason: String,
+    ) {
+        span.setAttribute(GenAIObsAttributes.OPERATION_NAME, "chat")
+        span.setAttribute(GenAIObsAttributes.SYSTEM, metadata.genAISystem)
+        span.setAttribute(GenAIObsAttributes.REQUEST_MODEL, params.model().asString())
+        span.setAttribute(GenAIObsAttributes.RESPONSE_MODEL, response.model().asString())
+        span.setAttribute(GenAIObsAttributes.SERVER_ADDRESS, metadata.modelProviderAddress)
+        span.setAttribute(GenAIObsAttributes.SERVER_PORT, metadata.modelProviderPort)
+        span.setAttribute(GenAIObsAttributes.RESPONSE_ID, response.id())
+        span.setAttribute(GenAIObsAttributes.RESPONSE_FINISH_REASONS, finishReason)
+
+        params.temperature().ifPresent { span.setAttribute(GenAIObsAttributes.REQUEST_TEMPERATURE, it.toString()) }
+        params.maxOutputTokens().ifPresent { span.setAttribute(GenAIObsAttributes.REQUEST_MAX_TOKENS, it.toString()) }
+        params.topP().ifPresent { span.setAttribute(GenAIObsAttributes.REQUEST_TOP_P, it.toString()) }
+
+        response.usage().ifPresent { usage ->
+            span.setAttribute(GenAIObsAttributes.USAGE_INPUT_TOKENS, usage.inputTokens().toString())
+            span.setAttribute(GenAIObsAttributes.USAGE_OUTPUT_TOKENS, usage.outputTokens().toString())
+        }
+        setOutputType(span, params)
+    }
+
     fun setAllObservationAttributes(
         observation: Observation,
         chatCompletion: ChatCompletion,
@@ -169,7 +233,18 @@ open class TelemetryService(
         observation: Observation,
         params: ResponseCreateParams,
     ) {
-        if (params.text().isPresent &&
+        extractOutputFormat(params)?.let { observation.lowCardinalityKeyValue(GenAIObsAttributes.OUTPUT_TYPE, it) }
+    }
+
+    private fun setOutputType(
+        span: Span,
+        params: ResponseCreateParams,
+    ) {
+        extractOutputFormat(params)?.let { span.setAttribute(GenAIObsAttributes.OUTPUT_TYPE, it) }
+    }
+
+    private fun extractOutputFormat(params: ResponseCreateParams): String? {
+        return if (params.text().isPresent &&
             params
                 .text()
                 .get()
@@ -182,22 +257,20 @@ open class TelemetryService(
                     .get()
                     .format()
                     .get()
-            val format =
-                if (responseFormatConfig.isText()) {
-                    responseFormatConfig
-                        .asText()
-                        ._type()
-                        .toString()
-                } else if (responseFormatConfig.isJsonObject()) {
-                    responseFormatConfig
-                        .asJsonObject()
-                        ._type()
-                        .toString()
-                } else {
-                    responseFormatConfig.asJsonSchema()._type().toString()
-                }
-            observation.lowCardinalityKeyValue(GenAIObsAttributes.OUTPUT_TYPE, format)
-        }
+            if (responseFormatConfig.isText()) {
+                responseFormatConfig
+                    .asText()
+                    ._type()
+                    .toString()
+            } else if (responseFormatConfig.isJsonObject()) {
+                responseFormatConfig
+                    .asJsonObject()
+                    ._type()
+                    .toString()
+            } else {
+                responseFormatConfig.asJsonSchema()._type().toString()
+            }
+        } else null
     }
 
     fun setFinishReasons(
@@ -234,6 +307,20 @@ open class TelemetryService(
         return observation
     }
 
+    suspend fun startOtelSpan(
+        operationName: String,
+        modelName: String,
+        parentSpan: Span ?= null,
+    ): Span {
+        val span = tracer.spanBuilder("$operationName $modelName")
+            .setSpanKind(SpanKind.CLIENT)
+            .setAttribute(GenAIObsAttributes.SPAN_KIND, "client")
+            .apply { parentSpan?.let { setParent(parentSpan.storeInContext(Context.current())) } ?: setNoParent() }
+            .setNoParent()
+            .startSpan()
+        return span
+    }
+
     fun stopObservation(
         observation: Observation,
         response: Response,
@@ -245,6 +332,30 @@ open class TelemetryService(
         recordTokenUsage(metadata, response, params, "input")
         recordTokenUsage(metadata, response, params, "output")
         observation.stop()
+        stopOtelSpan(response, params, metadata)
+    }
+
+    fun stopOtelSpan(
+        span: Span,
+        response: Response,
+        params: ResponseCreateParams,
+        metadata: InstrumentationMetadataInput,
+    ) {
+        emitModelOutputEventsForOtelSpan(span, response, metadata)
+        setAllObservationAttributesForOtelSpan(span, response, params, metadata, "stop")
+        recordTokenUsage(metadata, response, params, "input")
+        recordTokenUsage(metadata, response, params, "output")
+        span.end()
+    }
+
+    fun stopOtelSpan(
+        response: Response,
+        params: ResponseCreateParams,
+        metadata: InstrumentationMetadataInput,
+    ) {
+        val span = Span.current()
+        if(span.isRecording)
+            span.end()
     }
 
     suspend fun <T> withClientObservation(
@@ -287,6 +398,28 @@ open class TelemetryService(
             throw e
         } finally {
             observation.stop()
+        }
+    }
+
+    suspend fun <T> withClientSpan(
+        obsName: String,
+        parentSpan: Span?,
+        block: suspend (Span) -> T,
+    ): T {
+        val span = tracer.spanBuilder(obsName)
+            .setSpanKind(SpanKind.SERVER)
+            .setAttribute(GenAIObsAttributes.SPAN_KIND, "client")
+            .apply { parentSpan?.let { setParent(parentSpan.storeInContext(Context.current())) } ?: setNoParent() }
+            .setNoParent()
+            .startSpan()
+        return try {
+            block(span)
+        } catch (e: Exception) {
+            span.recordException(e)
+            span.setAttribute(GenAIObsAttributes.ERROR_TYPE, "${e.javaClass}")
+            throw e
+        } finally {
+            span.end()
         }
     }
 
@@ -1028,7 +1161,7 @@ open class TelemetryService(
                             .assistant()
                             .get()
                             .content()
-                            .isPresent && 
+                            .isPresent &&
                         message
                             .assistant()
                             .get()
@@ -1136,7 +1269,7 @@ open class TelemetryService(
     ): List<TelemetryEvent> =
         messages.flatMap { message ->
             val events = mutableListOf<TelemetryEvent>()
-            
+
             // Add content event if present
             if (!message.content.isNullOrEmpty()) {
                 events.add(
@@ -1159,7 +1292,7 @@ open class TelemetryService(
                     ),
                 )
             }
-            
+
             // Add tool calls event if present
             if (message.toolCalls.isNotEmpty()) {
                 val toolCallsPayload =
@@ -1207,7 +1340,7 @@ open class TelemetryService(
                                 toolCalls = emptyList(),
                             )
                     }
-                
+
                 events.add(
                     TelemetryEvent(
                         name =
@@ -1221,7 +1354,7 @@ open class TelemetryService(
                     ),
                 )
             }
-            
+
             events
         }
 
@@ -1231,25 +1364,49 @@ open class TelemetryService(
     ): List<TelemetryEvent> =
         outputs.flatMap { output ->
             val events = mutableListOf<TelemetryEvent>()
-            
-            // Add message events
-            if (output.messages.isNotEmpty()) {
+
+            // Add tool calls events
+            val toolCalls = output.messages.flatMap { it.toolCalls }
+            if (toolCalls.isNotEmpty()) {
+                events.add(
+                    TelemetryEvent(
+                        name = GenAIObsAttributes.CHOICE,
+                        role = "tool",
+                        payload =
+                        TelemetryPayload.ToolChoicePayload(
+                            genAiSystem = context.metadata.genAISystem,
+                            finishReason = "tool_calls",
+                            index = output.index,
+                            toolCalls =
+                            ToolCallMap(
+                                id = toolCalls.first().id,
+                                type = "function",
+                                function =
+                                FunctionInfo(
+                                    name = toolCalls.first().name,
+                                    arguments = toolCalls.first().arguments,
+                                ),
+                            ),
+                        ),
+                    ),
+                )
+            } else if (output.messages.isNotEmpty()) { // Add message events
                 output.messages.forEach { message ->
                     val eventData =
                         mutableMapOf<String, Any?>(
                             "gen_ai.system" to context.metadata.genAISystem,
                             "role" to "assistant",
                         )
-                    
+
                     if (outputs.size > 1) {
                         eventData["index"] = output.index
                         eventData["finish_reason"] = output.finishReason
                     }
-                    
+
                     if (message.content != null && context.captureContent) {
                         eventData["content"] = message.content
                     }
-                    
+
                     events.add(
                         TelemetryEvent(
                             name = GenAIObsAttributes.CHOICE,
@@ -1266,34 +1423,6 @@ open class TelemetryService(
                     )
                 }
             }
-            
-            // Add tool calls events
-            val toolCalls = output.messages.flatMap { it.toolCalls }
-            if (toolCalls.isNotEmpty()) {
-                events.add(
-                    TelemetryEvent(
-                        name = GenAIObsAttributes.CHOICE,
-                        role = "tool",
-                        payload =
-                            TelemetryPayload.ToolChoicePayload(
-                                genAiSystem = context.metadata.genAISystem,
-                                finishReason = "tool_calls",
-                                index = output.index,
-                                toolCalls =
-                                    ToolCallMap(
-                                        id = toolCalls.first().id,
-                                        type = "function",
-                                        function =
-                                            FunctionInfo(
-                                                name = toolCalls.first().name,
-                                                arguments = toolCalls.first().arguments,
-                                            ),
-                                    ),
-                            ),
-                    ),
-                )
-            }
-            
             events
         }
 }

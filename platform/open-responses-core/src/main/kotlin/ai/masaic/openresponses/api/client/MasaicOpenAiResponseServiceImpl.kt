@@ -54,7 +54,7 @@ class MasaicOpenAiResponseServiceImpl(
         metadata: InstrumentationMetadataInput = InstrumentationMetadataInput(),
     ): Response {
         // Extract any existing HTTP server span from Reactor context
-        val parentObs: Observation? = coroutineContext[ReactorContext]?.context?.get(ObservationThreadLocalAccessor.KEY)
+        val parentObs: Observation? = null//coroutineContext[ReactorContext]?.context?.get(ObservationThreadLocalAccessor.KEY)
         var chatObservation: Observation? = null
         val responseOrCompletions =
             telemetryService.withClientObservation("chat", metadata.modelName, parentObs) { observation ->
