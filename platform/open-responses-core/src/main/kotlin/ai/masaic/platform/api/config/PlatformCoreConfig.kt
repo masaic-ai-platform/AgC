@@ -34,7 +34,6 @@ import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.observation.ObservationRegistry
 import io.opentelemetry.api.OpenTelemetry
 import io.qdrant.client.QdrantClient
-import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
@@ -42,7 +41,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.*
-import org.springframework.core.type.AnnotatedTypeMetadata
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
 import java.time.Instant
 
@@ -134,7 +132,7 @@ class PlatformCoreConfig {
         modelSettings: ModelSettings,
         pyInterpreterSettings: PyInterpreterSettings,
         configProperties: AuthConfigProperties,
-        partners: Partners
+        partners: Partners,
     ): PlatformInfo {
         val vectorStoreInfo =
             if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
@@ -181,10 +179,13 @@ class PlatformCoreConfig {
         @Lazy modelService: ModelService,
     ) = SystemPromptGeneratorTool(modelSettings, modelService)
 
-
     @Bean
     @ConditionalOnMissingBean(TelemetryService::class)
-    fun platformTelemetryService(observationRegistry: ObservationRegistry, openTelemetry: OpenTelemetry, meterRegistry: MeterRegistry) = PlatformTelemetryService(observationRegistry, openTelemetry, meterRegistry)
+    fun platformTelemetryService(
+        observationRegistry: ObservationRegistry,
+        openTelemetry: OpenTelemetry,
+        meterRegistry: MeterRegistry,
+    ) = PlatformTelemetryService(observationRegistry, openTelemetry, meterRegistry)
 
     @Bean
     @ConditionalOnMissingBean(Partners::class)
@@ -366,22 +367,35 @@ object PartnerGroup {
 
 @Profile("platform")
 @Configuration
-class PartnersConfiguration(private val env: org.springframework.core.env.Environment) {
-
+class PartnersConfiguration(
+    private val env: org.springframework.core.env.Environment,
+) {
     @Bean
-    fun partners(@Value(value = "\${otel.sdk.disabled}") otelSdkDisabled: Boolean = true,
-                 @Value(value = "\${otel.exporter.otlp.endpoint}") otelEndpoint: String? = null,
-                 @Value(value = "\${open-responses.store.vector.search.provider:file}") vectorSearchProviderType: String,): Partners {
+    fun partners(
+        @Value(value = "\${otel.sdk.disabled}") otelSdkDisabled: Boolean = true,
+        @Value(value = "\${otel.exporter.otlp.endpoint}") otelEndpoint: String? = null,
+        @Value(value = "\${open-responses.store.vector.search.provider:file}") vectorSearchProviderType: String,
+    ): Partners {
         val partners = mutableListOf<Partner>()
 
-        val forceLangfuse = env.acceptsProfiles(org.springframework.core.env.Profiles.of("langfuse"))
-        val forceSignoz   = env.acceptsProfiles(org.springframework.core.env.Profiles.of("signoz"))
+        val forceLangfuse =
+            env.acceptsProfiles(
+                org.springframework.core.env.Profiles
+                    .of("langfuse"),
+            )
+        val forceSignoz =
+            env.acceptsProfiles(
+                org.springframework.core.env.Profiles
+                    .of("signoz"),
+            )
 
-        if(forceLangfuse || (!otelSdkDisabled && otelEndpoint?.contains("langfuse") == true))
+        if (forceLangfuse || (!otelSdkDisabled && otelEndpoint?.contains("langfuse") == true)) {
             partners += PartnerGroup.langfuse
+        }
 
-        if(forceSignoz   || (!otelSdkDisabled && otelEndpoint?.contains("signoz") == true))
+        if (forceSignoz || (!otelSdkDisabled && otelEndpoint?.contains("signoz") == true)) {
             partners += PartnerGroup.signoz
+        }
 
         val vectorStoreInfo =
             if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
@@ -396,7 +410,11 @@ class PartnersConfiguration(private val env: org.springframework.core.env.Enviro
 
     @Bean
     @Profile("langfuse")
-    fun langfuseTelemetryService(observationRegistry: ObservationRegistry, openTelemetry: OpenTelemetry, meterRegistry: MeterRegistry) = LangfuseTelemetryService(observationRegistry, openTelemetry, meterRegistry)
+    fun langfuseTelemetryService(
+        observationRegistry: ObservationRegistry,
+        openTelemetry: OpenTelemetry,
+        meterRegistry: MeterRegistry,
+    ) = LangfuseTelemetryService(observationRegistry, openTelemetry, meterRegistry)
 }
 
 data class ModelSettings(

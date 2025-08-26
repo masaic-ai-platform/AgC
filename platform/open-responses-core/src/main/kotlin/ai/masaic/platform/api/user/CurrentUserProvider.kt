@@ -19,18 +19,21 @@ object CurrentUserProvider {
         // 2) Fallback to Reactor Context (auth-disabled path)
         return getFromContext(USER_ID_KEY)
     }
+
     suspend fun sessionId(): String? = getFromContext(SESSION_ID_KEY)
 
     suspend fun hasUserId(): Boolean = !userId().isNullOrBlank()
+
     suspend fun hasSessionId(): Boolean = !sessionId().isNullOrBlank()
 
     suspend fun userInfo(): UserInfo? = userId()?.let { UserInfo(it) }
 
     private suspend fun getFromContext(key: String): String? =
-        Mono.deferContextual { ctx ->
-            val value = if (ctx.hasKey(key)) ctx.get<String>(key) else null
-            Mono.justOrEmpty(value)
-        }.awaitSingleOrNull()
+        Mono
+            .deferContextual { ctx ->
+                val value = if (ctx.hasKey(key)) ctx.get<String>(key) else null
+                Mono.justOrEmpty(value)
+            }.awaitSingleOrNull()
 
     private suspend fun getPrincipalUserId(): String? =
         ReactiveSecurityContextHolder
@@ -42,6 +45,5 @@ object CurrentUserProvider {
                     is org.springframework.security.core.userdetails.UserDetails -> principal.username
                     else -> null
                 }
-            }
-            .awaitSingleOrNull()
+            }.awaitSingleOrNull()
 }

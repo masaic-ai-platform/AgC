@@ -9,15 +9,12 @@ import com.openai.core.JsonValue
 import com.openai.core.RequestOptions
 import com.openai.models.chat.completions.*
 import com.openai.models.responses.*
-import io.micrometer.observation.Observation
-import io.micrometer.observation.contextpropagation.ObservationThreadLocalAccessor
+import io.opentelemetry.api.trace.Span
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.reactor.ReactorContext
 import mu.KotlinLogging
 import org.springframework.http.codec.ServerSentEvent
 import org.springframework.stereotype.Service
 import java.util.UUID
-import kotlin.coroutines.coroutineContext
 import kotlin.jvm.optionals.getOrNull
 
 /**
@@ -52,23 +49,21 @@ class MasaicOpenAiResponseServiceImpl(
         client: OpenAIClient,
         params: ResponseCreateParams,
         metadata: InstrumentationMetadataInput = InstrumentationMetadataInput(),
+        parentSpan: Span? = null,
     ): Response {
         // Extract any existing HTTP server span from Reactor context
-        val parentObs: Observation? = null//coroutineContext[ReactorContext]?.context?.get(ObservationThreadLocalAccessor.KEY)
-        var chatObservation: Observation? = null
         val responseOrCompletions =
-            telemetryService.withClientObservation("chat", metadata.modelName, parentObs) { observation ->
-                chatObservation = observation
+            telemetryService.withClientSpan("chat", metadata.modelName, parentSpan) { span ->
                 logger.debug { "Creating completion with model: ${params.model()}" }
                 val completionCreateParams = parameterConverter.prepareCompletion(params)
-                telemetryService.emitModelInputEvents(observation, completionCreateParams, metadata)
+                telemetryService.emitModelInputEventsForOtelSpan(span, completionCreateParams, metadata)
                 var chatCompletions = telemetryService.withTimer(params, metadata) { client.chat().completions().create(completionCreateParams) }
                 if (chatCompletions._id().isMissing()) {
                     chatCompletions = chatCompletions.toBuilder().id(UUID.randomUUID().toString()).build()
                 }
                 logger.debug { "Received chat completion with ID: ${chatCompletions.id()}" }
-                telemetryService.emitModelOutputEvents(observation, chatCompletions, metadata)
-                telemetryService.setAllObservationAttributes(observation, chatCompletions, params, metadata)
+                telemetryService.emitModelOutputEventsForOtel(span, chatCompletions, metadata)
+                telemetryService.setAllObservationAttributesForOtelSpan(span, chatCompletions, params, metadata)
                 telemetryService.recordTokenUsage(metadata, chatCompletions, params, "input", chatCompletions.usage().get().promptTokens())
                 telemetryService.recordTokenUsage(metadata, chatCompletions, params, "output", chatCompletions.usage().get().completionTokens())
 
@@ -78,7 +73,7 @@ class MasaicOpenAiResponseServiceImpl(
                     val directResponse = chatCompletions.toResponse(params)
                     // Store this direct response as well
                     storeResponseWithInputItems(directResponse, params)
-                    return@withClientObservation directResponse
+                    return@withClientSpan directResponse
                 }
 
                 chatCompletions
@@ -90,7 +85,7 @@ class MasaicOpenAiResponseServiceImpl(
         val chatCompletions = responseOrCompletions as ChatCompletion
 
         // Handle tool calls and decide next step, passing the chat span for proper trace linkage
-        when (val toolCallOutcome = toolHandler.handleMasaicToolCall(chatCompletions, params, chatObservation, client)) {
+        when (val toolCallOutcome = toolHandler.handleMasaicToolCall(chatCompletions, params, parentSpan, client)) {
             is MasaicToolCallResult.Terminate -> {
                 logger.info { "Terminal tool executed (e.g., image_generation). Returning direct response." }
                 val tempParamsForStorage =
@@ -123,7 +118,7 @@ class MasaicOpenAiResponseServiceImpl(
                     throw IllegalArgumentException(errorMsg)
                 }
                 // Recursive call to continue processing with the outputs of the executed tools
-                return create(client, updatedParams, metadata)
+                return create(client, updatedParams, metadata, parentSpan)
             }
         }
     }

@@ -1,10 +1,13 @@
 package ai.masaic.openresponses.api.service
 
 import ai.masaic.openresponses.api.client.MasaicOpenAiResponseServiceImpl
+import ai.masaic.openresponses.api.client.MasaicParameterConverter
 import ai.masaic.openresponses.api.client.ResponseStore
 import ai.masaic.openresponses.api.extensions.fromBody
 import ai.masaic.openresponses.api.model.InstrumentationMetadataInput
 import ai.masaic.openresponses.api.model.ResponseInputItemList
+import ai.masaic.openresponses.api.support.service.GenAIObsAttributes
+import ai.masaic.openresponses.api.support.service.TelemetryService
 import ai.masaic.openresponses.api.utils.EventUtils
 import ai.masaic.openresponses.api.utils.PayloadFormatter
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -19,6 +22,7 @@ import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.ResponseErrorEvent
 import com.openai.models.responses.ResponseStreamEvent
+import io.opentelemetry.api.trace.StatusCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
@@ -49,6 +53,8 @@ class MasaicResponseService(
     private val responseStore: ResponseStore,
     private val payloadFormatter: PayloadFormatter,
     private val objectMapper: ObjectMapper,
+    private val telemetryService: TelemetryService,
+    private val parameterConverter: MasaicParameterConverter,
 ) {
     companion object {
         const val OPENAI_BASE_URL = "OPENAI_BASE_URL"
@@ -180,35 +186,57 @@ class MasaicResponseService(
         val headerBuilder = createHeadersBuilder(headers)
         val queryBuilder = createQueryParamsBuilder(queryParams)
         val client = createClient(headers, request)
-
-        return try {
+        val parentSpan = telemetryService.startOtelSpan("AgC loop", "", null)
+        var response: Response? = null
+        val metadata = instrumentationMetadataInput(headers, request)
+        var exception: Exception? = null
+        try {
             val timeoutMillis = Duration.ofSeconds(requestTimeoutSeconds).toMillis()
-            withTimeout(timeoutMillis) {
-                openAIResponseService.create(
-                    client,
-                    createRequestParams(
-                        request,
-                        headerBuilder,
-                        queryBuilder,
-                    ),
-                    instrumentationMetadataInput(headers, request),
-                )
-            }
+            val parentCreateParams = createRequestParams(request, headerBuilder, queryBuilder)
+            telemetryService.emitModelInputEventsForOtelSpan(parentSpan, parameterConverter.prepareCompletion(parentCreateParams), metadata)
+            response =
+                withTimeout(timeoutMillis) {
+                    openAIResponseService.create(
+                        client,
+                        parentCreateParams,
+                        metadata,
+                        parentSpan,
+                    )
+                }
+
+            return response
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            exception = e
             logger.error { "Request timed out after $requestTimeoutSeconds seconds" }
             throw ResponseTimeoutException("Request timed out after $requestTimeoutSeconds seconds")
         } catch (e: TimeoutException) {
+            exception = e
             logger.error { "Request timed out after $requestTimeoutSeconds seconds" }
             throw ResponseTimeoutException("Request timed out after $requestTimeoutSeconds seconds")
         } catch (e: CancellationException) {
+            exception = e
             logger.warn { "Request was cancelled" }
             throw e // Let cancellation exceptions propagate
         } catch (e: OpenAIException) {
+            exception = e
             logger.error { "Error creating response" }
             throw e
         } catch (e: Exception) {
+            exception = e
             logger.error { "Error creating response" }
             throw ResponseProcessingException("Error processing response: ${e.message}")
+        } finally {
+            exception?.let {
+                parentSpan.recordException(exception)
+                parentSpan.setStatus(StatusCode.ERROR)
+                parentSpan.setAttribute(GenAIObsAttributes.ERROR_TYPE, "${exception.javaClass}")
+            }
+
+            response?.let {
+                telemetryService.stopOtelParentSpan(parentSpan, it, metadata)
+            } ?: run {
+                parentSpan.end()
+            }
         }
     }
 

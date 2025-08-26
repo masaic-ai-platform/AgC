@@ -353,7 +353,7 @@ class MasaicToolHandler(
     suspend fun handleMasaicToolCall(
         chatCompletion: ChatCompletion,
         params: ResponseCreateParams,
-        parentObservation: Observation? = null,
+        parentSpan: Span? = null,
         openAIClient: OpenAIClient,
     ): MasaicToolCallResult {
         logger.debug { "Processing tool calls from ChatCompletion: ${chatCompletion.id()}" }
@@ -521,7 +521,7 @@ class MasaicToolHandler(
                             }
                         } else {
                             // Regular native tool execution
-                            executeToolWithObservation(
+                            executeToolWithSpan(
                                 function.name(),
                                 toolService.getAvailableTool(function.name())?.description ?: "not_available",
                                 function.arguments(),
@@ -531,7 +531,7 @@ class MasaicToolHandler(
                                 openAIClient,
                                 {}, // No event emitter for non-streaming context here
                                 context,
-                                parentObservation,
+                                parentSpan,
                             ) { toolResult ->
                                 val regularToolResult: String? = toolResult
 
@@ -691,7 +691,7 @@ class MasaicToolHandler(
         params: ResponseCreateParams,
         response: Response,
         eventEmitter: ((ServerSentEvent<String>) -> Unit),
-        parentSpan: Span ?= null,
+        parentSpan: Span? = null,
         openAIClient: OpenAIClient,
     ): MasaicToolCallStreamingResult {
         logger.debug { "Processing tool calls from Response ID: ${response.id()}" }

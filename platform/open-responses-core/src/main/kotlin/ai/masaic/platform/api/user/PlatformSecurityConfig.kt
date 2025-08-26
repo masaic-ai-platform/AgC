@@ -45,8 +45,7 @@ class PlatformSecurityConfig {
                         .authenticated()
                         .anyExchange()
                         .permitAll()
-                }
-                .addFilterAt(googleAuthFilter(googleTokenVerifier), SecurityWebFiltersOrder.AUTHENTICATION)
+                }.addFilterAt(googleAuthFilter(googleTokenVerifier), SecurityWebFiltersOrder.AUTHENTICATION)
                 .addFilterAfter(userSessionContextFilter(authConfigProperties), SecurityWebFiltersOrder.AUTHENTICATION)
                 .build()
         } else {
@@ -55,8 +54,7 @@ class PlatformSecurityConfig {
                 .cors { it.configurationSource(corsConfigurationSource()) }
                 .authorizeExchange { authorizeExchange ->
                     authorizeExchange.anyExchange().permitAll()
-                }
-                .addFilterAfter(userSessionContextFilter(authConfigProperties), SecurityWebFiltersOrder.AUTHENTICATION)
+                }.addFilterAfter(userSessionContextFilter(authConfigProperties), SecurityWebFiltersOrder.AUTHENTICATION)
                 .build()
         }
 
@@ -109,23 +107,32 @@ class PlatformSecurityConfig {
     }
 
     @Bean
-    fun userSessionContextFilter(authConfigProperties: AuthConfigProperties): WebFilter = WebFilter { exchange, chain ->
-        val sessionId = exchange.request.headers.getFirst("x-session-id")?.trim()?.takeIf { it.isNotEmpty() }
-        val headerUserId = exchange.request.headers.getFirst("x-user-id")?.trim()?.takeIf { it.isNotEmpty() }
+    fun userSessionContextFilter(authConfigProperties: AuthConfigProperties): WebFilter =
+        WebFilter { exchange, chain ->
+            val sessionId =
+                exchange.request.headers
+                    .getFirst("x-session-id")
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+            val headerUserId =
+                exchange.request.headers
+                    .getFirst("x-user-id")
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
 
-        chain
-            .filter(exchange)
-            .contextWrite { ctx ->
-                var updated = ctx
-                // Always include session id when present
-                if (sessionId != null) updated = updated.put("x-session-id", sessionId)
-                // Only include x-user-id in context when auth is disabled
-                if (!authConfigProperties.enabled && headerUserId != null) {
-                    updated = updated.put("x-user-id", headerUserId)
+            chain
+                .filter(exchange)
+                .contextWrite { ctx ->
+                    var updated = ctx
+                    // Always include session id when present
+                    if (sessionId != null) updated = updated.put("x-session-id", sessionId)
+                    // Only include x-user-id in context when auth is disabled
+                    if (!authConfigProperties.enabled && headerUserId != null) {
+                        updated = updated.put("x-user-id", headerUserId)
+                    }
+                    updated
                 }
-                updated
-            }
-    }
+        }
 }
 
 /**

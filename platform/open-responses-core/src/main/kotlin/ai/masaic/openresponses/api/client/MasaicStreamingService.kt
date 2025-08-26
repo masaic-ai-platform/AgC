@@ -14,13 +14,11 @@ import com.openai.models.chat.completions.ChatCompletionChunk
 import com.openai.models.chat.completions.ChatCompletionCreateParams
 import com.openai.models.responses.*
 import io.micrometer.observation.Observation
-import io.micrometer.observation.contextpropagation.ObservationThreadLocalAccessor
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.StatusCode
 import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.reactor.ReactorContext
 import mu.KotlinLogging
 import org.springframework.http.codec.ServerSentEvent
 import org.springframework.stereotype.Service
@@ -113,17 +111,17 @@ class MasaicStreamingService(
             }
 //            }
         }.catch { e ->
-                parentSpan.recordException(e)
-                parentSpan.setStatus(StatusCode.ERROR)
-                parentSpan.setAttribute(GenAIObsAttributes.ERROR_TYPE, "${e.javaClass}")
-                throw e
-            } .onCompletion {
-                lastFinalResponse?.let {
-                    telemetryService.stopOtelSpan(parentSpan, it, initialParams, metadata)
-                } ?: run {
-                    parentSpan.end()
-                }
+            parentSpan.recordException(e)
+            parentSpan.setStatus(StatusCode.ERROR)
+            parentSpan.setAttribute(GenAIObsAttributes.ERROR_TYPE, "${e.javaClass}")
+            throw e
+        }.onCompletion {
+            lastFinalResponse?.let {
+                telemetryService.stopOtelSpan(parentSpan, it, initialParams, metadata)
+            } ?: run {
+                parentSpan.end()
             }
+        }
 //        }
     }
 
