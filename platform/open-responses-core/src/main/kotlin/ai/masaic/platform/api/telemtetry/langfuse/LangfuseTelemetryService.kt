@@ -15,21 +15,6 @@ class LangfuseTelemetryService(
     openTelemetry: OpenTelemetry,
     meterRegistry: MeterRegistry,
 ) : PlatformTelemetryService(observationRegistry, openTelemetry, meterRegistry) {
-    //    override suspend fun startObservation(
-//        operationName: String,
-//        modelName: String,
-//        parentObservation: Observation?,
-//    ): Observation {
-// //        val observation = super.startObservation(operationName, modelName, parentObservation)
-//        val observation = Observation.createNotStarted("$operationName $modelName", observationRegistry)
-//        parentObservation?.let { observation.parentObservation(it) }
-//        observation.highCardinalityKeyValue(GenAIObsAttributes.SPAN_KIND, "client")
-//        observation.start()
-//        CurrentUserProvider.userId()?.let { observation.highCardinalityKeyValue("user.id", it) }
-//        CurrentUserProvider.sessionId()?.let { observation.highCardinalityKeyValue("session.id", it) }
-//        return observation
-//    }
-
     override suspend fun startOtelSpan(
         operationName: String,
         modelName: String,

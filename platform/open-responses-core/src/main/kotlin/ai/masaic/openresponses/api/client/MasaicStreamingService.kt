@@ -13,7 +13,6 @@ import com.openai.core.JsonValue
 import com.openai.models.chat.completions.ChatCompletionChunk
 import com.openai.models.chat.completions.ChatCompletionCreateParams
 import com.openai.models.responses.*
-import io.micrometer.observation.Observation
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.StatusCode
 import kotlinx.coroutines.channels.ProducerScope
@@ -56,7 +55,6 @@ class MasaicStreamingService(
         val parentSpan = telemetryService.startOtelSpan("AgC loop", "", null)
         var lastFinalResponse: Response? = null
         return flow {
-//            try {
             var currentParams = initialParams
             val responseId = UUID.randomUUID().toString()
             var shouldContinue = true
@@ -109,7 +107,6 @@ class MasaicStreamingService(
                     inProgressEventFired = true
                 }
             }
-//            }
         }.catch { e ->
             parentSpan.recordException(e)
             parentSpan.setStatus(StatusCode.ERROR)
@@ -122,7 +119,6 @@ class MasaicStreamingService(
                 parentSpan.end()
             }
         }
-//        }
     }
 
     /**
@@ -149,8 +145,6 @@ class MasaicStreamingService(
         val sseFlow =
             channelFlow {
                 // Link the 'chat' span to any existing HTTP span from Reactor context
-                val parentObs: Observation? = null
-//                    coroutineContext[ReactorContext]?.context?.get(ObservationThreadLocalAccessor.KEY)
                 val span = telemetryService.startOtelSpan("chat", metadata.modelName, parentSpan)
                 val createParams = parameterConverter.prepareCompletion(params)
                 telemetryService.emitModelInputEventsForOtelSpan(span, createParams, metadata)
@@ -375,11 +369,6 @@ class MasaicStreamingService(
                                     close() // Close to terminate this iteration of callbackFlow
                                 } else {
                                     // Recognized internal tools were requested, proceed to handle them.
-                                    val parentObservation = null
-//                                        coroutineContext[ReactorContext]?.context?.get<Observation>(
-//                                            ObservationThreadLocalAccessor.KEY,
-//                                        )
-
                                     val toolStreamingResult =
                                         toolHandler.handleMasaicToolCall(
                                             params = params, // The original ResponseCreateParams for this iteration

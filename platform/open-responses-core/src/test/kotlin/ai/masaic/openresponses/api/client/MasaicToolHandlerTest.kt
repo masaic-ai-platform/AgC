@@ -102,9 +102,6 @@ class MasaicToolHandlerTest {
         assertEquals(2, items.size)
         assert(items[0].isEasyInputMessage())
         assert(items[1].isResponseOutputMessage())
-
-        // Verify no tool execution observations were created
-//        verify(exactly = 0) { runBlocking { telemetryService.withClientObservation<Any>(any(), any(), any(), any()) } }
     }
 
     @Test
@@ -422,9 +419,6 @@ class MasaicToolHandlerTest {
         assert(items[1].isFunctionCall())
         assert(items[2].isFunctionCallOutput())
 
-        // Verify observation was created (without exact string match)
-//        verify { runBlocking { telemetryService.withClientObservation<Any>(any(), any<Observation>(), any()) } }
-
         // Verify attribute values
         assertEquals("execute_tool", capturedAttributes["gen_ai.operation.name"])
         assertEquals("myToolFunction", capturedAttributes["gen_ai.tool.name"])
@@ -497,9 +491,6 @@ class MasaicToolHandlerTest {
 
             val functionCallItem = items[1]
             assert(functionCallItem.isFunctionCall())
-
-            // Verify that no tool execution was observed
-//            verify(exactly = 0) { runBlocking { telemetryService.withClientObservation<Any>(any(), any(), any(), any()) } }
         }
 
     @Test
@@ -670,11 +661,6 @@ class MasaicToolHandlerTest {
 
         val functionOutputItem = items[2]
         assert(functionOutputItem.isFunctionCallOutput())
-
-        // Verify the observation was still created despite the null result
-//        verify { runBlocking { telemetryService.withClientObservation<Any>(any(), null, any()) } }
-
-        // Verify correct attribute was set
         assertEquals("nullResultTool", capturedAttributes["gen_ai.tool.name"])
     }
 

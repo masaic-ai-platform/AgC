@@ -17,7 +17,6 @@ import com.openai.models.chat.completions.ChatCompletionMessage
 import com.openai.models.chat.completions.ChatCompletionMessageParam
 import com.openai.models.chat.completions.ChatCompletionToolMessageParam
 import com.openai.models.responses.*
-import io.micrometer.observation.Observation
 import io.opentelemetry.api.trace.Span
 import mu.KotlinLogging
 import org.springframework.http.codec.ServerSentEvent
@@ -609,44 +608,6 @@ class MasaicToolHandler(
         logger.debug { "Adding ${parked.size} parked items to response" }
         responseInputItems.addAll(parked)
         return MasaicToolCallResult.Continue(responseInputItems.toList())
-    }
-
-    /**
-     * Executes a tool using the telemetry observation API and processes the result with the provided callback.
-     *
-     * @param toolName The name of the tool to execute
-     * @param arguments The arguments to pass to the tool
-     * @param toolId The ID of the tool call
-     * @param resultHandler A function that processes the tool execution result
-     */
-    private suspend fun executeToolWithObservation(
-        toolName: String,
-        toolDescription: String,
-        arguments: String,
-        toolId: String,
-        toolMetadata: Map<String, Any>,
-        params: ResponseCreateParams,
-        openAIClient: OpenAIClient,
-        eventEmitter: ((ServerSentEvent<String>) -> Unit),
-        context: ToolRequestContext,
-        parentObservation: Observation? = null,
-        resultHandler: suspend (String?) -> Unit,
-    ) {
-        telemetryService.withClientObservation("execute_tool", parentObservation) { observation ->
-            observation.lowCardinalityKeyValue(GenAIObsAttributes.OPERATION_NAME, "execute_tool")
-            observation.lowCardinalityKeyValue(GenAIObsAttributes.TOOL_NAME, toolName)
-            observation.highCardinalityKeyValue(GenAIObsAttributes.TOOL_DESCRIPTION, toolDescription)
-            observation.highCardinalityKeyValue(GenAIObsAttributes.TOOL_CALL_ID, toolId)
-            try {
-                val toolResult =
-                    toolService.executeTool(toolName, arguments, params, openAIClient, eventEmitter, toolMetadata, context)
-                resultHandler(toolResult)
-            } catch (e: Exception) {
-                observation.lowCardinalityKeyValue(GenAIObsAttributes.ERROR_TYPE, "${e.javaClass}")
-                logger.error(e) { "Error executing tool $toolName: ${e.message}" }
-                throw e
-            }
-        }
     }
 
     private suspend fun executeToolWithSpan(
