@@ -1,9 +1,11 @@
 package ai.masaic.openresponses.api.service
 
 import ai.masaic.openresponses.api.client.MasaicOpenAiResponseServiceImpl
+import ai.masaic.openresponses.api.client.MasaicParameterConverter
 import ai.masaic.openresponses.api.client.ResponseStore
 import ai.masaic.openresponses.api.model.InputMessageItem
 import ai.masaic.openresponses.api.model.InstrumentationMetadataInput
+import ai.masaic.openresponses.api.support.service.TelemetryService
 import ai.masaic.openresponses.api.utils.PayloadFormatter
 import ai.masaic.openresponses.tool.ToolService
 import com.fasterxml.jackson.databind.JsonNode
@@ -44,6 +46,8 @@ class MasaicResponseServiceTest {
     private lateinit var payloadFormatter: PayloadFormatter
     private lateinit var responseStore: ResponseStore
     private lateinit var objectMapper: ObjectMapper
+    private lateinit var parameterConverter: MasaicParameterConverter
+    private lateinit var telemetryService: TelemetryService
 
     @BeforeEach
     fun setup() {
@@ -57,7 +61,9 @@ class MasaicResponseServiceTest {
             }
         toolService = mockk()
         openAIResponseService = mockk()
-        masaicResponseService = MasaicResponseService(openAIResponseService, responseStore, payloadFormatter, objectMapper)
+        parameterConverter = mockk()
+        telemetryService = mockk()
+        masaicResponseService = MasaicResponseService(openAIResponseService, responseStore, payloadFormatter, objectMapper, telemetryService, parameterConverter)
     }
 
     @Test
