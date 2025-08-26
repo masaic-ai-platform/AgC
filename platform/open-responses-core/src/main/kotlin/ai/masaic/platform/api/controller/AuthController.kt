@@ -1,6 +1,6 @@
 package ai.masaic.platform.api.controller
 
-import ai.masaic.openresponses.api.user.UserInfo
+import ai.masaic.platform.api.user.UserInfo
 import ai.masaic.platform.api.user.auth.google.GoogleTokenVerifier
 import kotlinx.coroutines.reactor.awaitSingle
 import org.springframework.context.annotation.Profile

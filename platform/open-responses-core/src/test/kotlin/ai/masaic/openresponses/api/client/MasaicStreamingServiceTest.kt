@@ -17,15 +17,15 @@ import com.openai.core.http.AsyncStreamResponse
 import com.openai.models.ResponsesModel
 import com.openai.models.chat.completions.ChatCompletionChunk
 import com.openai.models.chat.completions.ChatCompletionCreateParams
-import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.ResponseInputItem
 import com.openai.models.responses.Tool
 import com.openai.services.async.ChatServiceAsync
 import com.openai.services.async.chat.ChatCompletionServiceAsync
-import io.micrometer.core.instrument.Timer.Sample
-import io.micrometer.observation.Observation
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.micrometer.observation.ObservationRegistry
 import io.mockk.*
+import io.opentelemetry.api.OpenTelemetry
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
@@ -47,11 +47,8 @@ class MasaicStreamingServiceTest {
     private lateinit var streamingService: MasaicStreamingService
     private lateinit var payloadFormatter: PayloadFormatter
     private lateinit var objectMapper: ObjectMapper
-    private lateinit var telemetryService: TelemetryService
+    private val telemetryService: TelemetryService = TelemetryService(ObservationRegistry.NOOP, OpenTelemetry.noop(), SimpleMeterRegistry())
     private val metadata = InstrumentationMetadataInput()
-    private val mockObservation = mockk<Observation>()
-    private val mockSample = mockk<Sample>()
-    private val mockResponse = mockk<Response>()
     private lateinit var responseStore: ResponseStore
 
     @BeforeEach
@@ -62,7 +59,6 @@ class MasaicStreamingServiceTest {
         openAIClient = mockk<OpenAIClient>()
         responseStore = mockk()
         objectMapper = ObjectMapper()
-        telemetryService = mockk()
         payloadFormatter =
             mockk {
                 every { formatResponseStreamEvent(any()) } answers {
@@ -82,13 +78,6 @@ class MasaicStreamingServiceTest {
                 objectMapper = objectMapper,
                 telemetryService = telemetryService,
             )
-
-        every { telemetryService.genAiDurationSample() } returns mockSample
-        coEvery { telemetryService.startObservation(any(), "UNKNOWN") } returns mockObservation
-        every { telemetryService.stopObservation(any(), any(), any(), any()) } just runs
-        every { telemetryService.stopGenAiDurationSample(any(), any(), any()) } just runs
-        every { telemetryService.emitModelOutputEvents(any(), mockResponse, any()) } just runs
-        every { runBlocking { telemetryService.emitModelInputEvents(any(), any(), any()) } } just runs
     }
 
     /**

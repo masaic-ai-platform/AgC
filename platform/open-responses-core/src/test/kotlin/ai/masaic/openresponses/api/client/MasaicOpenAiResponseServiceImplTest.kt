@@ -11,6 +11,7 @@ import com.openai.models.responses.*
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.micrometer.observation.ObservationRegistry
 import io.mockk.*
+import io.opentelemetry.api.OpenTelemetry
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
@@ -41,7 +42,7 @@ class MasaicOpenAiResponseServiceImplTest {
         val meterRegistry = SimpleMeterRegistry()
 
         // Create telemetry service with real registries
-        telemetryService = TelemetryService(observationRegistry, meterRegistry)
+        telemetryService = TelemetryService(observationRegistry, OpenTelemetry.noop(), meterRegistry)
 
         serviceImpl =
             MasaicOpenAiResponseServiceImpl(
@@ -87,11 +88,11 @@ class MasaicOpenAiResponseServiceImplTest {
             val params = mockk<ResponseCreateParams>(relaxed = true)
             val flowMock = mockk<Flow<ServerSentEvent<String>>>(relaxed = true)
 
-            every { streamingService.createCompletionStream(client, params, any()) } returns flowMock
+            every { runBlocking { streamingService.createCompletionStream(client, params, any()) } } returns flowMock
 
             val resultFlow = serviceImpl.createCompletionStream(client, params, InstrumentationMetadataInput())
             assertSame(flowMock, resultFlow)
-            verify { streamingService.createCompletionStream(client, params, any()) }
+            verify { runBlocking { streamingService.createCompletionStream(client, params, any()) } }
         }
 
     /**

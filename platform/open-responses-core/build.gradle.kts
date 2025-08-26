@@ -57,7 +57,6 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.8.0")
     implementation("com.knuddels:jtokkit:1.1.0")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("io.micrometer:micrometer-tracing-bridge-otel:1.4.4")
     api("io.opentelemetry.instrumentation:opentelemetry-spring-boot-starter")
     implementation("io.micrometer:micrometer-core")
     implementation("io.micrometer:micrometer-observation")
