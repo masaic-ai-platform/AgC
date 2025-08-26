@@ -57,7 +57,7 @@ class LangfuseTelemetryService(
         val events = extractMessageEvents(normalizedMessages, context)
 
         events.forEachIndexed { index, event ->
-            span.addEvent(event.name, Attributes.builder().put(event.name, mapper.writeValueAsString(event.payload)).build())
+//            span.addEvent(event.name, Attributes.builder().put(event.name, mapper.writeValueAsString(event.payload)).build())
 
             span.setAttribute("gen_ai.prompt.$index.role", event.role)
             when (val payload = event.payload) {
@@ -109,7 +109,7 @@ class LangfuseTelemetryService(
         val events = extractOutputEvents(normalizedOutputs, context)
 
         events.forEachIndexed { index, event ->
-            span.addEvent(event.name, Attributes.builder().put(event.name, mapper.writeValueAsString(event.payload)).build())
+//            span.addEvent(event.name, Attributes.builder().put(event.name, mapper.writeValueAsString(event.payload)).build())
 
             span.setAttribute("gen_ai.completion.$index.role", event.role)
             when (val payload = event.payload) {

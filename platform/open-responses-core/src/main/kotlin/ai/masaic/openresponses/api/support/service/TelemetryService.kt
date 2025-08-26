@@ -18,6 +18,7 @@ import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.SpanKind
+import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.api.trace.Tracer
 import io.opentelemetry.context.Context
 import io.opentelemetry.context.ContextKey
@@ -312,12 +313,13 @@ open class TelemetryService(
         modelName: String,
         parentSpan: Span ?= null,
     ): Span {
-        val span = tracer.spanBuilder("$operationName $modelName")
+        val builder = tracer
+            .spanBuilder("$operationName $modelName")
             .setSpanKind(SpanKind.CLIENT)
             .setAttribute(GenAIObsAttributes.SPAN_KIND, "client")
-            .apply { parentSpan?.let { setParent(parentSpan.storeInContext(Context.current())) } ?: setNoParent() }
-            .setNoParent()
-            .startSpan()
+
+        parentSpan?.let { builder.setParent(parentSpan.storeInContext(Context.current())) }?:builder.setNoParent()
+        val span = builder.startSpan()
         return span
     }
 
@@ -406,16 +408,23 @@ open class TelemetryService(
         parentSpan: Span?,
         block: suspend (Span) -> T,
     ): T {
-        val span = tracer.spanBuilder(obsName)
-            .setSpanKind(SpanKind.SERVER)
+        val builder = tracer
+            .spanBuilder(obsName)
+            .setSpanKind(SpanKind.CLIENT)
             .setAttribute(GenAIObsAttributes.SPAN_KIND, "client")
-            .apply { parentSpan?.let { setParent(parentSpan.storeInContext(Context.current())) } ?: setNoParent() }
-            .setNoParent()
-            .startSpan()
+
+        if (parentSpan != null) {
+            builder.setParent(parentSpan.storeInContext(Context.current()))
+        } else {
+            builder.setNoParent()
+        }
+
+        val span = builder.startSpan()
         return try {
             block(span)
         } catch (e: Exception) {
             span.recordException(e)
+            span.setStatus(StatusCode.ERROR)
             span.setAttribute(GenAIObsAttributes.ERROR_TYPE, "${e.javaClass}")
             throw e
         } finally {

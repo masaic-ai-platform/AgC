@@ -43,7 +43,7 @@ class ResponseController(
         log.debug("Request body: $requestBodyJson")
 
         // If streaming is requested, set the appropriate content type and return a flow
-        if (request.stream == true) {
+        if (request.stream) {
             return ResponseEntity
                 .ok()
                 .contentType(MediaType.TEXT_EVENT_STREAM)
