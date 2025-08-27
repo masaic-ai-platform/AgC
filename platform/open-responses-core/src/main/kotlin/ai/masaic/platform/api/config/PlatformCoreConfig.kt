@@ -22,22 +22,25 @@ import ai.masaic.platform.api.registry.functions.FunctionRegistryService
 import ai.masaic.platform.api.registry.functions.FunctionRegistryValidator
 import ai.masaic.platform.api.repository.*
 import ai.masaic.platform.api.service.*
+import ai.masaic.platform.api.telemtetry.PlatformTelemetryService
+import ai.masaic.platform.api.telemtetry.langfuse.LangfuseTelemetryService
 import ai.masaic.platform.api.tools.*
 import ai.masaic.platform.api.user.AuthConfig
 import ai.masaic.platform.api.user.AuthConfigProperties
 import ai.masaic.platform.api.utils.PlatformPayloadFormatter
 import ai.masaic.platform.api.validation.PlatformRequestValidator
 import com.fasterxml.jackson.databind.ObjectMapper
+import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.observation.ObservationRegistry
+import io.opentelemetry.api.OpenTelemetry
 import io.qdrant.client.QdrantClient
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.info.BuildProperties
-import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Lazy
-import org.springframework.context.annotation.Profile
+import org.springframework.context.annotation.*
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
 import java.time.Instant
 
@@ -129,9 +132,11 @@ class PlatformCoreConfig {
         modelSettings: ModelSettings,
         pyInterpreterSettings: PyInterpreterSettings,
         configProperties: AuthConfigProperties,
+        partners: Partners,
     ): PlatformInfo {
         val vectorStoreInfo =
             if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
+
         return PlatformInfo(
             version = "v${buildProperties.version}",
             buildTime = buildProperties.time,
@@ -147,6 +152,7 @@ class PlatformCoreConfig {
                 } else {
                     PyInterpreterSettings()
                 },
+            partners = partners,
         )
     }
 
@@ -172,6 +178,18 @@ class PlatformCoreConfig {
         modelSettings: ModelSettings,
         @Lazy modelService: ModelService,
     ) = SystemPromptGeneratorTool(modelSettings, modelService)
+
+    @Bean
+    @ConditionalOnMissingBean(TelemetryService::class)
+    fun platformTelemetryService(
+        observationRegistry: ObservationRegistry,
+        openTelemetry: OpenTelemetry,
+        meterRegistry: MeterRegistry,
+    ) = PlatformTelemetryService(observationRegistry, openTelemetry, meterRegistry)
+
+    @Bean
+    @ConditionalOnMissingBean(Partners::class)
+    fun noPartner() = emptyList<Partner>()
 
     @Configuration
     @Profile("platform")
@@ -318,6 +336,87 @@ class PlatformCoreConfig {
     }
 }
 
+object PartnerGroup {
+    val qdrant =
+        Partner(
+            code = "qdrant",
+            name = "Qdrant",
+            category = PartnerCategory.VECTOR_DB,
+            enabled = true,
+            deploymentLink = "https://cloud.qdrant.io",
+        )
+
+    val signoz =
+        Partner(
+            code = "signoz",
+            name = "Signoz",
+            category = PartnerCategory.OBSERVABILITY,
+            enabled = true,
+            deploymentLink = "https://signoz.io",
+        )
+
+    val langfuse =
+        Partner(
+            code = "langfuse",
+            name = "Langfuse",
+            category = PartnerCategory.EVALS,
+            enabled = true,
+            deploymentLink = "https://cloud.langfuse.com/",
+        )
+}
+
+@Profile("platform")
+@Configuration
+class PartnersConfiguration(
+    private val env: org.springframework.core.env.Environment,
+) {
+    @Bean
+    fun partners(
+        @Value(value = "\${otel.sdk.disabled}") otelSdkDisabled: Boolean = true,
+        @Value(value = "\${otel.exporter.otlp.endpoint}") otelEndpoint: String? = null,
+        @Value(value = "\${open-responses.store.vector.search.provider:file}") vectorSearchProviderType: String,
+    ): Partners {
+        val partners = mutableListOf<Partner>()
+
+        val forceLangfuse =
+            env.acceptsProfiles(
+                org.springframework.core.env.Profiles
+                    .of("langfuse"),
+            )
+        val forceSignoz =
+            env.acceptsProfiles(
+                org.springframework.core.env.Profiles
+                    .of("signoz"),
+            )
+
+        if (forceLangfuse || (!otelSdkDisabled && otelEndpoint?.contains("langfuse") == true)) {
+            partners += PartnerGroup.langfuse
+        }
+
+        if (forceSignoz || (!otelSdkDisabled && otelEndpoint?.contains("signoz") == true)) {
+            partners += PartnerGroup.signoz
+        }
+
+        val vectorStoreInfo =
+            if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
+
+        // Vector store
+        if (vectorStoreInfo.isEnabled) {
+            partners += PartnerGroup.qdrant
+        }
+
+        return Partners(details = partners)
+    }
+
+    @Bean
+    @Profile("langfuse")
+    fun langfuseTelemetryService(
+        observationRegistry: ObservationRegistry,
+        openTelemetry: OpenTelemetry,
+        meterRegistry: MeterRegistry,
+    ) = LangfuseTelemetryService(observationRegistry, openTelemetry, meterRegistry)
+}
+
 data class ModelSettings(
     val settingsType: SystemSettingsType,
     var apiKey: String,
@@ -394,8 +493,27 @@ data class PlatformInfo(
     val vectorStoreInfo: VectorStoreInfo,
     val authConfig: AuthConfig,
     val pyInterpreterSettings: PyInterpreterSettings,
+    val partners: Partners,
 )
 
 data class VectorStoreInfo(
     val isEnabled: Boolean,
 )
+
+data class Partners(
+    val details: List<Partner>,
+)
+
+data class Partner(
+    val code: String,
+    val name: String,
+    val category: PartnerCategory,
+    val enabled: Boolean,
+    val deploymentLink: String,
+)
+
+enum class PartnerCategory {
+    VECTOR_DB,
+    EVALS,
+    OBSERVABILITY,
+}

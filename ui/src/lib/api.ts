@@ -58,28 +58,49 @@ class ApiClient {
     }
   }
 
-              private async getHeaders(): Promise<HeadersInit> {
-                const headers: HeadersInit = {
-                  'Content-Type': 'application/json',
-                };
+  private async getHeaders(): Promise<HeadersInit> {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
 
-                // Add model API key (existing behavior)
-                const modelApiKey = this.getModelApiKey();
-                if (modelApiKey) {
-                  headers['Authorization'] = `Bearer ${modelApiKey}`;
-                }
+    // Add session ID header (always present)
+    const sessionId = localStorage.getItem('platform_sessionId');
+    if (sessionId) {
+      headers['x-session-id'] = sessionId;
+      console.log('Adding x-session-id header:', sessionId);
+    } else {
+      console.warn('No sessionId found in localStorage');
+    }
 
-                // Add Google token if auth is enabled
-                const authEnabled = await this.isAuthEnabled();
-                if (authEnabled) {
-                  const googleToken = this.getGoogleToken();
-                  if (googleToken) {
-                    headers['X-Google-Token'] = googleToken;
-                  }
-                }
+    // Add user ID header only when auth is disabled
+    const authEnabled = await this.isAuthEnabled();
+    if (!authEnabled) {
+      const userId = localStorage.getItem('platform_userId');
+      if (userId) {
+        headers['x-user-id'] = userId;
+        console.log('Adding x-user-id header (auth disabled):', userId);
+      } else {
+        console.warn('No userId found in localStorage (auth disabled)');
+      }
+    } else {
+      console.log('Auth enabled, not sending x-user-id header');
+    }
 
-                return headers;
-              }
+    // Add API key if available
+    const apiKey = this.getModelApiKey();
+    if (apiKey) {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+    }
+
+    // Add Google token if available
+    const googleToken = this.getGoogleToken();
+    if (googleToken) {
+      headers['x-google-token'] = googleToken;
+    }
+
+    console.log('Final headers:', headers);
+    return headers;
+  }
 
   private handleAuthError() {
     // Clear invalid token

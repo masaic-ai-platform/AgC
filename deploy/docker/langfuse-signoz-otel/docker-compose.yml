@@ -1,0 +1,31 @@
+version: "3.9"
+
+services:
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: otel-collector
+    command: ["--config=/etc/otel/otel-collector.yaml"]
+    environment:
+      # --- Langfuse (HTTP/OTLP) ---
+      LANGFUSE_HTTP_OTLP_ENDPOINT: ${LANGFUSE_HTTP_OTLP_ENDPOINT:-https://cloud.langfuse.com/api/public/otel}
+      LANGFUSE_OTLP_AUTH: ${LANGFUSE_OTLP_AUTH}
+
+      # --- SigNoz (OTLP gRPC or HTTP root; SigNoz accepts both) ---
+      SIGNOZ_OTLP_ENDPOINT: ${SIGNOZ_OTLP_ENDPOINT:-https://ingest.in.signoz.cloud:443}
+      SIGNOZ_INGESTION_KEY: ${SIGNOZ_INGESTION_KEY}
+
+    volumes:
+      - ./otel-collector.yaml:/etc/otel/otel-collector.yaml:ro
+
+    ports:
+      - "4317:4317"   # OTLP gRPC (apps can send here)
+      - "4318:4318"   # OTLP HTTP (apps can send here)
+      - "13133:13133" # health check
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:13133/"]
+      interval: 15s
+      timeout: 5s
+      retries: 5

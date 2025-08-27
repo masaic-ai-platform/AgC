@@ -17,7 +17,7 @@ import com.openai.models.chat.completions.ChatCompletionMessage
 import com.openai.models.chat.completions.ChatCompletionMessageParam
 import com.openai.models.chat.completions.ChatCompletionToolMessageParam
 import com.openai.models.responses.*
-import io.micrometer.observation.Observation
+import io.opentelemetry.api.trace.Span
 import mu.KotlinLogging
 import org.springframework.http.codec.ServerSentEvent
 import org.springframework.stereotype.Component
@@ -352,7 +352,7 @@ class MasaicToolHandler(
     suspend fun handleMasaicToolCall(
         chatCompletion: ChatCompletion,
         params: ResponseCreateParams,
-        parentObservation: Observation? = null,
+        parentSpan: Span? = null,
         openAIClient: OpenAIClient,
     ): MasaicToolCallResult {
         logger.debug { "Processing tool calls from ChatCompletion: ${chatCompletion.id()}" }
@@ -520,7 +520,7 @@ class MasaicToolHandler(
                             }
                         } else {
                             // Regular native tool execution
-                            executeToolWithObservation(
+                            executeToolWithSpan(
                                 function.name(),
                                 toolService.getAvailableTool(function.name())?.description ?: "not_available",
                                 function.arguments(),
@@ -530,7 +530,7 @@ class MasaicToolHandler(
                                 openAIClient,
                                 {}, // No event emitter for non-streaming context here
                                 context,
-                                parentObservation,
+                                parentSpan,
                             ) { toolResult ->
                                 val regularToolResult: String? = toolResult
 
@@ -610,15 +610,7 @@ class MasaicToolHandler(
         return MasaicToolCallResult.Continue(responseInputItems.toList())
     }
 
-    /**
-     * Executes a tool using the telemetry observation API and processes the result with the provided callback.
-     *
-     * @param toolName The name of the tool to execute
-     * @param arguments The arguments to pass to the tool
-     * @param toolId The ID of the tool call
-     * @param resultHandler A function that processes the tool execution result
-     */
-    private suspend fun executeToolWithObservation(
+    private suspend fun executeToolWithSpan(
         toolName: String,
         toolDescription: String,
         arguments: String,
@@ -628,20 +620,20 @@ class MasaicToolHandler(
         openAIClient: OpenAIClient,
         eventEmitter: ((ServerSentEvent<String>) -> Unit),
         context: ToolRequestContext,
-        parentObservation: Observation? = null,
+        parentSpan: Span? = null,
         resultHandler: suspend (String?) -> Unit,
     ) {
-        telemetryService.withClientObservation("execute_tool", parentObservation) { observation ->
-            observation.lowCardinalityKeyValue(GenAIObsAttributes.OPERATION_NAME, "execute_tool")
-            observation.lowCardinalityKeyValue(GenAIObsAttributes.TOOL_NAME, toolName)
-            observation.highCardinalityKeyValue(GenAIObsAttributes.TOOL_DESCRIPTION, toolDescription)
-            observation.highCardinalityKeyValue(GenAIObsAttributes.TOOL_CALL_ID, toolId)
+        telemetryService.withClientSpan("execute_tool", parentSpan) { span ->
+            span.setAttribute(GenAIObsAttributes.OPERATION_NAME, "execute_tool")
+            span.setAttribute(GenAIObsAttributes.TOOL_NAME, toolName)
+            span.setAttribute(GenAIObsAttributes.TOOL_DESCRIPTION, toolDescription)
+            span.setAttribute(GenAIObsAttributes.TOOL_CALL_ID, toolId)
             try {
                 val toolResult =
                     toolService.executeTool(toolName, arguments, params, openAIClient, eventEmitter, toolMetadata, context)
                 resultHandler(toolResult)
             } catch (e: Exception) {
-                observation.lowCardinalityKeyValue(GenAIObsAttributes.ERROR_TYPE, "${e.javaClass}")
+                span.setAttribute(GenAIObsAttributes.ERROR_TYPE, "${e.javaClass}")
                 logger.error(e) { "Error executing tool $toolName: ${e.message}" }
                 throw e
             }
@@ -660,7 +652,7 @@ class MasaicToolHandler(
         params: ResponseCreateParams,
         response: Response,
         eventEmitter: ((ServerSentEvent<String>) -> Unit),
-        parentObservation: Observation? = null,
+        parentSpan: Span? = null,
         openAIClient: OpenAIClient,
     ): MasaicToolCallStreamingResult {
         logger.debug { "Processing tool calls from Response ID: ${response.id()}" }
@@ -781,7 +773,7 @@ class MasaicToolHandler(
 
                     logger.info { "Executing terminal tool (streaming): ${function.name()} with ID: ${function.id()}" }
                     var imageToolOutputString: Map<String, String>? = null
-                    executeToolWithObservation(
+                    executeToolWithSpan(
                         function.name(),
                         toolMeta?.description ?: "not_available",
                         function.arguments(),
@@ -791,7 +783,7 @@ class MasaicToolHandler(
                         openAIClient,
                         eventEmitter, // Pass through the eventEmitter
                         context,
-                        parentObservation,
+                        parentSpan,
                     ) { toolResult ->
                         // This is the callback
                         val typeReference = object : TypeReference<Map<String, String>>() {}
@@ -904,7 +896,7 @@ class MasaicToolHandler(
                         )
                     }
                 } else { // Regular native tool
-                    executeToolWithObservation(
+                    executeToolWithSpan(
                         function.name(),
                         toolMeta?.description ?: "not_available",
                         function.arguments(),
@@ -914,7 +906,7 @@ class MasaicToolHandler(
                         openAIClient,
                         eventEmitter,
                         context,
-                        parentObservation,
+                        parentSpan,
                     ) { toolResult ->
                         if (toolResult != null) {
                             logger.debug { "Tool execution successful for ${function.name()}" }

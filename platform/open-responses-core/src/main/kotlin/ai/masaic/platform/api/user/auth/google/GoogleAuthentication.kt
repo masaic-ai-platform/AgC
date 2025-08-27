@@ -1,6 +1,6 @@
 package ai.masaic.platform.api.user.auth.google
 
-import ai.masaic.openresponses.api.user.UserInfo
+import ai.masaic.platform.api.user.UserInfo
 import org.springframework.security.authentication.AbstractAuthenticationToken
 
 /**

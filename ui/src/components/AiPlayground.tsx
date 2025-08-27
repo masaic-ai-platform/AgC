@@ -165,6 +165,16 @@ const AiPlayground: React.FC = () => {
 
   // Restore agent state on page load
   useEffect(() => {
+    // Generate sessionId if it doesn't exist
+    let sessionId = localStorage.getItem('platform_sessionId');
+    if (!sessionId) {
+      // Generate new random sessionId: 12 alphanumeric chars
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+      sessionId = Array.from({length: 12}, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+      localStorage.setItem('platform_sessionId', sessionId);
+      console.log('Generated new sessionId:', sessionId);
+    }
+
     if (agentMode && agentData) {
       // Restore configuration from persisted agent data
       setInstructions(agentData.systemPrompt || '');
@@ -199,6 +209,15 @@ const AiPlayground: React.FC = () => {
 
   const { platformInfo } = usePlatformInfo();
   const modelSettings = platformInfo?.modelSettings;
+
+  // Helper function to generate new sessionId
+  const generateNewSessionId = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    const newSessionId = Array.from({length: 12}, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+    localStorage.setItem('platform_sessionId', newSessionId);
+    console.log('Generated new sessionId:', newSessionId);
+    return newSessionId;
+  };
 
   useEffect(() => {
     // Load saved settings from localStorage
@@ -315,6 +334,10 @@ const AiPlayground: React.FC = () => {
     setMessages([]);
     setConversationId(null);
     setPreviousResponseId(null);
+    
+    // Generate new sessionId for new conversation
+    generateNewSessionId();
+    
     toast.success('Conversation reset');
   };
 
@@ -1767,6 +1790,9 @@ const AiPlayground: React.FC = () => {
       setMessages([]);
       setConversationId(null);
       setPreviousResponseId(null);
+      
+      // Generate new sessionId for new agent conversation
+      generateNewSessionId();
 
       // Switch to responses tab
       setActiveTab('responses');
@@ -1805,6 +1831,9 @@ const AiPlayground: React.FC = () => {
     setMessages([]);
     setConversationId(null);
     setPreviousResponseId(null);
+    
+    // Generate new sessionId for new agent creation
+    generateNewSessionId();
 
     // Clear agent data from localStorage if in agent mode
     try {
@@ -1836,6 +1865,9 @@ const AiPlayground: React.FC = () => {
 
         // Reset previous conversation and show greeting
         setMessages([]);
+        
+        // Generate new sessionId for new Agent Builder conversation
+        generateNewSessionId();
 
         const greetingId = Date.now().toString() + '_assistant';
         const greetingMessage: Message = {
@@ -1878,6 +1910,7 @@ const AiPlayground: React.FC = () => {
         setMessages([]);
         setConversationId(null);
         setPreviousResponseId(null);
+        generateNewSessionId(); // Generate new sessionId for new conversation
       }
     };
 
@@ -1894,6 +1927,7 @@ const AiPlayground: React.FC = () => {
         setMessages([]);
         setConversationId(null);
         setPreviousResponseId(null);
+        generateNewSessionId(); // Generate new sessionId for new conversation
       }
     };
 
@@ -1904,13 +1938,14 @@ const AiPlayground: React.FC = () => {
         setMessages([]);
         setConversationId(null);
         setPreviousResponseId(null);
+        generateNewSessionId(); // Generate new sessionId for new conversation
         
         // Clear from localStorage
         try {
           localStorage.removeItem('platform_agentMode');
           localStorage.removeItem('platform_agentData');
         } catch (error) {
-          console.error('Failed to clear agent data from localStorage:', error);
+          console.error('Failed to clear agent data from localStorage', error);
         }
       }
     };
@@ -1922,6 +1957,7 @@ const AiPlayground: React.FC = () => {
         setMessages([]);
         setConversationId(null);
         setPreviousResponseId(null);
+        generateNewSessionId(); // Generate new sessionId for new conversation
       }
     };
 
@@ -1954,6 +1990,9 @@ const AiPlayground: React.FC = () => {
 
             // Reset previous conversation and show greeting
             setMessages([]);
+            
+            // Generate new sessionId for new Masaic Mocky conversation
+            generateNewSessionId();
 
             const greetingId = Date.now().toString() + '_assistant';
             const greetingMessage: Message = {
@@ -2089,6 +2128,9 @@ const AiPlayground: React.FC = () => {
 
             // Reset previous conversation
             setMessages([]);
+            
+            // Generate new sessionId for new Model Test conversation
+            generateNewSessionId();
           } else {
             toast.error('Failed to load Model Test Agent data');
           }
@@ -2163,6 +2205,9 @@ const AiPlayground: React.FC = () => {
     setMessages([]);
     setConversationId(null);
     setPreviousResponseId(null);
+    
+    // Generate new sessionId for new model test conversation
+    generateNewSessionId();
 
     // Display greeting message from agent
     const greetingId = Date.now().toString() + '_assistant';
@@ -2453,7 +2498,6 @@ const AiPlayground: React.FC = () => {
                   if (data.type === 'response.completed') {
                     if (data.response?.id) {
                       responseId = data.response.id;
-                      setPreviousResponseId(responseId);
                     }
                     responseCompleted = true;
                     

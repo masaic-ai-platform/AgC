@@ -23,6 +23,7 @@ import io.mockk.junit5.MockKExtension
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
+import io.opentelemetry.api.OpenTelemetry
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterEach
@@ -60,7 +61,7 @@ class MasaicOpenAiCompletionServiceImplTest {
         // Spy real telemetry service, stub its withClientObservation
         val observationRegistry = ObservationRegistry.create()
         val meterRegistry = SimpleMeterRegistry()
-        telemetryService = spyk(TelemetryService(observationRegistry, meterRegistry))
+        telemetryService = spyk(TelemetryService(observationRegistry, OpenTelemetry.noop(), meterRegistry))
         every {
             runBlocking { telemetryService.withClientObservation<ChatCompletion>(any(), any(), any(), any()) }
         } answers {
