@@ -1,5 +1,9 @@
 version: '3.8'
 
+# Image versions - can be overridden via environment variables
+x-image-open-responses: &image-open-responses masaicai/open-responses:${OPEN_RESPONSES_VERSION:-0.5.1}
+x-image-platform-ui: &image-platform-ui masaicai/platform-ui:${PLATFORM_UI_VERSION:-0.5.1}
+
 services:
   # MongoDB service (only when using internal MongoDB)
   mongo:
@@ -12,6 +16,7 @@ services:
     profiles:
       - mongo
       - full
+      - full-langfuse
     networks:
       - platform
 
@@ -29,12 +34,13 @@ services:
     profiles:
       - qdrant
       - full
+      - full-langfuse
     networks:
       - platform
 
   # Open Responses service (default mode - no external databases)
   open-responses:
-    image: masaicai/open-responses:latest
+    image: *image-open-responses
     ports:
       - "6644:6644"
     environment:
@@ -48,7 +54,7 @@ services:
 
   # Open Responses service (with vector search enabled)
   open-responses-vector:
-    image: masaicai/open-responses:latest
+    image: *image-open-responses
     ports:
       - "6644:6644"
     environment:
@@ -68,7 +74,7 @@ services:
 
   # Open Responses service (with MongoDB enabled)
   open-responses-mongo:
-    image: masaicai/open-responses:latest
+    image: *image-open-responses
     ports:
       - "6644:6644"
     environment:
@@ -86,7 +92,7 @@ services:
 
   # Open Responses service (with both vector search and MongoDB)
   open-responses-full:
-    image: masaicai/open-responses:latest
+    image: *image-open-responses
     ports:
       - "6644:6644"
     environment:
@@ -112,7 +118,7 @@ services:
 
   # Open Responses service (external databases - no dependencies)
   open-responses-external:
-    image: masaicai/open-responses:latest
+    image: *image-open-responses
     ports:
       - "6644:6644"
     environment:
@@ -133,9 +139,59 @@ services:
     networks:
       - platform
 
+  # Open Responses service (basic + langfuse)
+  open-responses-basic-langfuse:
+    image: *image-open-responses
+    ports:
+      - "6644:6644"
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-platform,langfuse}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://host.docker.internal:3000/api/public/otel}
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS}
+      - OTEL_INSTRUMENTATION_SPRING-WEBFLUX_ENABLED=false
+      - OTEL_LOGS_EXPORTER=none
+      - OTEL_METRICS_EXPORTER=none
+      - OTEL_SDK_DISABLED=false
+    restart: unless-stopped
+    profiles:
+      - basic-langfuse
+    networks:
+      - platform
+
+  # Open Responses service (full + langfuse)
+  open-responses-full-langfuse:
+    image: *image-open-responses
+    ports:
+      - "6644:6644"
+    environment:
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-platform,langfuse}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://host.docker.internal:3000/api/public/otel}
+      - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS}
+      - OTEL_INSTRUMENTATION_SPRING-WEBFLUX_ENABLED=false
+      - OTEL_LOGS_EXPORTER=none
+      - OTEL_METRICS_EXPORTER=none
+      - OTEL_SDK_DISABLED=false
+      - OPEN_RESPONSES_STORE_VECTOR_REPOSITORY_TYPE=mongodb
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_PROVIDER=qdrant
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_HOST=qdrant
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_API_KEY=${OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_API_KEY:-}
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_USE_TLS=${OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_USE_TLS:-false}
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_COLLECTION_NAME=${OPEN_RESPONSES_STORE_VECTOR_SEARCH_COLLECTION_NAME:-open_responses}
+      - OPEN_RESPONSES_STORE_TYPE=mongodb
+      - OPEN_RESPONSES_MONGODB_URI=mongodb://mongo:27017
+      - OPEN_RESPONSES_MONGODB_DATABASE=${OPEN_RESPONSES_MONGODB_DATABASE:-open_responses}
+    depends_on:
+      - mongo
+      - qdrant
+    restart: unless-stopped
+    profiles:
+      - full-langfuse
+    networks:
+      - platform
+
   # Platform UI service (for all modes)
   platform-ui:
-    image: masaicai/platform-ui:latest
+    image: *image-platform-ui
     ports:
       - "6645:80"
     environment:
@@ -147,6 +203,8 @@ services:
       - mongo
       - full
       - external
+      - basic-langfuse
+      - full-langfuse
       - ""
     networks:
       - platform
@@ -156,4 +214,4 @@ volumes:
   qdrant_data:
 
 networks:
-  platform: 
+  platform:
