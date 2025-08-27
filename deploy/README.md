@@ -17,7 +17,9 @@
 | 3. MongoDB | `mongo` | open-responses-mongo, mongo, platform-ui | chat messages persistence with MongoDB          |
 | 4. Full | `full` | open-responses-full, mongo, qdrant, platform-ui | Full stack (vector + chat messages persistence) |
 | 5. External | `external` | open-responses-external, platform-ui | Use external Qdrant/MongoDB                     |
-| 6. Hybrid | `mongo,external` or `qdrant,external` | Mix of internal/external DBs | Custom hybrid setup                             |
+| 6. Basic + Langfuse | `basic-langfuse` | open-responses-basic-langfuse, platform-ui | Basic with LLM observability via Langfuse       |
+| 7. Full + Langfuse | `full-langfuse` | open-responses-full-langfuse, mongo, qdrant, platform-ui | Full stack with LLM observability via Langfuse  |
+| 8. Hybrid | `mongo,external` or `qdrant,external` | Mix of internal/external DBs | Custom hybrid setup                             |
 
 ---
 
@@ -53,7 +55,17 @@ docker-compose --profile full up
 docker-compose --profile external up
 ```
 
-### 6. Hybrid (Mix Internal/External)
+### 6. Basic + Langfuse (LLM Observability)
+```sh
+docker-compose --profile basic-langfuse up
+```
+
+### 7. Full + Langfuse (Full Stack + LLM Observability)
+```sh
+docker-compose --profile full-langfuse up
+```
+
+### 8. Hybrid (Mix Internal/External)
 - **External Qdrant, Internal MongoDB:**
   ```sh
   docker-compose --profile mongo --profile external up
@@ -70,6 +82,46 @@ docker-compose down
 docker-compose --profile full down
 # ...etc.
 ```
+
+---
+
+## Langfuse Integration Setup
+
+The `basic-langfuse` and `full-langfuse` profiles provide LLM observability via [Langfuse](https://github.com/langfuse/langfuse?tab=readme-ov-file#self-host-langfuse). 
+
+### Prerequisites
+
+## 1. **Copy environment file:**
+   ```sh
+   cp env.example .env
+   ```
+
+## 2. **Configure Langfuse connection** based on your setup:
+
+### Option A: Self-hosted Langfuse (Docker Container, Same Host)
+
+If you're running Langfuse locally in a Docker container on the same host:
+
+1. Set up your Langfuse credentials in `.env`:
+   ```bash
+   OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64_encoded_credentials>
+   ```
+
+2. **To create base64 encoded credentials:**
+   ```bash
+   # Replace with your actual Langfuse public and secret keys
+   echo -n "pk-lf-your_public_key:sk-lf-your_secret_key" | base64
+   ```
+
+### Option B: Self-hosted Langfuse (External Host)
+
+If you're running Langfuse on a different host or langfuse cloud:
+
+Configure both endpoint and headers in `.env`:
+   ```bash
+   OTEL_EXPORTER_OTLP_ENDPOINT={langfuse_host}/api/public/otel
+   OTEL_EXPORTER_OTLP_HEADERS=Authorization=Basic <base64_encoded_credentials>
+   ```
 ----
 
 # Use Cases
@@ -139,18 +191,40 @@ Once a mock is generated, create an MCP server and then use the MCP server to cr
 
 > **Note:** You only need to configure these variables if you want to connect to existing (external) services like Qdrant or MongoDB, or override the defaults.
 
-All variables are set in `.env.example` (copy to `.env` and edit as needed):
+All variables are set in `env.example` (copy to `.env` and edit as needed):
+
+### General Configuration
 
 | Variable | Description |
 |----------|-------------|
 | `VITE_DASHBOARD_API_URL` | Dashboard API URL for the UI (default: http://localhost:6644) |
 | `SPRING_PROFILES_ACTIVE` | Spring profile for open-responses (default: platform) |
+| `OPEN_RESPONSES_VERSION` | AgC open-responses image version (default: 0.5.1) |
+| `PLATFORM_UI_VERSION` | AgC platform-ui image version (default: 0.5.1) |
+| `MONGO_VERSION` | MongoDB image version (default: latest) |
+
+### Vector Search (Qdrant)
+
+| Variable | Description |
+|----------|-------------|
 | `OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_HOST` | Qdrant host (service name or external host) |
 | `OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_API_KEY` | Qdrant API key (if using managed Qdrant) |
 | `OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_USE_TLS` | Use TLS for Qdrant (true/false, default: false) |
 | `OPEN_RESPONSES_STORE_VECTOR_SEARCH_COLLECTION_NAME` | Qdrant collection name (default: open_responses) |
+
+### MongoDB Persistence
+
+| Variable | Description |
+|----------|-------------|
 | `OPEN_RESPONSES_MONGODB_URI` | MongoDB URI (service name or external URI) |
 | `OPEN_RESPONSES_MONGODB_DATABASE` | MongoDB database name (default: open_responses) |
+
+### Langfuse Integration (for `*-langfuse` profiles)
+
+| Variable | Description |
+|----------|-------------|
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | Langfuse OpenTelemetry endpoint (see Langfuse setup section) |
+| `OTEL_EXPORTER_OTLP_HEADERS` | Authentication headers for Langfuse (base64 encoded credentials) |
 
 ---
 
