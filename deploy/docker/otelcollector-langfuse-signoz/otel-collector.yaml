@@ -1,0 +1,55 @@
+receivers:
+  otlp:
+    protocols:
+      http: { endpoint: 0.0.0.0:4318 }
+      grpc: { endpoint: 0.0.0.0:4317 }
+
+exporters:
+  # Langfuse (OTLP/HTTP)
+  otlphttp/langfuse:
+    traces_endpoint: https://cloud.langfuse.com:443/api/public/otel/v1/traces
+    headers:
+      Authorization: ${LANGFUSE_OTLP_AUTH}
+    compression: gzip
+    tls: { insecure: false }
+    timeout: 10s
+
+  # SigNoz (OTLP/HTTP)
+  otlphttp/signoz:
+    endpoint: https://ingest.eu.signoz.cloud:443
+    headers:
+      signoz-ingestion-key: ${SIGNOZ_INGESTION_KEY}
+    compression: gzip
+    tls: { insecure: false }
+    timeout: 10s
+
+  # Debug exporter to SEE what Langfuse pipeline keeps
+  debug/langfuse:
+    sampling_initial: 1
+    sampling_thereafter: 1
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+
+  pipelines:
+    # Langfuse gets only traces kept by tail_sampling/langfuse
+    traces/langfuse:
+      receivers: [otlp]
+      exporters: [debug/langfuse, otlphttp/langfuse]
+
+    # SigNoz gets everything
+    traces/signoz:
+      receivers: [otlp]
+      exporters: [otlphttp/signoz]
+
+    metrics/signoz:
+      receivers: [otlp]
+      exporters: [otlphttp/signoz]
+
+    logs/signoz:
+      receivers: [otlp]
+      exporters: [otlphttp/signoz]
