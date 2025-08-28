@@ -24,7 +24,7 @@ export default function MasaicBrand() {
       <div className="flex flex-col">
         <div className="flex items-center gap-2">
           <h1
-            className="text-xl font-bold text-white"
+            className="text-xl font-bold text-foreground"
             style={{
               fontFamily: '"Geist Sans", Inter, sans-serif',
             }}
@@ -55,16 +55,16 @@ export default function MasaicBrand() {
 
             {/* Badge Tooltip */}
             {isBadgeHovered && (
-              <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 whitespace-nowrap animate-fade-in">
+              <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-popover border border-border rounded-lg shadow-xl z-50 whitespace-nowrap animate-fade-in">
                 <div
-                  className="text-xs text-gray-300 font-medium"
+                  className="text-xs text-popover-foreground font-medium"
                   style={{
                     fontFamily: '"Geist Sans", Inter, sans-serif',
                   }}
                 >
                   Agentic Compute v1
                 </div>
-                <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-gray-800 border-l border-t border-gray-700 rotate-45"></div>
+                <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-popover border-l border-t border-border rotate-45"></div>
               </div>
             )}
           </div>
@@ -77,7 +77,7 @@ export default function MasaicBrand() {
               fontFamily: '"Geist Sans", Inter, sans-serif',
             }}
           >
-            <span className="text-gray-300">The</span>{" "}
+            <span className="text-muted-foreground">The</span>{" "}
             <span
               className="relative cursor-help"
               onMouseEnter={() => setIsHovered(true)}
@@ -106,20 +106,20 @@ export default function MasaicBrand() {
               </span>
               {/* Hover Tooltip */}
               {isHovered && (
-                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg shadow-xl z-50 whitespace-nowrap animate-fade-in">
+                <div className="absolute top-full left-1/2 transform -translate-x-1/2 mt-2 px-3 py-2 bg-popover border border-border rounded-lg shadow-xl z-50 whitespace-nowrap animate-fade-in">
                   <div
-                    className="text-xs text-gray-200 font-medium"
+                    className="text-xs text-popover-foreground font-medium"
                     style={{
                       fontFamily: '"Geist Sans", Inter, sans-serif',
                     }}
                   >
                     A new compute paradigm for AI agents
                   </div>
-                  <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-gray-800 border-l border-t border-gray-700 rotate-45"></div>
+                  <div className="absolute -top-1 left-1/2 transform -translate-x-1/2 w-2 h-2 bg-popover border-l border-t border-border rotate-45"></div>
                 </div>
               )}
             </span>{" "}
-            <span className="text-gray-300 italic font-light">platform</span>
+            <span className="text-muted-foreground italic font-light">platform</span>
           </p>
         </div>
       </div>

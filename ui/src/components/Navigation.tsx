@@ -1,6 +1,7 @@
 import React from 'react';
 import VersionBadge from './VersionBadge';
 import MasaicBrand from './MasaicBrand';
+import ThemeToggle from './ui/theme-toggle';
 
 const Navigation: React.FC = () => {
 
@@ -13,9 +14,10 @@ const Navigation: React.FC = () => {
             <MasaicBrand />
           </div>
           
-          {/* Version Badge in top-right corner */}
+          {/* Version Badge and Theme Toggle in top-right corner */}
           <div className="flex items-center space-x-4">
             <VersionBadge />
+            <ThemeToggle />
           </div>
         </div>
       </div>

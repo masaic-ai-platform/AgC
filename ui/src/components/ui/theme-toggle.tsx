@@ -6,11 +6,11 @@ const ThemeToggle: React.FC = () => {
   const [theme, setTheme] = useState<'light' | 'dark'>('light');
 
   useEffect(() => {
-    // Check for saved theme preference or default to light mode
+    // Check for saved theme preference, default to light mode
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    
-    const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
+
+    // Always default to light mode, only use saved preference as fallback
+    const initialTheme = savedTheme || 'light';
     setTheme(initialTheme);
     applyTheme(initialTheme);
   }, []);
