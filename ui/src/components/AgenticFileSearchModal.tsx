@@ -135,8 +135,8 @@ const AgenticFileSearchModal: React.FC<AgenticFileSearchModalProps> = ({
 
     try {
       const providers: Provider[] = await apiClient.jsonRequest<Provider[]>('/v1/dashboard/models');
-      const allEmbeddingModels = providers.flatMap(provider => 
-        provider.supportedModels
+      const allEmbeddingModels = providers.flatMap(provider =>
+        (provider.supportedModels || [])
           .filter(model => model.isEmbeddingModel === true) // Only embedding models
           .map(model => ({
             ...model,
