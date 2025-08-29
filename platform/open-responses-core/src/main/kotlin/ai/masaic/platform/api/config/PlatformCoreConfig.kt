@@ -191,6 +191,16 @@ class PlatformCoreConfig {
     @ConditionalOnMissingBean(Partners::class)
     fun noPartner() = emptyList<Partner>()
 
+    @Bean
+    @ConditionalOnProperty(name = ["platform.deployment.agent.bootstrap.enabled"], havingValue = "true", matchIfMissing = true)
+    fun agentB(
+        agentService: AgentService,
+        platformMcpService: PlatformMcpService,
+        mockFunctionRepository: MockFunctionRepository,
+        mocksRepository: MocksRepository,
+        functionRegistryService: FunctionRegistryService,
+    ) = AgentBootstrapService(agentService, platformMcpService, mockFunctionRepository, mocksRepository, functionRegistryService)
+
     @Configuration
     @Profile("platform")
     @EnableConfigurationProperties(CodeInterpreterServerProperties::class)

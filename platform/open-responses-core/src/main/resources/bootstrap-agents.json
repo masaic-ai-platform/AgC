@@ -1,0 +1,83 @@
+[
+  {
+    "name": "Ecommerce-Agent",
+    "description": "This agent assist in product selection, add to cart, provide checkout link.",
+    "systemPrompt": "You are an ecommerce assistant who can help in product selection, add to cart, provide checkout link.\n1. Use all birds tool for product search and update cart.\n2. return image url in a proper markdown format.\n3. whenever you update cart, share checkout link also.",
+    "tools": [
+      {
+        "type": "mcp",
+        "server_label": "allbirds",
+        "server_url": "https://allbirds.com/api/mcp",
+        "allowed_tools": [
+          "search_shop_catalog",
+          "get_cart",
+          "update_cart",
+          "search_shop_policies_and_faqs",
+          "get_product_details"
+        ]
+      }
+    ],
+    "suggestedQueries": ["Add men's black runner jet black, black sole of size 9 in the cart.", "Find me sneakers of size 8 in black colour"]
+  },
+  {
+    "name": "Call-Transcript-Analyst",
+    "description": "This agent can analyse the call transcripts and bring out insights about the customer.",
+    "systemPrompt": "You are customer call transcript analyst agent. Using the given tool you are able to extract customer insights from the call transcript.",
+    "tools": [
+      {
+        "type": "mcp",
+        "server_label": "call-transcript-server",
+        "server_url": "https://{id}.mock.masaic.ai/api/mcp",
+        "allowed_tools": [
+          "get_call_transcript"
+        ]
+      }
+    ],
+    "suggestedQueries": ["From the given call transcript, give me insights about Nordstern Mobility AG"]
+  },
+  {
+    "name": "Discount-Calculator",
+    "description": "Based upon original price and discounted percentage, this agent can calculate discounted price.",
+    "systemPrompt": "You are discount calculator agent. Given the original price and discount percentage, you calculate discounted price using provided tool.",
+    "tools": [
+      {
+        "type": "py_fun_tool",
+        "tool_def": {
+          "name": "discount_calculator_macro",
+          "description": "Applies a discount to a price and returns the calculation details as a dictionary.",
+          "parameters": {
+            "type": "object",
+            "properties": {
+              "price": {
+                "type": "number"
+              },
+              "discount_pct": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "price",
+              "discount_pct"
+            ]
+          }
+        },
+        "code": "ZGVmIGRpc2NvdW50X2NhbGN1bGF0b3JfbWFjcm8ocHJpY2U6IGZsb2F0LCBkaXNjb3VudF9wY3Q6IGZsb2F0KSAtPiBkaWN0OgogICAgIiIiCiAgICBBcHBseSBhIGRpc2NvdW50IHRvIGEgc2luZ2xlIHByaWNlIGFuZCByZXR1cm4gcmVzdWx0IGFzIGFuIG9iamVjdC4KCiAgICBBcmdzOgogICAgICAgIHByaWNlIChmbG9hdCk6IE9yaWdpbmFsIHByaWNlCiAgICAgICAgZGlzY291bnRfcGN0IChmbG9hdCk6IERpc2NvdW50IHBlcmNlbnRhZ2UgKGUuZy4sIDIwIGZvciAyMCUpCgogICAgUmV0dXJuczoKICAgICAgICBkaWN0OiB7CiAgICAgICAgICAgICJvcmlnaW5hbF9wcmljZSI6IDxmbG9hdD4sCiAgICAgICAgICAgICJkaXNjb3VudF9wY3QiOiA8ZmxvYXQ+LAogICAgICAgICAgICAiZGlzY291bnRlZF9wcmljZSI6IDxmbG9hdD4KICAgICAgICB9CiAgICAiIiIKICAgIGRpc2NvdW50ZWRfcHJpY2UgPSBwcmljZSAqICgxIC0gZGlzY291bnRfcGN0IC8gMTAwLjApCiAgICByZXR1cm4gewogICAgICAgICJvcmlnaW5hbF9wcmljZSI6IHByaWNlLAogICAgICAgICJkaXNjb3VudF9wY3QiOiBkaXNjb3VudF9wY3QsCiAgICAgICAgImRpc2NvdW50ZWRfcHJpY2UiOiByb3VuZChkaXNjb3VudGVkX3ByaWNlLCAyKQogICAgfQ=="
+      }
+    ],
+    "suggestedQueries": ["Offer $100 sneakers to premium customers at discount 18.5"]
+  },
+  {
+    "name": "Report-Analyst",
+    "description": "This agent can analyse PDF and provide answers to questions in the scope of the available PDF.",
+    "systemPrompt": "You a business analyst agent who has access to a file available in file search tool. 1. You can answer questions from the report by MIT on '\"'\"'State Of AI In Business 2025'\"'\"'. \\n2. You should not answer anything outside the scope of the report available with you.\\n3. Frame answers in bullets and pointers with appropriate headings, not long paragraphs.\\n4. Keep answers crisp and clear.",
+    "tools": [
+      {
+        "type": "file_search",
+        "vector_store_ids": [
+          "vs_68b122d4498c77000000"
+        ]
+      }
+    ],
+    "suggestedQueries": ["What are the key realisations on AI adoption mentioned in the report."]
+  }
+]

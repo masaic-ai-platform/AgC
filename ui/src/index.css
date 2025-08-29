@@ -64,6 +64,12 @@
     --sidebar-accent-foreground: 0 0% 15%;      /* #262626 */
     --sidebar-border: 0 0% 90%;                 /* #e5e5e5 */
     --sidebar-ring: 0 0% 20%;                   /* #333333 */
+
+    /* Masaic Brand Colors - Light Mode */
+    --warm-whisper-grey: 0 0% 85%;              /* #d9d9d9 */
+    --soft-neutral-white: 0 0% 100%;            /* #ffffff */
+    --cool-silver-grey: 0 0% 75%;               /* #bfbfbf */
+    --pure-white: 0 0% 100%;                    /* #ffffff */
   }
 
   .dark {
@@ -111,6 +117,12 @@
     --sidebar-accent-foreground: 0 0% 98%;      /* #fafafa */
     --sidebar-border: 0 0% 15%;                 /* #262626 */
     --sidebar-ring: 0 0% 83%;                   /* #d4d4d4 */
+
+    /* Masaic Brand Colors - Dark Mode */
+    --warm-whisper-grey: 0 0% 25%;              /* #404040 */
+    --soft-neutral-white: 0 0% 10%;             /* #1a1a1a */
+    --cool-silver-grey: 0 0% 35%;               /* #595959 */
+    --pure-white: 0 0% 10%;                     /* #1a1a1a */
   }
 }
 

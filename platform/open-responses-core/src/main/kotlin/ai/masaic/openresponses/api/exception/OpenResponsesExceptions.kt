@@ -95,7 +95,3 @@ class VectorIndexingException(
     message: String,
     cause: Throwable? = null,
 ) : VectorStoreException(message, cause)
-
-class AgentNotFoundException(
-    message: String,
-) : OpenResponsesException(message)

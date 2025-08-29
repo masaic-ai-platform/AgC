@@ -12,6 +12,7 @@ data class PlatformAgent(
     val greetingMessage: String? = null,
     val systemPrompt: String,
     val userMessage: String? = null,
+    val suggestedQueries: List<String> = emptyList(),
     val tools: List<Tool> = emptyList(),
     val formatType: String = "text",
     val temperature: Double = 1.0,
@@ -22,7 +23,11 @@ data class PlatformAgent(
     @JsonIgnore
     val kind: AgentClass = AgentClass(AgentClass.OTHER),
 ) {
-    fun presentableName() = name.replaceFirstChar { it.uppercase() }
+    companion object {
+        fun presentableName(name: String) = name.replaceFirstChar { it.uppercase() }
+
+        fun persistenceName(name: String) = name.replaceFirstChar { it.lowercase() }
+    }
 }
 
 data class PlatformAgentMeta(
@@ -32,6 +37,7 @@ data class PlatformAgentMeta(
     val greetingMessage: String? = null,
     val systemPrompt: String,
     val userMessage: String? = null,
+    val suggestedQueries: List<String> = emptyList(),
     val toolMeta: ToolMeta = ToolMeta(),
     val formatType: String = "text",
     val temperature: Double = 1.0,
