@@ -147,7 +147,7 @@ const AiPlayground: React.FC = () => {
       return false;
     }
   });
-  const [agentData, setAgentData] = useState<null | { name: string; description: string; systemPrompt: string; tools: any[]; model?: string; temperature?: number; maxTokenOutput?: number; topP?: number; }>(() => {
+  const [agentData, setAgentData] = useState<null | { name: string; description: string; systemPrompt: string; tools: any[]; model?: string; temperature?: number; maxTokenOutput?: number; topP?: number; suggestedQueries?: string[]; }>(() => {
     try {
       const saved = localStorage.getItem('platform_agentData');
       return saved ? JSON.parse(saved) : null;
@@ -159,6 +159,9 @@ const AiPlayground: React.FC = () => {
   // Agent Builder mode state
   const [agentBuilderMode, setAgentBuilderMode] = useState(false);
   const [agentBuilderData, setAgentBuilderData] = useState<null | { systemPrompt: string; greetingMessage: string; description: string; tools: any[] }>(null);
+
+  // Suggested queries state
+  const [suggestedQueries, setSuggestedQueries] = useState<string[]>([]);
 
   // Chat header state
   const [copiedResponseId, setCopiedResponseId] = useState(false);
@@ -181,7 +184,12 @@ const AiPlayground: React.FC = () => {
       if (agentData.temperature !== undefined) setTemperature(agentData.temperature);
       if (agentData.maxTokenOutput !== undefined) setMaxTokens(agentData.maxTokenOutput);
       if (agentData.topP !== undefined) setTopP(agentData.topP);
-      
+
+      // Restore suggested queries
+      if (agentData.suggestedQueries) {
+        setSuggestedQueries(agentData.suggestedQueries);
+      }
+
       // Restore model
       if (agentData.model) {
         validateAndSetAgentModel(agentData.model);
@@ -1568,6 +1576,15 @@ const AiPlayground: React.FC = () => {
     }
   };
 
+  const handleSuggestedQuerySelect = (query: string) => {
+    setInputValue(query);
+    // Focus the textarea
+    const textarea = document.querySelector('.chat-input-textarea') as HTMLTextAreaElement;
+    if (textarea) {
+      textarea.focus();
+    }
+  };
+
   const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const textarea = e.target;
     setInputValue(textarea.value);
@@ -1644,7 +1661,10 @@ const AiPlayground: React.FC = () => {
 
   // Helper function to validate and set model from agent data using the same logic as ConfigurationPanel
   const validateAndSetAgentModel = async (agentModelName?: string) => {
+    console.log(`validateAndSetAgentModel called with:`, agentModelName);
+
     if (!agentModelName) {
+      console.log('No agent model name provided, clearing selection');
       // Clear model selection if no model specified
       setModelProvider('');
       setModelName('');
@@ -1656,8 +1676,8 @@ const AiPlayground: React.FC = () => {
       const providers = await apiClient.jsonRequest<any[]>('/v1/dashboard/models');
       
       // Build allModels array using the same logic as ConfigurationPanel
-      const apiModels = providers.flatMap(provider => 
-        provider.supportedModels
+      const apiModels = providers.flatMap(provider =>
+        (provider.supportedModels || []) // Handle providers without supportedModels
           .filter((model: any) => !model.isEmbeddingModel) // Filter out embedding models
           .map((model: any) => ({
             ...model,
@@ -1688,9 +1708,16 @@ const AiPlayground: React.FC = () => {
       const allModels = [...ownModels, ...apiModels];
 
       // Find the agent's model in the available models
-      const foundModel = allModels.find((model: any) => 
-        model.modelSyntax === agentModelName || model.name === agentModelName
-      );
+      const foundModel = allModels.find((model: any) => {
+        const modelSyntaxMatch = model.modelSyntax === agentModelName;
+        const nameMatch = model.name === agentModelName;
+        const trimmedModelSyntaxMatch = model.modelSyntax?.trim() === agentModelName?.trim();
+        const trimmedNameMatch = model.name?.trim() === agentModelName?.trim();
+
+        return modelSyntaxMatch || nameMatch || trimmedModelSyntaxMatch || trimmedNameMatch;
+      });
+
+      console.log(`Model search result:`, { agentModelName, found: !!foundModel, model: foundModel });
 
       if (foundModel) {
         // Extract provider and model name from modelSyntax
@@ -1704,9 +1731,55 @@ const AiPlayground: React.FC = () => {
         }
 
       } else {
-        console.warn(`Agent model "${agentModelName}" not found in available models. Clearing model selection.`);
-        setModelProvider('');
-        setModelName('');
+        console.warn(`Agent model "${agentModelName}" not found in available models. Trying fallback options.`, {
+          agentModelName,
+          apiModelsCount: apiModels.length,
+          firstFewModels: apiModels.slice(0, 3).map(m => ({ name: m.name, modelSyntax: m.modelSyntax }))
+        });
+
+        // Step 2: Try to use model from localStorage
+        const savedProvider = localStorage.getItem('platform_modelProvider');
+        const savedModelName = localStorage.getItem('platform_modelName');
+
+        if (savedProvider && savedModelName) {
+          console.log(`Using saved model from localStorage: ${savedProvider}@${savedModelName}`);
+          setModelProvider(savedProvider);
+          setModelName(savedModelName);
+          return;
+        }
+
+        // Step 3: Select first model from API and save to localStorage
+        if (apiModels.length > 0) {
+          const firstApiModel = apiModels[0];
+          let selectedProvider = '';
+          let selectedModelName = '';
+
+          if (firstApiModel.modelSyntax && firstApiModel.modelSyntax.includes('@')) {
+            const [providerName, modelNamePart] = firstApiModel.modelSyntax.split('@');
+            selectedProvider = providerName;
+            selectedModelName = modelNamePart;
+          } else {
+            selectedProvider = firstApiModel.providerName || '';
+            selectedModelName = firstApiModel.name || '';
+          }
+
+          console.log(`Using first API model: ${selectedProvider}@${selectedModelName}`);
+          setModelProvider(selectedProvider);
+          setModelName(selectedModelName);
+
+          // Save to localStorage for future use
+          try {
+            localStorage.setItem('platform_modelProvider', selectedProvider);
+            localStorage.setItem('platform_modelName', selectedModelName);
+          } catch (error) {
+            console.error('Failed to save model to localStorage:', error);
+          }
+        } else {
+          // If no API models available, clear selection
+          console.warn('No API models available, clearing model selection');
+          setModelProvider('');
+          setModelName('');
+        }
       }
     } catch (error) {
       console.error('Error validating agent model:', error);
@@ -1744,6 +1817,7 @@ const AiPlayground: React.FC = () => {
         setShowSaveModel(false);
         setSaveModelState(null);
         setAgentBuilderMode(false);
+        setSuggestedQueries([]);
       };
 
       resetAllModes();
@@ -1757,12 +1831,14 @@ const AiPlayground: React.FC = () => {
         model: agent.model,
         temperature: agent.temperature,
         maxTokenOutput: agent.maxTokenOutput,
-        topP: agent.topP
+        topP: agent.topP,
+        suggestedQueries: agent.suggestedQueries || []
       };
       
       setAgentMode(true);
       setAgentData(agentDataValue);
-      
+      setSuggestedQueries(agent.suggestedQueries || []);
+
       // Persist to localStorage
       try {
         localStorage.setItem('platform_agentMode', 'true');
@@ -1779,8 +1855,10 @@ const AiPlayground: React.FC = () => {
       setMaxTokens(agent.maxTokenOutput || 2048);
       setTopP(agent.topP || 1.0);
 
-      // Validate and set model
-      await validateAndSetAgentModel(agent.model);
+      // Validate and set model (only if agent has a model specified)
+      if (agent.model) {
+        await validateAndSetAgentModel(agent.model);
+      }
 
       // Transform and set tools
       const transformedTools = transformAgentToolsToUI(agent.tools || []);
@@ -3124,8 +3202,28 @@ const AiPlayground: React.FC = () => {
               )}
             </div>
           ) : !modelTestMode ? (
-            <form onSubmit={handleSubmit} className="max-w-4xl mx-auto">
-              <div className="relative">
+            <div className="max-w-4xl mx-auto">
+              {/* Suggested Queries */}
+              {suggestedQueries.length > 0 && agentMode && !previousResponseId && (
+                <div className="mb-4">
+                  <p className="text-xs text-muted-foreground mb-2">Suggested queries:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {suggestedQueries.map((query, index) => (
+                      <button
+                        key={index}
+                        onClick={() => handleSuggestedQuerySelect(query)}
+                        className="px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 border border-border rounded-lg text-foreground transition-colors duration-200 truncate max-w-xs"
+                        title={query}
+                      >
+                        {query}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <form onSubmit={handleSubmit}>
+                <div className="relative">
                 <Textarea
                   value={inputValue}
                   onChange={handleTextareaChange}
@@ -3143,15 +3241,15 @@ const AiPlayground: React.FC = () => {
                   }}
                 />
                 <div className="absolute bottom-3 right-3">
-                  <Button 
-                    type="submit" 
+                  <Button
+                    type="submit"
                     disabled={!inputValue.trim() || isLoading || !modelProvider || !modelName}
                     className="h-8 w-8 p-0 bg-positive-trend hover:bg-positive-trend/90 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                     title={
-                      !modelProvider || !modelName 
-                        ? "Select a model to send messages" 
-                        : !inputValue.trim() 
-                        ? "Type a message to send" 
+                      !modelProvider || !modelName
+                        ? "Select a model to send messages"
+                        : !inputValue.trim()
+                        ? "Type a message to send"
                         : "Send message"
                     }
                   >
@@ -3164,6 +3262,7 @@ const AiPlayground: React.FC = () => {
                 </div>
               </div>
             </form>
+            </div>
           ) : null}
         </div>
       </div>

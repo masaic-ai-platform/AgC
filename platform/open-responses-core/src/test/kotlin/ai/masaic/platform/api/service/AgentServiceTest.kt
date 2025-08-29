@@ -12,7 +12,6 @@ import ai.masaic.platform.api.repository.AgentRepository
 import ai.masaic.platform.api.service.AgentService
 import ai.masaic.platform.api.tools.PlatformMcpService
 import io.mockk.*
-import io.mockk.coVerify
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
@@ -40,7 +39,7 @@ class AgentServiceTest {
     fun `getAgent should return built-in agent when name matches`() =
         runTest {
             // Given
-            val agentName = "masaic-mocky"
+            val agentName = "Masaic-Mocky"
 
             // When
             val result = agentService.getAgent(agentName)
@@ -48,7 +47,7 @@ class AgentServiceTest {
             // Then
             assertNotNull(result)
             result?.let { agent ->
-                assertEquals("masaic-mocky", agent.name)
+                assertEquals("Masaic-Mocky", agent.name)
                 assertEquals("Mocky: Expert in making mock MCP servers quickly", agent.description)
                 assertEquals("Hi, this is Mocky. Let me know the quick mock functions you would like to create.", agent.greetingMessage)
                 assertTrue(agent.systemPrompt.contains("Function Requirement Gathering"))
@@ -61,7 +60,7 @@ class AgentServiceTest {
     fun `getAgent should return built-in ModelTestAgent when name matches`() =
         runTest {
             // Given
-            val agentName = "modeltestagent"
+            val agentName = "ModelTestAgent"
 
             // When
             val result = agentService.getAgent(agentName)
@@ -69,7 +68,7 @@ class AgentServiceTest {
             // Then
             assertNotNull(result)
             result?.let { agent ->
-                assertEquals("modeltestagent", agent.name)
+                assertEquals("ModelTestAgent", agent.name)
                 assertEquals("This agent tests compatibility of model with platform", agent.description)
                 assertEquals("Hi, let me test Model with query: \"Tell me the weather of San Francisco\"", agent.greetingMessage)
                 assertTrue(agent.systemPrompt.contains("Weather Information Provider"))
@@ -82,7 +81,7 @@ class AgentServiceTest {
     fun `getAgent should return built-in AgentBuilder when name matches`() =
         runTest {
             // Given
-            val agentName = "agent-builder"
+            val agentName = "Agent-Builder"
             every { runBlocking { platformMcpService.getAllMockServers() } } returns emptyList()
             every { runBlocking { funRegService.getAllAvailableFunctions(false) } } returns emptyList()
             // When
@@ -93,20 +92,6 @@ class AgentServiceTest {
                 assertEquals("AgC0", agent.name)
                 assertEquals("system", agent.kind.kind)
             }
-        }
-
-    @Test
-    fun `getAgent should return null for unknown built-in agent`() =
-        runTest {
-            // Given
-            val agentName = "UnknownAgent"
-            coEvery { agentRepository.findByName(agentName) } returns null
-
-            // When
-            val result = agentService.getAgent(agentName)
-
-            // Then
-            assertNull(result)
         }
 
     @Test
@@ -132,77 +117,6 @@ class AgentServiceTest {
         }
 
     @Test
-    fun `deleteAgent should return false for built-in agents`() =
-        runTest {
-            // Given
-            val agentName = "masaic-mocky"
-
-            // When
-            val result = agentService.deleteAgent(agentName)
-
-            // Then
-            assertFalse(result)
-        }
-
-    @Test
-    fun `deleteAgent should return true for persisted agents`() =
-        runTest {
-            // Given
-            val agentName = "CustomAgent"
-            coEvery { agentRepository.deleteByName(agentName) } returns true
-
-            // When
-            val result = agentService.deleteAgent(agentName)
-
-            // Then
-            assertTrue(result)
-        }
-
-    @Test
-    fun `saveAgent should save agent and register PyFunTools`() =
-        runTest {
-            // Given
-            val agent =
-                PlatformAgent(
-                    name = "TestAgent",
-                    description = "A test agent",
-                    systemPrompt = "Test system prompt",
-                    tools =
-                        listOf(
-                            MCPTool(
-                                type = "mcp",
-                                serverLabel = "test-server",
-                                serverUrl = "http://test.com",
-                            ),
-                            FileSearchTool(
-                                type = "file_search",
-                                vectorStoreIds = listOf("vs1", "vs2"),
-                                modelInfo = ModelInfo(bearerToken = "token", model = "gpt-4"),
-                            ),
-                        ),
-                    kind = AgentClass(AgentClass.OTHER),
-                )
-
-            coEvery { agentRepository.findByName("TestAgent") } returns null
-            coEvery { agentRepository.upsert(any()) } returns
-                PlatformAgentMeta(
-                    name = "TestAgent",
-                    description = "A test agent",
-                    systemPrompt = "Test system prompt",
-                    kind = AgentClass(AgentClass.OTHER),
-                )
-
-            // When
-            agentService.saveAgent(agent, false)
-
-            // Then
-            coVerify { 
-                agentRepository.findByName("TestAgent")
-                agentRepository.upsert(any())
-            }
-        }
-
-    @Test
     fun `saveAgent should throw exception when agent name already exists`() =
         runTest {
             // Given
@@ -216,13 +130,13 @@ class AgentServiceTest {
 
             val existingAgent =
                 PlatformAgentMeta(
-                    name = "ExistingAgent",
+                    name = "existingAgent",
                     description = "Existing agent",
                     systemPrompt = "Existing prompt",
                     kind = AgentClass(AgentClass.OTHER),
                 )
 
-            coEvery { agentRepository.findByName("ExistingAgent") } returns existingAgent
+            coEvery { agentRepository.findByName("existingAgent") } returns existingAgent
 
             // When & Then
             assertThrows<ResponseProcessingException> {

@@ -1,6 +1,5 @@
 package ai.masaic.platform.api.service
 
-import ai.masaic.openresponses.api.exception.AgentNotFoundException
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.*
@@ -29,36 +28,39 @@ class AgentService(
         agent: PlatformAgent,
         isUpdate: Boolean,
     ) {
-        val existingAgent = agentRepository.findByName(agent.name)
+//        val updatedAgent = agent.copy(name = PlatformAgent.persistenceName(agent.name), model = if(agent.model?.contains("@") == true) agent.model.split("@")[1] else null)
+        val updatedAgent = agent.copy(name = PlatformAgent.persistenceName(agent.name))
+        val existingAgent = agentRepository.findByName(updatedAgent.name)
         // For updates, verify the agent exists
         if (isUpdate && existingAgent == null) {
-            throw AgentNotFoundException("Agent '${agent.name}' not found.")
+            throw ResponseProcessingException("Agent '${updatedAgent.name}' not found.")
         }
 
         if (!isUpdate && existingAgent != null) {
-            throw ResponseProcessingException("Agent '${agent.name}' already exists.")
+            throw ResponseProcessingException("Agent '${updatedAgent.name}' already exists.")
         }
 
         // Transform agent.tools to ToolMeta
-        val toolMeta = transformToolsToToolMeta(agent.tools)
+        val toolMeta = transformToolsToToolMeta(updatedAgent.tools)
         
         // Create PlatformAgentMeta for database storage
         val agentMeta =
             PlatformAgentMeta(
-                name = agent.name,
-                description = agent.description,
-                greetingMessage = agent.greetingMessage,
-                systemPrompt = agent.systemPrompt,
-                userMessage = agent.userMessage,
+                name = updatedAgent.name,
+                description = updatedAgent.description,
+                greetingMessage = updatedAgent.greetingMessage,
+                systemPrompt = updatedAgent.systemPrompt,
+                userMessage = updatedAgent.userMessage,
+                suggestedQueries = updatedAgent.suggestedQueries,
                 toolMeta = toolMeta,
-                formatType = agent.formatType,
-                temperature = agent.temperature,
-                maxTokenOutput = agent.maxTokenOutput,
-                topP = agent.topP,
-                store = agent.store,
-                stream = agent.stream,
-                modelInfo = agent.model?.let { ModelInfoMeta(it) },
-                kind = agent.kind,
+                formatType = updatedAgent.formatType,
+                temperature = updatedAgent.temperature,
+                maxTokenOutput = updatedAgent.maxTokenOutput,
+                topP = updatedAgent.topP,
+                store = updatedAgent.store,
+                stream = updatedAgent.stream,
+                modelInfo = updatedAgent.model?.let { ModelInfoMeta(it) },
+                kind = updatedAgent.kind,
             )
 
         // Save the agent meta to database (upsert will handle create/update automatically)
@@ -73,7 +75,7 @@ class AgentService(
         }
 
         // Then check persisted agents
-        val persistedAgentMeta = agentRepository.findByName(agentName) ?: return null
+        val persistedAgentMeta = agentRepository.findByName(PlatformAgent.persistenceName(agentName)) ?: return null
         
         // Convert meta to PlatformAgent
         return convertToPlatformAgent(persistedAgentMeta)
@@ -90,12 +92,13 @@ class AgentService(
 
     suspend fun deleteAgent(agentName: String): Boolean {
         // Built-in agents cannot be deleted
-        if (getBuiltInAgent(agentName) != null) {
+        val updatedAgentName = PlatformAgent.persistenceName(agentName)
+        if (getBuiltInAgent(updatedAgentName) != null) {
             return false
         }
         
         // Delete persisted agent
-        return agentRepository.deleteByName(agentName)
+        return agentRepository.deleteByName(updatedAgentName)
     }
 
     private suspend fun convertToPlatformAgent(
@@ -107,11 +110,12 @@ class AgentService(
         
         return PlatformAgent(
             model = agentMeta.modelInfo?.name,
-            name = agentMeta.name,
+            name = PlatformAgent.presentableName(agentMeta.name),
             description = agentMeta.description,
             greetingMessage = agentMeta.greetingMessage,
             systemPrompt = agentMeta.systemPrompt,
             userMessage = agentMeta.userMessage,
+            suggestedQueries = agentMeta.suggestedQueries,
             tools = resolvedTools,
             formatType = agentMeta.formatType,
             temperature = agentMeta.temperature,
@@ -289,9 +293,9 @@ class AgentService(
 
     private suspend fun getBuiltInAgent(agentName: String): PlatformAgent? =
         when (agentName) {
-            "masaic-mocky" -> {
+            "Masaic-Mocky" -> {
                 PlatformAgent(
-                    name = "masaic-mocky",
+                    name = "Masaic-Mocky",
                     description = "Mocky: Expert in making mock MCP servers quickly",
                     greetingMessage = "Hi, this is Mocky. Let me know the quick mock functions you would like to create.",
                     systemPrompt = mockyPrompt,
@@ -299,9 +303,9 @@ class AgentService(
                     kind = AgentClass(AgentClass.SYSTEM),
                 )
             }
-            "modeltestagent" -> {
+            "ModelTestAgent" -> {
                 PlatformAgent(
-                    name = "modeltestagent",
+                    name = "ModelTestAgent",
                     description = "This agent tests compatibility of model with platform",
                     greetingMessage = "Hi, let me test Model with query: \"Tell me the weather of San Francisco\"",
                     systemPrompt = modelTestPrompt,
@@ -310,7 +314,7 @@ class AgentService(
                     kind = AgentClass(AgentClass.SYSTEM),
                 )
             }
-            "agent-builder" -> getAgentBuilder()
+            "Agent-Builder" -> getAgentBuilder()
             else -> null
         }
 

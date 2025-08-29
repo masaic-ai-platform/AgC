@@ -1,10 +1,8 @@
 package ai.masaic.platform.api.controller
 
-import ai.masaic.openresponses.api.exception.AgentNotFoundException
-import ai.masaic.openresponses.api.model.*
+import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.platform.api.model.PlatformAgent
 import ai.masaic.platform.api.service.AgentService
-import ai.masaic.platform.api.tools.*
 import org.springframework.context.annotation.Profile
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -23,17 +21,17 @@ class AgentsController(
         @PathVariable agentName: String,
     ): ResponseEntity<PlatformAgent> {
         val agent =
-            agentService.getAgent(agentName.lowercase())
-                ?: throw AgentNotFoundException("Agent: $agentName is not found.")
+            agentService.getAgent(agentName)
+                ?: throw ResponseProcessingException("Agent: $agentName is not found.")
         
-        return ResponseEntity.ok(agent.copy(name = agent.presentableName()))
+        return ResponseEntity.ok(agent.copy(name = PlatformAgent.presentableName(agent.name)))
     }
 
     @PostMapping("/agents", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun saveAgent(
         @RequestBody agent: PlatformAgent,
     ): ResponseEntity<PlatformAgent> {
-        agentService.saveAgent(agent.copy(name = agent.name.lowercase()), false)
+        agentService.saveAgent(agent, false)
         return ResponseEntity.created(URI.create("/agents/${agent.name}")).build()
     }
 
@@ -42,15 +40,12 @@ class AgentsController(
         @PathVariable agentName: String,
         @RequestBody agent: PlatformAgent,
     ): ResponseEntity<PlatformAgent> {
-        agentService.saveAgent(agent.copy(name = agent.name.lowercase()), true)
+        agentService.saveAgent(agent, true)
         return ResponseEntity.ok().build()
     }
 
     @GetMapping("/agents", produces = [MediaType.APPLICATION_JSON_VALUE])
-    suspend fun listAgents(): ResponseEntity<List<PlatformAgent>> {
-        val agents = agentService.getAllAgents().map { it.copy(name = it.presentableName()) }
-        return ResponseEntity.ok(agents)
-    }
+    suspend fun listAgents(): ResponseEntity<List<PlatformAgent>> = ResponseEntity.ok(agentService.getAllAgents())
 
     @DeleteMapping("/agents/{agentName}", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun deleteAgent(
@@ -60,7 +55,7 @@ class AgentsController(
         return if (deleted) {
             ResponseEntity.ok().build()
         } else {
-            throw AgentNotFoundException("Agent: $agentName is not found.")
+            throw ResponseProcessingException("Agent: $agentName is not found.")
         }
     }
 }

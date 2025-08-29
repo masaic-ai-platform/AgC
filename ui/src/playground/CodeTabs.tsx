@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Copy, Check, Code } from 'lucide-react';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { atomDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { atomDark, oneLight } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { PlaygroundRequest } from './PlaygroundRequest';
 import { generateSnippets, type CodeSnippets } from './snippets/generators';
 
@@ -87,10 +87,65 @@ const CodeTabs: React.FC<CodeTabsProps> = ({
     minHeight: '100%'
   };
 
-  // Custom syntax highlighting theme matching app colors
-  const customSyntaxStyle = {
+  // Detect current theme
+  const [isDarkMode, setIsDarkMode] = useState(false);
+
+  useEffect(() => {
+    const checkTheme = () => {
+      const isDark = document.documentElement.classList.contains('dark');
+      setIsDarkMode(isDark);
+    };
+
+    checkTheme();
+
+    // Listen for theme changes
+    const observer = new MutationObserver(checkTheme);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['class']
+    });
+
+    return () => observer.disconnect();
+  }, []);
+
+  // Light mode syntax highlighting theme
+  const lightSyntaxStyle = {
     'comment': { color: '#6b7280' },
-    'string': { color: '#10b981' }, // positive-trend green
+    'string': { color: '#059669' }, // darker green for better contrast
+    'number': { color: '#1f2937' }, // dark gray instead of white
+    'boolean': { color: '#059669' },
+    'keyword': { color: '#dc2626' }, // red for keywords
+    'function': { color: '#1f2937' },
+    'operator': { color: '#374151' },
+    'punctuation': { color: '#6b7280' },
+    'property': { color: '#1f2937' },
+    'builtin': { color: '#059669' },
+    'class-name': { color: '#1f2937' },
+    'constant': { color: '#059669' },
+    'symbol': { color: '#059669' },
+    'deleted': { color: '#dc2626' },
+    'inserted': { color: '#059669' },
+    'entity': { color: '#1f2937' },
+    'url': { color: '#059669' },
+    'variable': { color: '#1f2937' },
+    'atrule': { color: '#059669' },
+    'attr-value': { color: '#059669' },
+    'attr-name': { color: '#1f2937' },
+    'tag': { color: '#dc2626' },
+    'prolog': { color: '#6b7280' },
+    'doctype': { color: '#6b7280' },
+    'cdata': { color: '#6b7280' },
+    'namespace': { color: '#1f2937' },
+    'selector': { color: '#dc2626' },
+    'important': { color: '#dc2626' },
+    'bold': { fontWeight: 'bold' },
+    'italic': { fontStyle: 'italic' }
+  };
+
+  // Dark mode syntax highlighting theme (original)
+  const darkSyntaxStyle = {
+    'comment': { color: '#6b7280' },
+    'string': { color: '#10b981' },
     'number': { color: '#ffffff' },
     'boolean': { color: '#10b981' },
     'keyword': { color: '#10b981' },
@@ -120,6 +175,8 @@ const CodeTabs: React.FC<CodeTabsProps> = ({
     'bold': { fontWeight: 'bold' },
     'italic': { fontStyle: 'italic' }
   };
+
+  const currentSyntaxStyle = isDarkMode ? darkSyntaxStyle : lightSyntaxStyle;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -171,11 +228,14 @@ const CodeTabs: React.FC<CodeTabsProps> = ({
             </div>
             
             {/* Code area */}
-            <div className="flex-1 overflow-auto bg-gray-900">
+            <div className={`flex-1 overflow-auto ${isDarkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
               <SyntaxHighlighter
                 language={getLanguageForSyntaxHighlighter(activeTab)}
-                style={customSyntaxStyle}
-                customStyle={customStyle}
+                style={currentSyntaxStyle}
+                customStyle={{
+                  ...customStyle,
+                  background: 'transparent'
+                }}
                 showLineNumbers={true}
                 wrapLines={false}
                 wrapLongLines={false}
