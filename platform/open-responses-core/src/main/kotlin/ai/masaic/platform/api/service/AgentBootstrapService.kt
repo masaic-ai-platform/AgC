@@ -10,18 +10,14 @@ import ai.masaic.platform.api.tools.*
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import mu.KotlinLogging
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.core.io.ClassPathResource
-import org.springframework.stereotype.Service
 
 /**
  * Service responsible for bootstrapping pre-built agents from JSON configuration
  * during application startup.
  */
-@Service
-@ConditionalOnProperty(name = ["platform.deployment.agent.bootstrap.enabled"], havingValue = "true", matchIfMissing = true)
 class AgentBootstrapService(
     private val agentService: AgentService,
     private val platformMcpService: PlatformMcpService,
