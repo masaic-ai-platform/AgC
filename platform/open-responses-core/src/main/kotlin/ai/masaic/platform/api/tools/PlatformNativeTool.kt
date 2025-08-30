@@ -36,5 +36,6 @@ object PlatformToolsNames {
     const val MODEL_TEST_TOOL = "get_weather_by_city"
     const val PY_CODE_RUNNER = "py_code_runner"
     const val SYSTEM_PROMPT_GENERATOR_TOOL = "system_prompt_generator"
+    const val TOOl_SELECTOR_TOOL = "tool_selector"
     const val SAVE_AGENT_TOOL = "save_agent_tool"
 }

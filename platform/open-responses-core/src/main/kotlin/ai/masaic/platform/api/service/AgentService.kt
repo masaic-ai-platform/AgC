@@ -314,7 +314,7 @@ class AgentService(
                     kind = AgentClass(AgentClass.SYSTEM),
                 )
             }
-            "Agent-Builder" -> getAgentBuilder()
+            "agent-builder" -> getAgentBuilder()
             else -> null
         }
 

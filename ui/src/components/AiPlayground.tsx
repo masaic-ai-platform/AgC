@@ -15,6 +15,7 @@ import { PlaygroundRequest } from '@/playground/PlaygroundRequest';
 import { API_URL } from '@/config';
 import { apiClient } from '@/lib/api';
 import { usePlatformInfo } from '@/contexts/PlatformContext';
+import { ResponsesChat, buildToolsPayload, ResponsesChatRef } from '@/chat';
 
 interface ToolExecution {
   serverName: string;
@@ -110,6 +111,15 @@ const AiPlayground: React.FC = () => {
   const [storeLogs, setStoreLogs] = useState(true);
   const [textFormat, setTextFormat] = useState<'text' | 'json_object' | 'json_schema'>('text');
   const [toolChoice, setToolChoice] = useState<'auto' | 'none'>('auto');
+  
+  // Feature toggle for new chat implementation
+  const [useNewChatImplementation, setUseNewChatImplementation] = useState(() => {
+    try {
+      return localStorage.getItem('platform_useNewChat') === 'true';
+    } catch {
+      return false;
+    }
+  });
   
   // Prompt messages state
   const [promptMessages, setPromptMessages] = useState<PromptMessage[]>([]);
@@ -214,6 +224,7 @@ const AiPlayground: React.FC = () => {
   const apiUrl = API_URL;
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const newChatRef = useRef<ResponsesChatRef>(null);
 
   const { platformInfo } = usePlatformInfo();
   const modelSettings = platformInfo?.modelSettings;
@@ -245,6 +256,7 @@ const AiPlayground: React.FC = () => {
     const savedToolChoice = (localStorage.getItem('aiPlayground_toolChoice') || 'auto') as 'auto' | 'none';
     const savedPromptMessages = JSON.parse(localStorage.getItem('aiPlayground_promptMessages') || '[]');
     const savedOtherToolsRaw = JSON.parse(localStorage.getItem('aiPlayground_otherTools') || '[]');
+    const savedUseNewChat = localStorage.getItem('platform_useNewChat') === 'true';
 
     // Helper to map tool id to its icon component
     const getIconForTool = (id: string) => {
@@ -293,6 +305,7 @@ const AiPlayground: React.FC = () => {
     setTextFormat(savedTextFormat);
     setToolChoice(savedToolChoice);
     setPromptMessages(savedPromptMessages);
+    setUseNewChatImplementation(savedUseNewChat);
     setSelectedTools([...savedOtherTools, ...savedMCPTools, ...savedFileSearchTools, ...savedAgenticFileSearchTools, ...savedPyFunctionTools]);
   }, []);
 
@@ -314,6 +327,7 @@ const AiPlayground: React.FC = () => {
     localStorage.setItem('aiPlayground_textFormat', textFormat);
     localStorage.setItem('aiPlayground_toolChoice', toolChoice);
     localStorage.setItem('aiPlayground_promptMessages', JSON.stringify(promptMessages));
+    localStorage.setItem('platform_useNewChat', useNewChatImplementation.toString());
     
     // Separate tools by type for better management
     const mcpTools = selectedTools.filter(tool => tool.id === 'mcp_server');
@@ -332,19 +346,25 @@ const AiPlayground: React.FC = () => {
     saveAgenticFileSearchToolsToStorage(agenticFileSearchTools);
     savePyFunctionToolsToStorage(pyFunctionTools);
     localStorage.setItem('aiPlayground_otherTools', JSON.stringify(otherTools));
-  }, [apiKey, baseUrl, modelProvider, modelName, imageModelProvider, imageModelName, imageProviderKey, selectedVectorStore, instructions, temperature, maxTokens, topP, storeLogs, textFormat, toolChoice, promptMessages, selectedTools]);
+  }, [apiKey, baseUrl, modelProvider, modelName, imageModelProvider, imageModelName, imageProviderKey, selectedVectorStore, instructions, temperature, maxTokens, topP, storeLogs, textFormat, toolChoice, promptMessages, selectedTools, useNewChatImplementation]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const resetConversation = () => {
-    setMessages([]);
-    setConversationId(null);
-    setPreviousResponseId(null);
-    
-    // Generate new sessionId for new conversation
-    generateNewSessionId();
+    if (useNewChatImplementation && newChatRef.current) {
+      // Use new chat's reset function
+      newChatRef.current.resetConversation();
+    } else {
+      // Use old chat's reset logic
+      setMessages([]);
+      setConversationId(null);
+      setPreviousResponseId(null);
+      
+      // Generate new sessionId for new conversation
+      generateNewSessionId();
+    }
     
     toast.success('Conversation reset');
   };
@@ -1864,8 +1884,15 @@ const AiPlayground: React.FC = () => {
       const transformedTools = transformAgentToolsToUI(agent.tools || []);
       setSelectedTools(transformedTools);
 
-      // Reset conversation state
-      setMessages([]);
+      // Reset conversation state properly for both old and new chat
+      if (useNewChatImplementation && newChatRef.current) {
+        // Use new chat's reset function
+        newChatRef.current.resetConversation();
+      } else {
+        // Use old chat's reset logic
+        setMessages([]);
+      }
+      
       setConversationId(null);
       setPreviousResponseId(null);
       
@@ -1947,29 +1974,36 @@ const AiPlayground: React.FC = () => {
         // Generate new sessionId for new Agent Builder conversation
         generateNewSessionId();
 
-        const greetingId = Date.now().toString() + '_assistant';
-        const greetingMessage: Message = {
-          id: greetingId,
-          role: 'assistant',
-          content: '',
-          type: 'text',
-          timestamp: new Date(),
-          isLoading: true
-        };
-        setMessages([greetingMessage]);
+        // Handle greeting message based on chat implementation
+        if (useNewChatImplementation && newChatRef.current) {
+          // Use new chat's streaming greeting
+          newChatRef.current.streamGreetingMessage(data.greetingMessage || '');
+        } else {
+          // Use old chat's streaming greeting - EXACT COPY
+          const greetingId = Date.now().toString() + '_assistant';
+          const greetingMessage: Message = {
+            id: greetingId,
+            role: 'assistant',
+            content: '',
+            type: 'text',
+            timestamp: new Date(),
+            isLoading: true
+          };
+          setMessages([greetingMessage]);
 
-        // Artificial streaming of greeting text
-        const greetingText: string = data.greetingMessage || '';
-        let idx = 0;
-        const interval = setInterval(() => {
-          idx += 1;
-          const partial = greetingText.slice(0, idx);
-          setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
-          if (idx >= greetingText.length) {
-            clearInterval(interval);
-            setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
-          }
-        }, 25);
+          // Artificial streaming of greeting text
+          const greetingText: string = data.greetingMessage || '';
+          let idx = 0;
+          const interval = setInterval(() => {
+            idx += 1;
+            const partial = greetingText.slice(0, idx);
+            setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
+            if (idx >= greetingText.length) {
+              clearInterval(interval);
+              setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
+            }
+          }, 25);
+        }
       } else {
         toast.error('Failed to load Agent Builder');
       }
@@ -1985,7 +2019,16 @@ const AiPlayground: React.FC = () => {
       if (mockyMode) {
         setMockyMode(false);
         setMockyAgentData(null);
-        setMessages([]);
+        
+        // Reset conversation properly for both old and new chat
+        if (useNewChatImplementation && newChatRef.current) {
+          // Use new chat's reset function
+          newChatRef.current.resetConversation();
+        } else {
+          // Use old chat's reset logic
+          setMessages([]);
+        }
+        
         setConversationId(null);
         setPreviousResponseId(null);
         generateNewSessionId(); // Generate new sessionId for new conversation
@@ -2002,7 +2045,16 @@ const AiPlayground: React.FC = () => {
         setIsTestingModel(false);
         setShowSaveModel(false);
         setSaveModelState(null);
-        setMessages([]);
+        
+        // Reset conversation properly for both old and new chat
+        if (useNewChatImplementation && newChatRef.current) {
+          // Use new chat's reset function
+          newChatRef.current.resetConversation();
+        } else {
+          // Use old chat's reset logic
+          setMessages([]);
+        }
+        
         setConversationId(null);
         setPreviousResponseId(null);
         generateNewSessionId(); // Generate new sessionId for new conversation
@@ -2013,7 +2065,16 @@ const AiPlayground: React.FC = () => {
       if (agentMode) {
         setAgentMode(false);
         setAgentData(null);
-        setMessages([]);
+        
+        // Reset conversation properly for both old and new chat
+        if (useNewChatImplementation && newChatRef.current) {
+          // Use new chat's reset function
+          newChatRef.current.resetConversation();
+        } else {
+          // Use old chat's reset logic
+          setMessages([]);
+        }
+        
         setConversationId(null);
         setPreviousResponseId(null);
         generateNewSessionId(); // Generate new sessionId for new conversation
@@ -2032,7 +2093,16 @@ const AiPlayground: React.FC = () => {
       if (agentBuilderMode) {
         setAgentBuilderMode(false);
         setAgentBuilderData(null);
-        setMessages([]);
+        
+        // Reset conversation properly for both old and new chat
+        if (useNewChatImplementation && newChatRef.current) {
+          // Use new chat's reset function
+          newChatRef.current.resetConversation();
+        } else {
+          // Use old chat's reset logic
+          setMessages([]);
+        }
+        
         setConversationId(null);
         setPreviousResponseId(null);
         generateNewSessionId(); // Generate new sessionId for new conversation
@@ -2072,29 +2142,36 @@ const AiPlayground: React.FC = () => {
             // Generate new sessionId for new Masaic Mocky conversation
             generateNewSessionId();
 
-            const greetingId = Date.now().toString() + '_assistant';
-            const greetingMessage: Message = {
-              id: greetingId,
-              role: 'assistant',
-              content: '',
-              type: 'text',
-              timestamp: new Date(),
-              isLoading: true
-            };
-            setMessages([greetingMessage]);
+            // Handle greeting message based on chat implementation
+            if (useNewChatImplementation && newChatRef.current) {
+              // Use new chat's streaming greeting
+              newChatRef.current.streamGreetingMessage(data.greetingMessage || '');
+            } else {
+              // Use old chat's streaming greeting - EXACT COPY
+              const greetingId = Date.now().toString() + '_assistant';
+              const greetingMessage: Message = {
+                id: greetingId,
+                role: 'assistant',
+                content: '',
+                type: 'text',
+                timestamp: new Date(),
+                isLoading: true
+              };
+              setMessages([greetingMessage]);
 
-            // Artificial streaming of greeting text
-            const greetingText: string = data.greetingMessage || '';
-            let idx = 0;
-            const interval = setInterval(() => {
-              idx += 1;
-              const partial = greetingText.slice(0, idx);
-              setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
-              if (idx >= greetingText.length) {
-                clearInterval(interval);
-                setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
-              }
-            }, 25);
+              // Artificial streaming of greeting text
+              const greetingText: string = data.greetingMessage || '';
+              let idx = 0;
+              const interval = setInterval(() => {
+                idx += 1;
+                const partial = greetingText.slice(0, idx);
+                setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
+                if (idx >= greetingText.length) {
+                  clearInterval(interval);
+                  setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
+                }
+              }, 25);
+            }
           } else {
             toast.error('Failed to load Masaic Mocky agent data');
           }
@@ -2204,8 +2281,14 @@ const AiPlayground: React.FC = () => {
             setConversationId(null);
             setPreviousResponseId(null);
 
-            // Reset previous conversation
-            setMessages([]);
+            // Reset previous conversation properly for both old and new chat
+            if (useNewChatImplementation && newChatRef.current) {
+              // Use new chat's reset function
+              newChatRef.current.resetConversation();
+            } else {
+              // Use old chat's reset logic
+              setMessages([]);
+            }
             
             // Generate new sessionId for new Model Test conversation
             generateNewSessionId();
@@ -2280,74 +2363,112 @@ const AiPlayground: React.FC = () => {
     setSaveModelState(null);
 
     // Reset conversation state like Reset Chat CTA
-    setMessages([]);
-    setConversationId(null);
-    setPreviousResponseId(null);
+    if (useNewChatImplementation && newChatRef.current) {
+      // Use new chat's reset function
+      newChatRef.current.resetConversation();
+    } else {
+      // Use old chat's reset logic
+      setMessages([]);
+      setConversationId(null);
+      setPreviousResponseId(null);
+    }
     
     // Generate new sessionId for new model test conversation
     generateNewSessionId();
 
-    // Display greeting message from agent
-    const greetingId = Date.now().toString() + '_assistant';
-    const greetingMessage: Message = {
-      id: greetingId,
-      role: 'assistant',
-      content: '',
-      type: 'text',
-      timestamp: new Date(),
-      isLoading: true
-    };
-    
-    setMessages([greetingMessage]);
-
-    // Artificial streaming of greeting text
-    const greetingText: string = modelTestAgentData.greetingMessage || '';
-    let idx = 0;
-    const greetingInterval = setInterval(() => {
-      idx += 1;
-      const partial = greetingText.slice(0, idx);
-      setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
-      if (idx >= greetingText.length) {
-        clearInterval(greetingInterval);
-        setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
+    // Handle greeting and user message streaming based on chat implementation
+    if (useNewChatImplementation) {
+      // For new chat: Use new chat's native functionality
+      const greetingText: string = modelTestAgentData.greetingMessage || '';
+      const userText: string = modelTestAgentData.userMessage || '';
+      
+      if (newChatRef.current) {
+        // Stream greeting first
+        newChatRef.current.streamGreetingMessage(greetingText);
         
-        // After greeting is complete, add user message
+        // After greeting completes, send user message directly which will trigger API call
         setTimeout(() => {
-          const userMessageId = Date.now().toString() + '_user';
-          const userMessage: Message = {
-            id: userMessageId,
-            role: 'user',
-            content: '',
-            type: 'text',
-            timestamp: new Date(),
-            isLoading: true
-          };
-          
-          setMessages(prev => [...prev, userMessage]);
-          
-          // Stream user message
-          const userText = modelTestAgentData.userMessage || '';
-          let userIdx = 0;
-          const userInterval = setInterval(() => {
-            userIdx += 1;
-            const userPartial = userText.slice(0, userIdx);
-            setMessages(prev => prev.map(msg => msg.id === userMessageId ? { ...msg, content: userPartial } : msg));
-            if (userIdx >= userText.length) {
-              clearInterval(userInterval);
-              setMessages(prev => prev.map(msg => msg.id === userMessageId ? { ...msg, isLoading: false } : msg));
-              
-              // After user message is complete, make API call
-              setTimeout(() => {
-                makeModelTestApiCall();
-              }, 500);
-            }
-          }, 25);
-        }, 1000);
+          if (newChatRef.current) {
+            // Use sendTextMessage directly - this will add the user message and make the API call
+            newChatRef.current.sendTextMessage(userText).catch((error) => {
+              console.error('Error in new chat model test call:', error);
+              setIsTestingModel(false);
+              toast.error('Failed to test model connectivity');
+            });
+          }
+        }, (greetingText.length * 25) + 1000);
       }
-    }, 25);
+    } else {
+      // Use old chat's streaming logic - EXACT COPY
+      const greetingId = Date.now().toString() + '_assistant';
+      const greetingMessage: Message = {
+        id: greetingId,
+        role: 'assistant',
+        content: '',
+        type: 'text',
+        timestamp: new Date(),
+        isLoading: true
+      };
+      
+      setMessages([greetingMessage]);
+
+      // Artificial streaming of greeting text
+      const greetingText: string = modelTestAgentData.greetingMessage || '';
+      let idx = 0;
+      const greetingInterval = setInterval(() => {
+        idx += 1;
+        const partial = greetingText.slice(0, idx);
+        setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
+        if (idx >= greetingText.length) {
+          clearInterval(greetingInterval);
+          setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
+          
+          // After greeting is complete, add user message
+          setTimeout(() => {
+            const userMessageId = Date.now().toString() + '_user';
+            const userMessage: Message = {
+              id: userMessageId,
+              role: 'user',
+              content: '',
+              type: 'text',
+              timestamp: new Date(),
+              isLoading: true
+            };
+            
+            setMessages(prev => [...prev, userMessage]);
+            
+            // Stream user message
+            const userText = modelTestAgentData.userMessage || '';
+            let userIdx = 0;
+            const userInterval = setInterval(() => {
+              userIdx += 1;
+              const userPartial = userText.slice(0, userIdx);
+              setMessages(prev => prev.map(msg => msg.id === userMessageId ? { ...msg, content: userPartial } : msg));
+              if (userIdx >= userText.length) {
+                clearInterval(userInterval);
+                setMessages(prev => prev.map(msg => msg.id === userMessageId ? { ...msg, isLoading: false } : msg));
+                
+                // After user message is complete, make API call
+                setTimeout(() => {
+                  makeModelTestApiCall();
+                }, 500);
+              }
+            }, 25);
+          }, 1000);
+        }
+      }, 25);
+    }
+  };
+
+  // Helper function to update messages in the correct chat implementation
+  const updateMessagesForModelTest = (updateFn: (prev: Message[]) => Message[]) => {
+    // For model test mode, always use old state since makeModelTestApiCall expects it
+    // The new chat will get its state synced via other means
+    setMessages(updateFn);
   };
 
   const makeModelTestApiCall = async () => {
+    console.log('makeModelTestApiCall called', { useNewChatImplementation, modelTestAgentData });
     if (!modelTestAgentData) return;
 
     // Check if model test fields are filled
@@ -2383,7 +2504,14 @@ const AiPlayground: React.FC = () => {
       isLoading: true
     };
 
-    setMessages(prev => [...prev, assistantMessage]);
+    // Add assistant message to the correct chat implementation
+    if (useNewChatImplementation && newChatRef.current) {
+      // For new chat, add message to the new chat's state
+      newChatRef.current.addAssistantMessage(assistantMessage);
+    } else {
+      // For old chat, use the existing logic
+      setMessages(prev => [...prev, assistantMessage]);
+    }
 
     // Build text format from current settings
     let textFormatBlock: any = { type: textFormat };
@@ -2448,6 +2576,7 @@ const AiPlayground: React.FC = () => {
     };
 
     try {
+      console.log('Making /v1/responses API call with requestBody:', requestBody);
       const response = await apiClient.rawRequest('/v1/responses', {
         method: 'POST',
         headers: {
@@ -2787,6 +2916,42 @@ const AiPlayground: React.FC = () => {
     }
   };
 
+  // LIFT AND SHIFT: Complete new chat implementation for model test mode
+  const makeNewChatModelTestCall = async () => {
+    if (!modelTestAgentData || !newChatRef.current) return;
+
+    // Check if model test fields are filled (EXACT COPY from old)
+    if (!modelTestName || modelTestName.trim() === '') {
+      toast.error('Please enter a model name for testing.');
+      setIsTestingModel(false);
+      return;
+    }
+
+    if (!modelTestUrl || modelTestUrl.trim() === '') {
+      toast.error('Please enter a model URL for testing.');
+      setIsTestingModel(false);
+      return;
+    }
+
+    if (!modelTestApiKey || modelTestApiKey.trim() === '') {
+      toast.error('Please enter an API key for testing.');
+      setIsTestingModel(false);
+      return;
+    }
+
+    // Now that the new chat is properly configured with model test settings,
+    // we can simply use sendTextMessage and it will work correctly!
+    const userText = modelTestAgentData.userMessage || '';
+    
+    try {
+      await newChatRef.current.sendTextMessage(userText);
+    } catch (error) {
+      console.error('Error in new chat model test call:', error);
+      setIsTestingModel(false);
+      toast.error('Failed to test model connectivity');
+    }
+  };
+
   const handleSaveModel = () => {
     if (!modelTestUrl.trim() || !modelTestName.trim() || !modelTestApiKey.trim()) {
       toast.error('Missing model information');
@@ -3068,6 +3233,17 @@ const AiPlayground: React.FC = () => {
               <Button
                 variant="ghost"
                 size="sm"
+                onClick={() => setUseNewChatImplementation(!useNewChatImplementation)}
+                className={`flex items-center space-x-2 hover:bg-muted/50 ${useNewChatImplementation ? 'text-positive-trend' : 'text-muted-foreground hover:text-foreground'}`}
+                title={`Switch to ${useNewChatImplementation ? 'old' : 'new'} chat implementation`}
+              >
+                <Brain className="w-4 h-4" />
+                <span className="text-sm">{useNewChatImplementation ? 'New Chat' : 'Old Chat'}</span>
+              </Button>
+              
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setCodeModalOpen(true)}
                 disabled={!lastRequest}
                 className="flex items-center space-x-2 text-muted-foreground hover:text-foreground hover:bg-muted/50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -3122,149 +3298,218 @@ const AiPlayground: React.FC = () => {
           </div>
         </div>
 
-        {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-6 py-8">
-        {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-muted-foreground">
-              <p className="text-sm">Start a conversation...</p>
-            </div>
-          </div>
+        {useNewChatImplementation ? (
+          // New Chat Implementation - EXACT COPY structure like old implementation
+          <ResponsesChat
+            ref={newChatRef}
+            hookConfig={{
+              model: modelTestMode && modelTestUrl && modelTestName ? 
+                { provider: modelTestUrl, name: modelTestName } :
+                { provider: modelProvider, name: modelName },
+              instructions: mockyMode && mockyAgentData ? mockyAgentData.systemPrompt 
+                : modelTestMode && modelTestAgentData ? modelTestAgentData.systemPrompt
+                : agentBuilderMode && agentBuilderData ? agentBuilderData.systemPrompt 
+                : instructions,
+              textFormat,
+              jsonSchema: textFormat === 'json_schema' ? { 
+                name: jsonSchemaName ?? undefined, 
+                schema: (() => {
+                  try {
+                    return jsonSchemaContent ? JSON.parse(jsonSchemaContent).schema : undefined;
+                  } catch {
+                    return undefined;
+                  }
+                })()
+              } : undefined,
+              tools: mockyMode && mockyAgentData && Array.isArray(mockyAgentData.tools) ? mockyAgentData.tools
+                : modelTestMode && modelTestAgentData && Array.isArray(modelTestAgentData.tools) ? modelTestAgentData.tools
+                : agentBuilderMode && agentBuilderData && Array.isArray(agentBuilderData.tools) ? agentBuilderData.tools
+                : selectedTools.length > 0 ? buildToolsPayload(selectedTools, modelSettings ? { settingsType: modelSettings.settingsType as 'RUNTIME' | 'PLATFORM' } : undefined) : undefined,
+              store: storeLogs,
+              stream: true,
+              headers: modelTestMode && modelTestApiKey ? {
+                'Authorization': `Bearer ${modelTestApiKey}`
+              } : undefined,
+              onEvent: (evt) => {
+                console.log('Chat event:', evt);
+              },
+              // Model test mode callbacks
+              modelTestMode,
+              onSaveModelStateChange: setSaveModelState,
+              onShowSaveModelChange: setShowSaveModel
+            }}
+            placeholder="Chat with your prompt..."
+            apiKey={apiKey}
+            baseUrl={baseUrl}
+            imageModelProvider={imageModelProvider}
+            imageModelName={imageModelName}
+            imageProviderKey={imageProviderKey}
+            selectedVectorStore={selectedVectorStore}
+            suggestedQueries={suggestedQueries}
+            agentMode={agentMode}
+            previousResponseId={previousResponseId}
+            // Pass callbacks to sync state with parent
+            onPreviousResponseIdChange={setPreviousResponseId}
+            onLastRequestChange={setLastRequest}
+            // Model test mode support - EXACT COPY from old implementation
+            modelTestMode={modelTestMode}
+            showSaveModel={showSaveModel}
+            saveModelState={saveModelState}
+            onSaveModel={handleSaveModel}
+          />
         ) : (
-          <div className="max-w-4xl mx-auto">
-            {messages.map((message) => (
-              <ChatMessage
-                key={message.id}
-                id={message.id}
-                role={message.role}
-                content={message.content}
-                contentBlocks={message.contentBlocks}
-                type={message.type}
-                timestamp={message.timestamp}
-                hasThinkTags={message.hasThinkTags}
-                formatType={message.role === 'assistant' ? textFormat : 'text'}
-                apiKey={apiKey}
-                baseUrl={baseUrl}
-                modelProvider={modelProvider}
-                modelName={modelName}
-                imageModelProvider={imageModelProvider}
-                imageModelName={imageModelName}
-                imageProviderKey={imageProviderKey}
-                selectedVectorStore={selectedVectorStore}
-                instructions={instructions}
-                isLoading={message.isLoading}
-                onRetry={modelTestMode ? undefined : handleRetry}
-              />
-            ))}
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-        {/* Input Area */}
-        <div className="bg-background px-6 py-4">
-          {modelTestMode && showSaveModel ? (
-            <div className="max-w-4xl mx-auto space-y-2">
-              {saveModelState === 'success' && (
-                <Button 
-                  onClick={handleSaveModel}
-                  className="w-full h-12 bg-positive-trend hover:bg-positive-trend/90 text-white rounded-xl font-medium"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Model
-                </Button>
-              )}
-              
-              {saveModelState === 'tool_issue' && (
-                <>
-                  <p className="text-xs text-yellow-600 text-center">Model has problem with tool calling</p>
-                  <Button 
-                    onClick={handleSaveModel}
-                    className="w-full h-12 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl font-medium"
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Model
-                  </Button>
-                </>
-              )}
-              
-              {saveModelState === 'error' && (
-                <>
-                  <p className="text-xs text-red-600 text-center">Model connectivity test was not complete</p>
-                  <Button 
-                    onClick={handleSaveModel}
-                    className="w-full h-12 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium"
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Model
-                  </Button>
-                </>
-              )}
-            </div>
-          ) : !modelTestMode ? (
-            <div className="max-w-4xl mx-auto">
-              {/* Suggested Queries */}
-              {suggestedQueries.length > 0 && agentMode && !previousResponseId && (
-                <div className="mb-4">
-                  <p className="text-xs text-muted-foreground mb-2">Suggested queries:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {suggestedQueries.map((query, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleSuggestedQuerySelect(query)}
-                        className="px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 border border-border rounded-lg text-foreground transition-colors duration-200 truncate max-w-xs"
-                        title={query}
-                      >
-                        {query}
-                      </button>
-                    ))}
+          // Old Chat Implementation
+          <>
+            {/* Messages Area */}
+            <div className="flex-1 overflow-y-auto px-6 py-8">
+              {messages.length === 0 ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center text-muted-foreground">
+                    <p className="text-sm">Start a conversation...</p>
                   </div>
                 </div>
-              )}
-
-              <form onSubmit={handleSubmit}>
-                <div className="relative">
-                <Textarea
-                  value={inputValue}
-                  onChange={handleTextareaChange}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Chat with your prompt..."
-                  className="chat-input-textarea w-full min-h-[96px] max-h-[40vh] resize-none rounded-xl border border-border bg-muted/50 px-4 py-4 pr-12 text-sm placeholder:text-muted-foreground focus:outline-none focus:border-positive-trend/60 focus:ring-0 focus:ring-offset-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-positive-trend/60 transition-all duration-200"
-                  disabled={isLoading}
-                  rows={1}
-                  style={{ 
-                    lineHeight: '1.5',
-                    paddingTop: '18px',
-                    paddingBottom: '18px',
-                    boxShadow: 'none !important',
-                    outline: 'none !important'
-                  }}
-                />
-                <div className="absolute bottom-3 right-3">
-                  <Button
-                    type="submit"
-                    disabled={!inputValue.trim() || isLoading || !modelProvider || !modelName}
-                    className="h-8 w-8 p-0 bg-positive-trend hover:bg-positive-trend/90 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={
-                      !modelProvider || !modelName
-                        ? "Select a model to send messages"
-                        : !inputValue.trim()
-                        ? "Type a message to send"
-                        : "Send message"
-                    }
-                  >
-                    {isLoading ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Send className="h-3 w-3" />
-                    )}
-                  </Button>
+              ) : (
+                <div className="max-w-4xl mx-auto">
+                  {messages.map((message) => (
+                    <ChatMessage
+                      key={message.id}
+                      id={message.id}
+                      role={message.role}
+                      content={message.content}
+                      contentBlocks={message.contentBlocks}
+                      type={message.type}
+                      timestamp={message.timestamp}
+                      hasThinkTags={message.hasThinkTags}
+                      formatType={message.role === 'assistant' ? textFormat : 'text'}
+                      apiKey={apiKey}
+                      baseUrl={baseUrl}
+                      modelProvider={modelProvider}
+                      modelName={modelName}
+                      imageModelProvider={imageModelProvider}
+                      imageModelName={imageModelName}
+                      imageProviderKey={imageProviderKey}
+                      selectedVectorStore={selectedVectorStore}
+                      instructions={instructions}
+                      isLoading={message.isLoading}
+                      onRetry={modelTestMode ? undefined : handleRetry}
+                    />
+                  ))}
                 </div>
-              </div>
-            </form>
+              )}
+              <div ref={messagesEndRef} />
             </div>
-          ) : null}
-        </div>
+
+            {/* Input Area */}
+            <div className="bg-background px-6 py-4">
+              {modelTestMode && showSaveModel ? (
+                <div className="max-w-4xl mx-auto space-y-2">
+                  {saveModelState === 'success' && (
+                    <Button 
+                      onClick={handleSaveModel}
+                      className="w-full h-12 bg-positive-trend hover:bg-positive-trend/90 text-white rounded-xl font-medium"
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Model
+                    </Button>
+                  )}
+                  
+                  {saveModelState === 'tool_issue' && (
+                    <>
+                      <p className="text-xs text-yellow-600 text-center">Model has problem with tool calling</p>
+                      <Button 
+                        onClick={handleSaveModel}
+                        className="w-full h-12 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl font-medium"
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Model
+                      </Button>
+                    </>
+                  )}
+                  
+                  {saveModelState === 'error' && (
+                    <>
+                      <p className="text-xs text-red-600 text-center">Model connectivity test was not complete</p>
+                      <Button 
+                        onClick={handleSaveModel}
+                        className="w-full h-12 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium"
+                      >
+                        <Save className="h-4 w-4 mr-2" />
+                        Save Model
+                      </Button>
+                    </>
+                  )}
+                </div>
+              ) : !modelTestMode ? (
+                <div className="max-w-4xl mx-auto">
+                  {/* Suggested Queries */}
+                  {suggestedQueries.length > 0 && agentMode && !previousResponseId && (
+                    <div className="mb-4">
+                      <p className="text-xs text-muted-foreground mb-2">Suggested queries:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {suggestedQueries.map((query, index) => (
+                          <button
+                            key={index}
+                            onClick={() => handleSuggestedQuerySelect(query)}
+                            className="px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 border border-border rounded-lg text-foreground transition-colors duration-200 truncate max-w-xs"
+                            title={query}
+                          >
+                            {query}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <form onSubmit={handleSubmit}>
+                    <div className="relative">
+                    <Textarea
+                      value={inputValue}
+                      onChange={handleTextareaChange}
+                      onKeyPress={handleKeyPress}
+                      placeholder="Chat with your prompt..."
+                      className="chat-input-textarea w-full min-h-[96px] max-h-[40vh] resize-none rounded-xl border border-border bg-muted/50 px-4 py-4 pr-12 text-sm placeholder:text-muted-foreground focus:outline-none focus:border-positive-trend/60 focus:ring-0 focus:ring-offset-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-positive-trend/60 transition-all duration-200"
+                      disabled={isLoading}
+                      rows={1}
+                      style={{ 
+                        lineHeight: '1.5',
+                        paddingTop: '18px',
+                        paddingBottom: '18px',
+                        boxShadow: 'none !important',
+                        outline: 'none !important'
+                      }}
+                    />
+                    <div className="absolute bottom-3 right-3">
+                      <Button
+                        type="submit"
+                        disabled={!inputValue.trim() || isLoading || !modelProvider || !modelName}
+                        className="h-8 w-8 p-0 bg-positive-trend hover:bg-positive-trend/90 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        title={
+                          !modelProvider || !modelName
+                            ? "Select a model to send messages"
+                            : !inputValue.trim()
+                            ? "Type a message to send"
+                            : "Send message"
+                        }
+                      >
+                        {isLoading ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Send className="h-3 w-3" />
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </form>
+                
+                {/* Temporary testing label */}
+                <div className="text-center mt-2">
+                  <span className="text-xs text-muted-foreground/70">You are using old chat</span>
+                </div>
+                </div>
+              ) : null}
+            </div>
+          </>
+        )}
       </div>
     </div>
     

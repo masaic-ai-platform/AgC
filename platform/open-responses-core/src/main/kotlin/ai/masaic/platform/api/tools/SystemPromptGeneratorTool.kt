@@ -14,8 +14,8 @@ import com.openai.client.OpenAIClient
 import org.springframework.http.codec.ServerSentEvent
 
 class SystemPromptGeneratorTool(
-    private val modelSettings: ModelSettings,
-    private val modelService: ModelService,
+    modelSettings: ModelSettings,
+    modelService: ModelService,
 ) : ModelDepPlatformNativeTool(PlatformToolsNames.SYSTEM_PROMPT_GENERATOR_TOOL, modelService, modelSettings) {
     override fun provideToolDef(): NativeToolDefinition =
         nativeToolDefinition {
@@ -47,7 +47,7 @@ class SystemPromptGeneratorTool(
         eventEmitter: (ServerSentEvent<String>) -> Unit,
         toolMetadata: Map<String, Any>,
         context: UnifiedToolContext,
-    ): String? {
+    ): String {
         val request: PromptGenerationRequest = mapper.readValue(arguments)
         val messages = addMessages(request)
         return callModel(paramsAccessor, client, messages)
