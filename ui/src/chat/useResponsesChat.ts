@@ -439,6 +439,59 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                       }
                     }
 
+                  } else if (data.type && data.type.startsWith('response.agc.')) {
+                    // EXACT COPY: Handle agc.* tool events (Py function tools) from old implementation
+                    const typeParts = data.type.split('.');
+                    if (typeParts.length >= 4) {
+                      const toolName = typeParts[2];
+                      const status = typeParts[3];
+                      
+                      if (status === 'executing' || status === 'in_progress') {
+                        // Add new agc tool execution
+                        const toolExecution: ToolExecution = {
+                          serverName: 'agc',
+                          toolName,
+                          status: 'in_progress'
+                        };
+                        activeToolExecutions.set(`agc_${toolName}`, toolExecution);
+                        
+                        // Find existing tool progress block or create new one
+                        let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
+                        if (!toolProgressBlock) {
+                          toolProgressBlock = {
+                            type: 'tool_progress',
+                            toolExecutions: Array.from(activeToolExecutions.values())
+                          };
+                          contentBlocks.push(toolProgressBlock);
+                        } else {
+                          // Update existing tool progress block
+                          toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
+                        }
+                        currentTextBlock = null; // Reset text block for potential next text
+                        
+                        updateMessage(contentBlocks, streamingContent);
+                      } else if (status === 'completed') {
+                        // Update agc tool execution status
+                        const toolExecution = activeToolExecutions.get(`agc_${toolName}`);
+                        if (toolExecution) {
+                          toolExecution.status = 'completed';
+                          
+                          // Update the last tool progress block
+                          for (let i = contentBlocks.length - 1; i >= 0; i--) {
+                            if (contentBlocks[i].type === 'tool_progress') {
+                              contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
+                              break;
+                            }
+                          }
+                          
+                          // Add inline loading when tools complete, indicating we're waiting for next text stream
+                          const blocksWithLoading = addInlineLoading(contentBlocks);
+                          contentBlocks = blocksWithLoading;
+                          updateMessage(blocksWithLoading, streamingContent);
+                        }
+                      }
+                    }
+
                   } else if (data.type === 'response.file_search.in_progress') {
                     // Handle file search tool start event - EXACT COPY
                     const toolExecution: ToolExecution = {

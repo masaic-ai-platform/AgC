@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Drawer, DrawerTrigger, DrawerContent } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -87,7 +88,7 @@ const isValidUrl = (url: string): boolean => {
 };
 
 const AiPlayground: React.FC = () => {
-
+  const navigate = useNavigate();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
@@ -1952,6 +1953,10 @@ const AiPlayground: React.FC = () => {
     fetchAgentBuilder();
   };
 
+  const handleNewAgentBuilder = () => {
+    navigate('/agent-builder');
+  };
+
   const fetchAgentBuilder = async () => {
     try {
       const data = await apiClient.agentJsonRequest<any>('/v1/agents/agent-builder');
@@ -3058,6 +3063,7 @@ const AiPlayground: React.FC = () => {
           activeTab={activeTab}
           onTabChange={handleTabChange}
           onCreateAgent={handleCreateAgent}
+          onNewAgentBuilder={handleNewAgentBuilder}
           className="flex flex-col w-full"
         />
         {/* Configuration Panel */}
@@ -3134,6 +3140,7 @@ const AiPlayground: React.FC = () => {
         onTabChange={handleTabChange}
         onAgentSelect={handleAgentSelect}
         onCreateAgent={handleCreateAgent}
+        onNewAgentBuilder={handleNewAgentBuilder}
         className="hidden md:flex md:flex-col md:w-[10%] md:min-w-[160px]"
       />
 

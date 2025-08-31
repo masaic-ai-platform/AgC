@@ -1,5 +1,7 @@
 package ai.masaic.platform.api.registry.functions
 
+import ai.masaic.openresponses.api.model.FunctionDetails
+import ai.masaic.openresponses.api.model.PyFunTool
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import java.time.Instant
 
@@ -167,6 +169,14 @@ class FunctionRegistryService(
         return mapOf(
             "inputSchema" to emptyMap<String, Any>(),
             "outputSchema" to emptyMap<String, Any>(),
+        )
+    }
+
+    companion object {
+        fun toPyFunTool(functionDoc: FunctionDoc): PyFunTool =  PyFunTool(
+            type = "py_fun_tool",
+            functionDetails = FunctionDetails(name = functionDoc.name, description = functionDoc.description, parameters = functionDoc.inputSchema),
+            code = functionDoc.code,
         )
     }
 }
