@@ -121,7 +121,8 @@ const AgentBuilder: React.FC = () => {
       chatRef.current.resetConversation();
     }
     
-    // Set modify context
+    // Set modify context - all subsequent requests will have modifyAgent=true
+    console.log('Setting modifyAgent to true, agent name:', agent.name);
     setModifyAgent(true);
     setModifiedAgentName(agent.name);
     
@@ -140,7 +141,8 @@ const AgentBuilder: React.FC = () => {
       chatRef.current.resetConversation();
     }
     
-    // Reset modify context
+    // Reset modify context - all subsequent requests will have modifyAgent=false
+    console.log('Setting modifyAgent to false, clearing agent name');
     setModifyAgent(false);
     setModifiedAgentName('');
     
@@ -175,13 +177,24 @@ const AgentBuilder: React.FC = () => {
     }
   }, [loadingAgentBuilder, modelProvider, modelName, agentBuilderData, chatInitialized]);
 
-  // Agent Builder request transformer for POST /agents/agent-builder/chat API
+  // Agent Builder request transformer for POST /v1/agents/agent-builder/chat API
   const agentBuilderRequestTransformer = (standardRequest: any, context: any) => {
-    return {
-      modifyAgent: context?.modifyAgent || false,
-      modifiedAgentName: context?.modifiedAgentName || '',
+    // Debug logging
+    console.log('Request transformer - context:', context);
+    console.log('context.modifyAgent type:', typeof context?.modifyAgent, 'value:', context?.modifyAgent);
+    console.log('context.modifiedAgentName:', context?.modifiedAgentName);
+    
+    // Always ensure correct values based on context
+    const isModifying = context?.modifyAgent === true && !!context?.modifiedAgentName;
+    
+    const result = {
+      modifyAgent: isModifying,  // Always boolean true/false
+      modifiedAgentName: isModifying ? context.modifiedAgentName : '',  // Agent name or empty string
       responsesRequest: standardRequest
     };
+    
+    console.log('Request transformer - result:', result);
+    return result;
   };
 
   // Chat configuration for agent builder - memoized to prevent unnecessary re-renders
@@ -312,22 +325,30 @@ const AgentBuilder: React.FC = () => {
           <div className="p-6 space-y-4 bg-background">
             {/* Header CTAs */}
             <div className="flex items-center justify-between">
-              <AgentsSelectionModal
-                open={agentsModalOpen}
-                onOpenChange={setAgentsModalOpen}
-                onAgentSelect={handleAgentSelect}
-                triggerButton={
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-7 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 dark:hover:text-green-400 transition-colors"
-                    onClick={() => setAgentsModalOpen(true)}
-                  >
-                    <Bot className="h-3 w-3 mr-2" />
-                    Agents
-                  </Button>
-                }
-              />
+              <div className="flex items-center space-x-2">
+                <AgentsSelectionModal
+                  open={agentsModalOpen}
+                  onOpenChange={setAgentsModalOpen}
+                  onAgentSelect={handleAgentSelect}
+                  triggerButton={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 dark:hover:text-green-400 transition-colors"
+                      onClick={() => setAgentsModalOpen(true)}
+                    >
+                      <Bot className="h-3 w-3 mr-2" />
+                      Agents
+                    </Button>
+                  }
+                />
+                {/* Show modification context label when modifying an agent */}
+                {modifyAgent && modifiedAgentName && (
+                  <span className="text-xs text-green-600 dark:text-green-400 font-medium">
+                    Modifying {modifiedAgentName}
+                  </span>
+                )}
+              </div>
               <Button
                 variant="ghost"
                 size="sm"
