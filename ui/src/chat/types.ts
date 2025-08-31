@@ -66,6 +66,10 @@ export interface UseResponsesChatConfig {
   modelTestMode?: boolean;
   onSaveModelStateChange?: (state: 'success' | 'tool_issue' | 'error' | null) => void;
   onShowSaveModelChange?: (show: boolean) => void;
+  // Custom endpoint and request transformation support
+  customEndpoint?: string; // e.g., '/agents/agent-builder/chat'
+  requestTransformer?: (standardRequest: any, context?: any) => any;
+  customContext?: any; // Additional context for request transformation
 }
 
 export interface UseResponsesChatApi {

@@ -59,25 +59,22 @@ class InMemoryAgentRepository : AgentRepository {
     private val agents = mutableMapOf<String, PlatformAgentMeta>()
 
     override suspend fun upsert(agentMeta: PlatformAgentMeta): PlatformAgentMeta {
-        val normalizedName = agentMeta.name.lowercase()
         val agentWithTimestamp =
             agentMeta.copy(
                 createdAt = agentMeta.createdAt ?: Instant.now(),
                 updatedAt = Instant.now(),
             )
-        agents[normalizedName] = agentWithTimestamp
+        agents[agentMeta.name] = agentWithTimestamp
         return agentWithTimestamp
     }
 
     override suspend fun findByName(name: String): PlatformAgentMeta? {
-        val normalizedName = name.lowercase()
-        return agents[normalizedName]
+        return agents[name]
     }
 
     override suspend fun deleteByName(name: String): Boolean {
-        val normalizedName = name.lowercase()
-        val existed = agents.containsKey(normalizedName)
-        agents.remove(normalizedName)
+        val existed = agents.containsKey(name)
+        agents.remove(name)
         return existed
     }
 

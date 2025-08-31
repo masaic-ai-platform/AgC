@@ -19,7 +19,7 @@ class ToolSelectorTool(
     private val platformMcpService: PlatformMcpService,
     private val funRegService: FunctionRegistryService,
     private val toolService: ToolService
-) : ModelDepPlatformNativeTool(PlatformToolsNames.TOOl_SELECTOR_TOOL, modelService, modelSettings) {
+) : ModelDepPlatformNativeTool(PlatformToolsNames.TOOL_SELECTOR_TOOL, modelService, modelSettings) {
     override fun provideToolDef(): NativeToolDefinition {
         return nativeToolDefinition {
             name(toolName)
@@ -45,15 +45,17 @@ class ToolSelectorTool(
         toolMetadata: Map<String, Any>,
         context: UnifiedToolContext
     ): String {
+        val jsonTree = mapper.readTree(arguments)
+        val requirement = jsonTree["requirement"].asText()
         val userMessage =
-            "## Available Mock Servers with Functions:\n ${getAvailableMockMcpServers()}\n\n## Available Py Function Tools:\n ${getAvailablePythonFunctions()}\n\nTool requirement: $arguments"
+            "## Available Mock Servers with Functions:\n ${getAvailableMockMcpServers()}\n\n## Available Py Function Tools:\n ${getAvailablePythonFunctions()}\n\nTool requirement: $requirement"
         val messages = messages {
             systemMessage(toolSelectorPrompt)
             userMessage(userMessage)
         }
 
         val selectToolsJson = callModel(paramsAccessor, client, messages)
-        val selectedTools: SelectedTools = mapper.readValue(selectToolsJson)
+        val selectedTools: SelectedTools = mapper.readValue<SelectedTools>(selectToolsJson.replace("```json", "").replace("```", ""))
         val mcpMockTools = selectedTools.mcpServers.map {
             platformMcpService.getMockMcpTool(it.serverLabel, it.serverUrl)
         }

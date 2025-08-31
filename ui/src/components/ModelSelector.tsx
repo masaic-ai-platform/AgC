@@ -179,14 +179,6 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
     setModelName(name);
     setIsOpen(false);
     setSearchQuery('');
-
-    // Save to localStorage for persistence
-    try {
-      localStorage.setItem('platform_modelProvider', provider);
-      localStorage.setItem('platform_modelName', name);
-    } catch (error) {
-      console.error('Failed to save model to localStorage:', error);
-    }
   };
 
   const handleDeleteModel = (modelSyntax: string) => {
@@ -326,7 +318,7 @@ const ModelSelector: React.FC<ModelSelectorProps> = ({
                 <span className="text-sm text-muted-foreground">No models found</span>
               </div>
             ) : (
-              Object.entries(groupedModels).map(([provider, providerModels]) => (
+              Object.entries(groupedModels).map(([provider, providerModels]: [string, Model[]]) => (
                 <div key={provider}>
                   {Object.keys(groupedModels).length > 1 && (
                     <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider py-2 px-4 bg-muted/30">

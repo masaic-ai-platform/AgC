@@ -159,24 +159,31 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
       requestBody.previous_response_id = previousResponseId;
     }
 
+    // Determine endpoint and transform request if needed
+    const endpoint = config.customEndpoint || '/v1/responses';
+    const finalRequestBody = config.requestTransformer 
+      ? config.requestTransformer(requestBody, config.customContext)
+      : requestBody;
+
     // EXACT COPY: Capture request for code snippet generation from old implementation
-    const playgroundRequest: PlaygroundRequest = {
+    // Note: For custom endpoints, we store a compatible request object
+    const playgroundRequest: any = {
       method: 'POST',
-      url: '/v1/responses',
+      url: endpoint,
       headers: {
         'Content-Type': 'application/json',
         ...(config.headers || {})
       },
-      body: requestBody
+      body: finalRequestBody
     };
     setLastRequest(playgroundRequest);
 
     try {
-      // Make API call - using existing apiClient
-      const response = await apiClient.rawRequest('/v1/responses', {
+      // Make API call - using existing apiClient with configurable endpoint
+      const response = await apiClient.rawRequest(endpoint, {
         method: 'POST',
         headers: config.headers || {},
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(finalRequestBody)
       });
 
       if (!response.ok) {

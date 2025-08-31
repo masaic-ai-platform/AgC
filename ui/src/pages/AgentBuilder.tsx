@@ -3,6 +3,7 @@ import { ResponsesChat, buildToolsPayload, ResponsesChatRef } from '@/chat';
 import { UseResponsesChatConfig } from '@/chat/types';
 import ModelSelector from '@/components/ModelSelector';
 import ApiKeysModal from '@/components/ApiKeysModal';
+import AgentsSelectionModal from '@/components/AgentsSelectionModal';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Bot, Sparkles, RotateCcw } from 'lucide-react';
@@ -30,9 +31,22 @@ const AgentBuilder: React.FC = () => {
   const [agentBuilderData, setAgentBuilderData] = useState<any>(null);
   const [loadingAgentBuilder, setLoadingAgentBuilder] = useState(false);
 
+  // Agents selection modal state
+  const [agentsModalOpen, setAgentsModalOpen] = useState(false);
+  
+  // Agent modification context
+  const [modifyAgent, setModifyAgent] = useState(false);
+  const [modifiedAgentName, setModifiedAgentName] = useState('');
+
   // Load agent builder data and start chat on component mount
   useEffect(() => {
     fetchAgentBuilderData();
+    
+    // Load saved model from localStorage
+    const savedProvider = localStorage.getItem('platform_ab_modelProvider');
+    const savedName = localStorage.getItem('platform_ab_modelName');
+    if (savedProvider) setModelProvider(savedProvider);
+    if (savedName) setModelName(savedName);
   }, []);
 
   const fetchAgentBuilderData = async () => {
@@ -64,11 +78,83 @@ const AgentBuilder: React.FC = () => {
     }
   };
 
+  // Save model selection to localStorage whenever it changes
+  useEffect(() => {
+    if (modelProvider && modelName) {
+      try {
+        localStorage.setItem('platform_ab_modelProvider', modelProvider);
+        localStorage.setItem('platform_ab_modelName', modelName);
+      } catch (error) {
+        console.error('Failed to save model to localStorage:', error);
+      }
+    }
+  }, [modelProvider, modelName]);
+
+  // Get API key for the current provider from AgentBuilder's scoped storage
+  const getProviderApiKey = (): string => {
+    try {
+      // Read the provider from AgentBuilder's specific localStorage key
+      const currentProvider = localStorage.getItem('platform_ab_modelProvider') || modelProvider;
+      
+      const saved = localStorage.getItem('platform_apiKeys');
+      if (!saved) return '';
+      const savedKeys: { name: string; apiKey: string }[] = JSON.parse(saved);
+      return savedKeys.find(item => item.name === currentProvider)?.apiKey || '';
+    } catch {
+      return '';
+    }
+  };
+
   // Handle API key requirement for model selection
   const handleApiKeyRequired = (provider: string) => {
     setPendingModelSelection(`${provider}@${modelName || 'gpt-4o'}`);
     setRequiredProvider(provider);
     setApiKeysModalOpen(true);
+  };
+
+  // Handler for agent selection - clear messages and set modify context
+  const handleAgentSelect = async (agent: any) => {
+    console.log('Agent selected:', agent);
+    
+    // Clear all chat messages
+    if (chatRef.current) {
+      chatRef.current.resetConversation();
+    }
+    
+    // Set modify context
+    setModifyAgent(true);
+    setModifiedAgentName(agent.name);
+    
+    // Reset chat initialization to prevent greeting message
+    setChatInitialized(true);
+    
+    setAgentsModalOpen(false);
+  };
+
+  // Handler for "New" button - reset chat and clear modify context
+  const handleNewAgent = () => {
+    console.log('New agent creation requested');
+    
+    // Clear all chat messages
+    if (chatRef.current) {
+      chatRef.current.resetConversation();
+    }
+    
+    // Reset modify context
+    setModifyAgent(false);
+    setModifiedAgentName('');
+    
+    // Reset chat initialization to allow greeting message
+    setChatInitialized(false);
+    
+    // Small delay then stream greeting message again
+    setTimeout(() => {
+      if (chatRef.current && agentBuilderData && !chatInitialized) {
+        const greetingMessage = agentBuilderData.greetingMessage || "Hi! I'm your Agent Builder assistant. I'll help you create a custom agent by understanding your requirements and automatically configuring the right tools and capabilities. What kind of agent would you like to build today?";
+        chatRef.current.streamGreetingMessage(greetingMessage);
+        setChatInitialized(true);
+      }
+    }, 100);
   };
 
   // Initialize chat only once when agent builder data loads (not on model changes)
@@ -89,18 +175,43 @@ const AgentBuilder: React.FC = () => {
     }
   }, [loadingAgentBuilder, modelProvider, modelName, agentBuilderData, chatInitialized]);
 
+  // Agent Builder request transformer for POST /agents/agent-builder/chat API
+  const agentBuilderRequestTransformer = (standardRequest: any, context: any) => {
+    return {
+      modifyAgent: context?.modifyAgent || false,
+      modifiedAgentName: context?.modifiedAgentName || '',
+      responsesRequest: standardRequest
+    };
+  };
+
   // Chat configuration for agent builder - memoized to prevent unnecessary re-renders
-  const chatConfig: UseResponsesChatConfig = useMemo(() => ({
-    model: {
-      provider: modelProvider || 'openai',
-      name: modelName || 'gpt-4o'
-    },
-    instructions: agentBuilderData?.systemPrompt || '',
-    textFormat: 'text' as const,
-    tools: agentBuilderData?.tools || [],
-    store: true,
-    stream: true
-  }), [modelProvider, modelName, agentBuilderData]);
+  const chatConfig: UseResponsesChatConfig = useMemo(() => {
+    // Get the API key for the current provider
+    const currentProvider = localStorage.getItem('platform_ab_modelProvider') || modelProvider;
+    const apiKey = getProviderApiKey();
+    
+    return {
+      model: {
+        provider: modelProvider || 'openai',
+        name: modelName || 'gpt-4o'
+      },
+      instructions: agentBuilderData?.systemPrompt || '',
+      textFormat: 'text' as const,
+      tools: agentBuilderData?.tools || [],
+      store: true,
+      stream: true,
+      headers: apiKey ? {
+        'Authorization': `Bearer ${apiKey}`
+      } : {},
+      // Custom endpoint and request transformation for agent builder
+      customEndpoint: '/v1/agents/agent-builder/chat',
+      requestTransformer: agentBuilderRequestTransformer,
+      customContext: {
+        modifyAgent,
+        modifiedAgentName
+      }
+    };
+  }, [modelProvider, modelName, agentBuilderData, modifyAgent, modifiedAgentName]);
 
 
 
@@ -199,7 +310,33 @@ const AgentBuilder: React.FC = () => {
         <div className="w-1/3 min-w-0 border-r border-border flex flex-col">
           {/* Header Section */}
           <div className="p-6 space-y-4 bg-background">
-            <h2 className="text-xl font-semibold text-foreground">New Agent Builder</h2>
+            {/* Header CTAs */}
+            <div className="flex items-center justify-between">
+              <AgentsSelectionModal
+                open={agentsModalOpen}
+                onOpenChange={setAgentsModalOpen}
+                onAgentSelect={handleAgentSelect}
+                triggerButton={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 dark:hover:text-green-400 transition-colors"
+                    onClick={() => setAgentsModalOpen(true)}
+                  >
+                    <Bot className="h-3 w-3 mr-2" />
+                    Agents
+                  </Button>
+                }
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 dark:hover:text-green-400 transition-colors"
+                onClick={handleNewAgent}
+              >
+                New
+              </Button>
+            </div>
             
             {/* Model Selection */}
             <div className="flex items-center space-x-3 min-w-0">
@@ -223,7 +360,7 @@ const AgentBuilder: React.FC = () => {
               ref={chatRef}
               hookConfig={chatConfig}
               placeholder="Describe the agent you want to build..."
-              apiKey=""
+              apiKey={getProviderApiKey()}
               baseUrl="http://localhost:8080"
               imageModelProvider=""
               imageModelName=""
@@ -238,6 +375,7 @@ const AgentBuilder: React.FC = () => {
               showSaveModel={false}
               saveModelState={null}
               onSaveModel={() => {}}
+
             />
           ) : (
             <div className="flex items-center justify-center h-full">
