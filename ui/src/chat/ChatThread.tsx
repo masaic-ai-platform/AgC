@@ -71,6 +71,7 @@ export default function ChatThread({
             selectedVectorStore={selectedVectorStore}
             instructions={instructions}
             isLoading={message.isLoading}
+            isStreaming={message.isStreaming}
             onRetry={onRetry}
           />
           ))}

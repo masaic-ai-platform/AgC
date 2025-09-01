@@ -1,6 +1,8 @@
 package ai.masaic.platform.api.tools
 
 import ai.masaic.openresponses.api.model.CreateCompletionRequest
+import ai.masaic.openresponses.api.model.MCPTool
+import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolParamsAccessor
 import ai.masaic.openresponses.tool.mcp.*
@@ -28,6 +30,10 @@ class PlatformMcpService(
     private val mockFunRepository: MockFunctionRepository,
     private val mocksRepository: MocksRepository,
 ) {
+    companion object {
+        const val MOCK_UURL_ENDS_WITH = ".mock.masaic.ai/api/mcp"
+    }
+
     suspend fun createMockServer(request: CreateMockMcpServerRequest): MockMcpServerResponse {
         // 1. create random Id of 9 chars long.
         val id =
@@ -38,7 +44,7 @@ class PlatformMcpService(
                 .substring(0, 9)
 
         // 2. frame url like https://{id}.mock.masaic.ai/api/mcp
-        val url = "https://$id.mock.masaic.ai/api/mcp"
+        val url = "https://$id$MOCK_UURL_ENDS_WITH"
         val serverInfo = MCPServerInfo(id = id, url = url)
 
         // 3. persist McpMockServer in DB
@@ -54,6 +60,29 @@ class PlatformMcpService(
                 MockMcpServerResponse(id = mockServer.id, url = mockServer.url, serverLabel = mockServer.serverLabel)
             }
         return mockServers
+    }
+
+    suspend fun getMockServer(
+        serverLabel: String,
+        url: String,
+    ): MockMcpServerResponse {
+        val servers = getAllMockServers()
+        return servers.firstOrNull { mockServer ->
+            mockServer.serverLabel == serverLabel && mockServer.url == url
+        } ?: throw ResponseProcessingException("Unable to find mock mcp server marching serverLabel=$serverLabel and url=$url")
+    }
+
+    suspend fun getMockMcpTool(
+        serverLabel: String,
+        url: String,
+    ): MCPTool {
+        val servers = mcpMockServerRepository.findAll()
+        val mcpServer =
+            servers.firstOrNull { mockServer ->
+                mockServer.serverLabel == serverLabel && mockServer.url == url
+            } ?: throw ResponseProcessingException("Unable to find mock mcp server marching serverLabel=$serverLabel and url=$url")
+        val allowedFunctions = mcpServer.toolIds.map { getFunction(it).functionDefinition.name }
+        return MCPTool(type = "mcp", serverLabel = serverLabel, serverUrl = url, allowedTools = allowedFunctions)
     }
 
     suspend fun getFunction(functionId: String): GetFunctionResponse {

@@ -9,6 +9,7 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Layout from "./components/Layout";
 import Chat from "./pages/Chat";
+import AgentBuilder from "./pages/AgentBuilder";
 import NotFound from "./pages/NotFound";
 import { AUTH_CONFIG } from "./config/auth";
 
@@ -27,6 +28,7 @@ const App = () => (
                 <ProtectedRoute>
                   <Routes>
                     <Route path="/" element={<Chat />} />
+                    <Route path="/agent-builder" element={<AgentBuilder />} />
                     {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                     <Route path="*" element={<NotFound />} />
                   </Routes>

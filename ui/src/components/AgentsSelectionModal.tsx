@@ -33,6 +33,7 @@ interface AgentsSelectionModalProps {
   onOpenChange: (open: boolean) => void;
   onAgentSelect: (agent: Agent) => void;
   onCreateAgent?: () => void;
+  onNewAgentBuilder?: () => void;
   triggerButton?: React.ReactNode;
 }
 
@@ -41,6 +42,7 @@ const AgentsSelectionModal: React.FC<AgentsSelectionModalProps> = ({
   onOpenChange,
   onAgentSelect,
   onCreateAgent,
+  onNewAgentBuilder,
   triggerButton
 }) => {
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -141,19 +143,34 @@ const AgentsSelectionModal: React.FC<AgentsSelectionModalProps> = ({
         <div className="p-4 border-b">
           <div className="flex items-center justify-between mb-3">
             <h4 className="text-sm font-medium">Select an agent</h4>
-            {onCreateAgent && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  onCreateAgent();
-                  onOpenChange(false);
-                }}
-                className="h-7 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 dark:hover:text-green-400 transition-colors"
-              >
-                Create Agent
-              </Button>
-            )}
+            <div className="flex items-center space-x-2">
+              {onNewAgentBuilder && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    onNewAgentBuilder();
+                    onOpenChange(false);
+                  }}
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 transition-colors"
+                >
+                  New Agent Builder
+                </Button>
+              )}
+              {onCreateAgent && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    onCreateAgent();
+                    onOpenChange(false);
+                  }}
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 dark:hover:text-green-400 transition-colors"
+                >
+                  Create Agent
+                </Button>
+              )}
+            </div>
           </div>
           
           {/* Search Input */}

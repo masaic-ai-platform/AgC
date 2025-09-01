@@ -159,24 +159,31 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
       requestBody.previous_response_id = previousResponseId;
     }
 
+    // Determine endpoint and transform request if needed
+    const endpoint = config.customEndpoint || '/v1/responses';
+    const finalRequestBody = config.requestTransformer 
+      ? config.requestTransformer(requestBody, config.customContext)
+      : requestBody;
+
     // EXACT COPY: Capture request for code snippet generation from old implementation
-    const playgroundRequest: PlaygroundRequest = {
+    // Note: For custom endpoints, we store a compatible request object
+    const playgroundRequest: any = {
       method: 'POST',
-      url: '/v1/responses',
+      url: endpoint,
       headers: {
         'Content-Type': 'application/json',
         ...(config.headers || {})
       },
-      body: requestBody
+      body: finalRequestBody
     };
     setLastRequest(playgroundRequest);
 
     try {
-      // Make API call - using existing apiClient
-      const response = await apiClient.rawRequest('/v1/responses', {
+      // Make API call - using existing apiClient with configurable endpoint
+      const response = await apiClient.rawRequest(endpoint, {
         method: 'POST',
         headers: config.headers || {},
-        body: JSON.stringify(requestBody)
+        body: JSON.stringify(finalRequestBody)
       });
 
       if (!response.ok) {
@@ -213,7 +220,7 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
       let responseCompleted = false;
       let toolCompleted = false;
 
-      const updateMessage = (blocks: ContentBlock[], fullContent: string) => {
+      const updateMessage = (blocks: ContentBlock[], fullContent: string, streaming: boolean = false) => {
         setMessages(prev => prev.map(msg =>
           msg.id === assistantMessageId
             ? {
@@ -222,7 +229,8 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                 contentBlocks: [...blocks],
                 type: 'text',
                 hasThinkTags: false,
-                isLoading: false
+                isLoading: false,
+                isStreaming: streaming
               }
             : msg
         ));
@@ -257,6 +265,11 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                 try {
                   const data = JSON.parse(line.slice(6));
 
+                  // Emit event if handler provided (like in streaming.ts)
+                  if (config.onEvent) {
+                    config.onEvent({ type: lastEvent || data.type || 'data', data });
+                  }
+
                   // Handle explicit error events from SSE stream  
                   if (lastEvent === 'error' || (data.type === 'error') || (data.code && data.message)) {
                     console.log('🚨 Error detected in stream!', { lastEvent, dataType: data.type, dataCode: data.code, dataMessage: data.message });
@@ -284,7 +297,8 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                             contentBlocks: errorContentBlocks,
                             type: 'text',
                             hasThinkTags: false,
-                            isLoading: false
+                            isLoading: false,
+                            isStreaming: false
                           }
                         : msg
                     ));
@@ -323,7 +337,7 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                     }
                     
                     const finalContent = streamingContent || 'Response completed';
-                    updateMessage(finalBlocks, finalContent);
+                    updateMessage(finalBlocks, finalContent, false);
                     
                     // EXACT COPY: Model test mode save model state logic from old implementation
                     if (config.modelTestMode) {
@@ -367,9 +381,9 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                         }
                       }
                       
-                      // Remove any inline loading when text streaming starts
-                      const blocksWithoutLoading = removeInlineLoading(contentBlocks);
-                      updateMessage(blocksWithoutLoading, displayContent);
+                                          // Remove any inline loading when text streaming starts
+                    const blocksWithoutLoading = removeInlineLoading(contentBlocks);
+                    updateMessage(blocksWithoutLoading, displayContent, true);
                     }
 
                   } else if (data.type === 'response.output_text.done') {
@@ -385,7 +399,7 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                           break;
                         }
                       }
-                      updateMessage(contentBlocks, streamingContent);
+                      updateMessage(contentBlocks, streamingContent, false);
                     }
 
                   } else if (data.type && data.type.startsWith('response.mcp_call.')) {
@@ -419,7 +433,7 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                         }
                         currentTextBlock = null;
                         
-                        updateMessage(contentBlocks, streamingContent);
+                        updateMessage(contentBlocks, streamingContent, false);
                       } else if (status === 'completed') {
                         const toolExecution = activeToolExecutions.get(toolIdentifier);
                         if (toolExecution) {
@@ -434,7 +448,60 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                           
                           const blocksWithLoading = addInlineLoading(contentBlocks);
                           contentBlocks = blocksWithLoading;
-                          updateMessage(blocksWithLoading, streamingContent);
+                          updateMessage(blocksWithLoading, streamingContent, false);
+                        }
+                      }
+                    }
+
+                  } else if (data.type && data.type.startsWith('response.agc.')) {
+                    // EXACT COPY: Handle agc.* tool events (Py function tools) from old implementation
+                    const typeParts = data.type.split('.');
+                    if (typeParts.length >= 4) {
+                      const toolName = typeParts[2];
+                      const status = typeParts[3];
+                      
+                      if (status === 'executing' || status === 'in_progress') {
+                        // Add new agc tool execution
+                        const toolExecution: ToolExecution = {
+                          serverName: 'agc',
+                          toolName,
+                          status: 'in_progress'
+                        };
+                        activeToolExecutions.set(`agc_${toolName}`, toolExecution);
+                        
+                        // Find existing tool progress block or create new one
+                        let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
+                        if (!toolProgressBlock) {
+                          toolProgressBlock = {
+                            type: 'tool_progress',
+                            toolExecutions: Array.from(activeToolExecutions.values())
+                          };
+                          contentBlocks.push(toolProgressBlock);
+                        } else {
+                          // Update existing tool progress block
+                          toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
+                        }
+                        currentTextBlock = null; // Reset text block for potential next text
+                        
+                        updateMessage(contentBlocks, streamingContent, false);
+                      } else if (status === 'completed') {
+                        // Update agc tool execution status
+                        const toolExecution = activeToolExecutions.get(`agc_${toolName}`);
+                        if (toolExecution) {
+                          toolExecution.status = 'completed';
+                          
+                          // Update the last tool progress block
+                          for (let i = contentBlocks.length - 1; i >= 0; i--) {
+                            if (contentBlocks[i].type === 'tool_progress') {
+                              contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
+                              break;
+                            }
+                          }
+                          
+                          // Add inline loading when tools complete, indicating we're waiting for next text stream
+                          const blocksWithLoading = addInlineLoading(contentBlocks);
+                          contentBlocks = blocksWithLoading;
+                          updateMessage(blocksWithLoading, streamingContent, false);
                         }
                       }
                     }

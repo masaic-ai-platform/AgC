@@ -1,21 +1,27 @@
 package ai.masaic.platform.api.tools
 
-import ai.masaic.openresponses.tool.NativeToolDefinition
-import ai.masaic.openresponses.tool.ToolParamsAccessor
-import ai.masaic.openresponses.tool.ToolProgressEventMeta
-import ai.masaic.openresponses.tool.UnifiedToolContext
+import ai.masaic.openresponses.api.model.FunctionDetails
+import ai.masaic.openresponses.api.model.MCPTool
+import ai.masaic.openresponses.api.model.PyFunTool
+import ai.masaic.openresponses.tool.*
 import ai.masaic.openresponses.tool.mcp.nativeToolDefinition
 import ai.masaic.platform.api.config.ModelSettings
+import ai.masaic.platform.api.registry.functions.FunctionRegistryService
 import ai.masaic.platform.api.service.ModelService
+import ai.masaic.platform.api.service.messages
+import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.client.OpenAIClient
 import org.springframework.http.codec.ServerSentEvent
 
 class ToolSelectorTool(
     modelSettings: ModelSettings,
     modelService: ModelService,
-) : ModelDepPlatformNativeTool(PlatformToolsNames.TOOl_SELECTOR_TOOL, modelService, modelSettings) {
-    override fun provideToolDef(): NativeToolDefinition {
-        return nativeToolDefinition {
+    private val platformMcpService: PlatformMcpService,
+    private val funRegService: FunctionRegistryService,
+    private val toolService: ToolService,
+) : ModelDepPlatformNativeTool(PlatformToolsNames.TOOL_SELECTOR_TOOL, modelService, modelSettings) {
+    override fun provideToolDef(): NativeToolDefinition =
+        nativeToolDefinition {
             name(toolName)
             description("Based upon the tool requirement, return best relevant tool or tools from the available tools.")
             parameters {
@@ -28,7 +34,6 @@ class ToolSelectorTool(
             }
             eventMeta(ToolProgressEventMeta(infix = "agc"))
         }
-    }
 
     override suspend fun executeTool(
         resolvedName: String,
@@ -37,9 +42,66 @@ class ToolSelectorTool(
         client: OpenAIClient,
         eventEmitter: (ServerSentEvent<String>) -> Unit,
         toolMetadata: Map<String, Any>,
-        context: UnifiedToolContext
-    ): String? {
-        TODO("Not yet implemented")
+        context: UnifiedToolContext,
+    ): String {
+        val jsonTree = mapper.readTree(arguments)
+        val requirement = jsonTree["requirement"].asText()
+        val userMessage =
+            "## Available Mock Servers with Functions:\n ${getAvailableMockMcpServers()}\n\n## Available Py Function Tools:\n ${getAvailablePythonFunctions()}\n\nTool requirement: $requirement"
+        val messages =
+            messages {
+                systemMessage(toolSelectorPrompt)
+                userMessage(userMessage)
+            }
+
+        val selectToolsJson = callModel(paramsAccessor, client, messages)
+        val selectedTools: SelectedTools = mapper.readValue<SelectedTools>(selectToolsJson.replace("```json", "").replace("```", ""))
+        val mcpMockTools =
+            selectedTools.mcpServers.map {
+                platformMcpService.getMockMcpTool(it.serverLabel, it.serverUrl)
+            }
+        val pyFunTools =
+            selectedTools.pythonFunctions.map {
+                FunctionRegistryService.toPyFunTool(funRegService.getFunction(it.name))
+            }
+        return mapper.writeValueAsString(mapOf("mcpTools" to mcpMockTools, "pyFunTools" to pyFunTools))
+    }
+
+    private suspend fun getAvailableMockMcpServers(): String {
+        val mockServers = platformMcpService.getAllMockServers()
+        return mockServers
+            .map { server ->
+                val mcpTool =
+                    MCPTool(
+                        type = "mcp",
+                        serverLabel = server.serverLabel,
+                        serverUrl = server.url,
+                    )
+                val tools =
+                    toolService
+                        .getRemoteMcpTools(mcpTool)
+                        .map { it.copy(name = mcpTool.toMCPServerInfo().unQualifiedToolName(it.name ?: "not available")) }
+
+                "Server: ${mapper.writeValueAsString(mcpTool)}\n Tools: ${mapper.writeValueAsString(tools)}"
+            }.joinToString("\n-----\n")
+    }
+
+    private suspend fun getAvailablePythonFunctions(): String {
+        val functions = funRegService.getAllAvailableFunctions(false)
+        return functions.joinToString("\n-----\n") {
+            mapper.writeValueAsString(
+                PyFunTool(
+                    type = "py_fun_tool",
+                    functionDetails =
+                        FunctionDetails(
+                            name = it.name,
+                            description = it.description,
+                            parameters = it.inputSchema?.toMutableMap() ?: mutableMapOf(),
+                        ),
+                    code = "",
+                ),
+            )
+        }
     }
 
     private val toolSelectorPrompt = """
@@ -63,13 +125,14 @@ Match user requirements with the most appropriate tools by understanding the con
 Return a JSON object with the following structure:
 ```json
 {
-  "mcp_servers": [
+  "mcpServers": [
     {
+      "type": "mcp",
       "server_label": "string: sever-label-value",
       "server_url": "string: sever-url-value"
     }
   ],
-  "python_functions": [
+  "pythonFunctions": [
     {
       "name": "string: name of function"
     }
@@ -131,3 +194,8 @@ Return a JSON object with the following structure:
 Remember: Your goal is to be a discerning tool curator who selects only the most valuable and relevant tools for each specific use case, ensuring the agent has exactly what it needs without unnecessary complexity.
     """
 }
+
+data class SelectedTools(
+    val mcpServers: List<MCPTool>,
+    val pythonFunctions: List<FunctionDetails>,
+)

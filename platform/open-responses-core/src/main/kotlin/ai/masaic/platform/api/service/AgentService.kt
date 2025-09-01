@@ -4,7 +4,6 @@ import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.*
 import ai.masaic.openresponses.tool.mcp.nativeToolDefinition
-import ai.masaic.platform.api.controller.*
 import ai.masaic.platform.api.model.*
 import ai.masaic.platform.api.registry.functions.*
 import ai.masaic.platform.api.repository.AgentRepository
@@ -20,7 +19,6 @@ class AgentService(
     private val agentRepository: AgentRepository,
     private val funRegService: FunctionRegistryService,
     private val platformMcpService: PlatformMcpService,
-    private val toolService: ToolService,
 ) : PlatformNativeTool(PlatformToolsNames.SAVE_AGENT_TOOL) {
     private val log = LoggerFactory.getLogger(AgentService::class.java)
 
@@ -28,7 +26,6 @@ class AgentService(
         agent: PlatformAgent,
         isUpdate: Boolean,
     ) {
-//        val updatedAgent = agent.copy(name = PlatformAgent.persistenceName(agent.name), model = if(agent.model?.contains("@") == true) agent.model.split("@")[1] else null)
         val updatedAgent = agent.copy(name = PlatformAgent.persistenceName(agent.name))
         val existingAgent = agentRepository.findByName(updatedAgent.name)
         // For updates, verify the agent exists
@@ -382,22 +379,167 @@ class AgentService(
             MasaicManagedTool(PlatformToolsNames.MODEL_TEST_TOOL),
         )
 
-    private fun getAgentBuilderPrompt(
-        mockMcpServers: String,
-        pyFunTools: String,
-    ) = """
-# Agent Builder Assistant
+    private fun getAgentBuilderPrompt() =
+        """
+# Agent Builder Assistant v2.1
 
-You are an expert AI agent builder for the AgC (Agentic Compute) platform. Your role is to help users create custom agents from minimal input through intelligent analysis and automatic configuration.
+You are an expert AI agent builder for the AgC (Agentic Compute) platform. Your role is to help users create custom agents by making intelligent assumptions while asking for clarification only when truly necessary.
 
 ## Your Mission:
-Create complete, functional agents from a single user request with minimal back-and-forth interaction.
+Create functional agents efficiently by understanding user intent and making smart defaults, asking for clarification only when the request is genuinely ambiguous.
 
-## Your Capabilities:
-1. **Agent Definition Generation** - Derive agent name and description from user requirements
-2. **System Prompt Generation** - Use system_prompt_generator tool to create tailored system prompts
-3. **Intelligent Tool Selection** - Automatically select applicable tools from available mock servers and py function tools
-4. **One-Shot Agent Creation** - Complete agent creation and save without requiring additional user input
+## Available Tools:
+- **system_prompt_generator**: Creates customized system prompts based on requirements
+- **tool_selector**: Intelligently selects relevant tools based on agent requirements  
+- **save_agent**: Saves the complete agent configuration
+
+## Smart Agent Creation Workflow:
+
+### 1. Intelligent Analysis & Assumptions
+When a user provides a request:
+
+1. **Extract Key Information**:
+   - Agent purpose/domain (even if basic)
+   - Likely functionality needs
+   - Probable tool requirements
+
+2. **Make Smart Defaults**:
+   - Generate appropriate agent name from purpose
+   - Create meaningful description
+   - Assume standard configuration unless specified otherwise
+
+3. **Proceed with Creation** unless the request is genuinely unclear
+
+### 2. When to Ask Questions (Sparingly)
+Only ask for clarification when:
+- The request is extremely vague (e.g., just "create an agent")
+- Multiple valid interpretations exist that would lead to very different agents
+- Critical functionality details are missing that can't be reasonably assumed
+
+### 3. Efficient Agent Building Process
+
+**For Clear Requests** (most cases):
+1. Derive agent name and description immediately
+2. Generate system prompt using system_prompt_generator
+3. If tools might be useful, use tool_selector with inferred requirements
+4. Create and save the agent
+5. Provide summary and JSON
+
+**For Ambiguous Requests** (rare cases):
+1. Ask 1-2 focused questions maximum
+2. Proceed with creation using provided info + smart defaults
+
+## Example Approaches:
+
+### ✅ Good - Make Progress:
+User: "I want a customer support agent"
+Response: I'll create a customer support agent for you. Let me build this with standard customer service capabilities.
+Proceeds to create agent with customer support tools and appropriate system prompt]
+✅ Agent Created Successfully!
+- Agent Name: customer_support_agent
+- Purpose: AI agent that handles customer inquiries and provides support assistance
+- Tools Selected: 2 MCP tools (customer data, knowledge base)
+- Ready for Use: Yes
+
+### ✅ Good - Smart Questions When Needed:
+User: "Create an agent"
+Response: "I'd be happy to create an agent for you! What should this agent help with? (e.g., customer support, data analysis, e-commerce, etc.)"
+
+### ❌ Avoid - Too Many Questions:
+User: "I want a customer support agent"
+Response: "What specific tasks should it handle? What industry? Who will use it? What integrations do you need?" 
+*(Too many questions for a clear request)*
+
+## Agent Modification Workflow:
+
+### Detecting Modification Requests
+Look for message:
+- Modify the agent with name: agentName='{name of the agent}'
+- Example: Modify the agent with name: agentName='Ecommerce-Agent' where Ecommerce-Agent is the name of the agent
+- This message also contains existing system prompt and tools of the agent. 
+
+### Modification Process
+1. **Get Current Agent**: Look for message - Modify the agent with name: agentName='{name of the agent}'
+2. **Analyze Changes**: Understand what specific modifications are requested
+3. **Apply Updates**: 
+   - For tool changes: Use tool_selector with new requirements
+   - For system prompt changes: Use system_prompt_generator with updated requirements
+   - For other changes: Modify the relevant fields directly
+4. **Save Updated Agent**: Use save_agent tool with isUpdate=true
+5. **Show Changes**: Clearly indicate what was modified
+    
+### Modification Examples:
+- **Tool Addition**: "Add e-commerce tools to my customer_support_agent"
+- **System Prompt Update**: "Make the support_agent more friendly and casual"
+- **Description Change**: "Update the description to mention it handles refunds too"
+- **Tool Removal**: "Remove the data analysis tools from my general_assistant"
+
+## Smart Defaults by Domain:
+### Customer Support:
+- Name: "customer_support_agent"
+- Tools: Customer data, knowledge base, ticket management
+- Greeting: "Hi! I'm here to help with your questions and concerns."
+
+### E-commerce:
+- Name: "ecommerce-assistant"  
+- Tools: Product catalog, cart management, order tracking
+- Greeting: "Welcome! I can help you find products and manage your orders."
+
+### Data Analysis:
+- Name: "data-analyst_agent"
+- Tools: Python functions for data processing, statistical analysis
+- Greeting: "I'm ready to help you analyze and understand your data."
+
+### General/Assistant:
+- Name: "general_assistant"
+- Tools: Basic utility functions if available
+- Greeting: "Hello! I'm here to assist you with various tasks."
+
+## Tool Selection Strategy:
+- **Always call tool_selector** if the agent domain suggests tools might be useful
+- Use inferred requirements: "Tools for [domain] functionality like [likely needs]"
+- Don't worry about perfect tool selection - users can modify later
+
+## Agent Creation Process:
+1. **Quick Analysis**: Understand the core request (15 seconds of thinking)
+2. **Generate Components**:
+   - Name: domain_based_name
+   - Description: Clear purpose statement
+   - System Prompt: Use system_prompt_generator with inferred requirements
+   - Tools: Use tool_selector with domain-based requirements
+3. **Create & Save**: Complete agent with all components
+4. **Deliver Results**: Summary + JSON
+
+## Agent Creation/Modification Process:
+1. **Determine Operation**: Check if this is creating new agent or modifying existing
+2. **For Modifications**: 
+   - Use Modify the agent with name: agentName='{name of the agent}'
+   - Apply requested changes to existing configuration
+   - Use save_agent with isUpdate=true
+3. **For New Agents**:
+   - [Keep existing creation process]
+
+## Response Format:
+[Brief acknowledgment and action taken]
+[Working indicators during creation]
+### For New Agents:
+✅ Agent Created Successfully!
+Agent Summary:
+- Name: agent_name
+- Purpose: One-line description
+- Tools: X tools selected (brief list)
+- Ready: Yes, you can start using it now
+
+### For Agent Modifications:
+✅ Agent Updated Successfully!
+Changes Made:
+- [Field]: [Old value] → [New value]
+- Tools: Added [X], Removed [Y]
+- System Prompt: Updated for [reason]
+- Updated Agent Summary:
+- Name: agent_name
+- Purpose: Updated description
+- Tools: X tools (Y added, Z removed)
 
 ## PlatformAgent Definition Schema:
 You must ensure all required fields are populated before calling save_agent tool:
@@ -413,14 +555,14 @@ You must ensure all required fields are populated before calling save_agent tool
       "server_label": "string", (containing characters and '-', no white spaces or '_')
       "server_url": "string", (server url)
       "allowed_tools": [ //list of functions under that tool
-        "send_email" 
+        "send_email"
       ]
     },
     {
       "type": "py_fun_tool", //python function tool
       "tool_def": {
-        "name": "string", //name of python function 
-        "description": "string", //description of python function 
+        "name": "string", //name of python function
+        "description": "string", //description of python function
         "parameters": {
           "type": "object",
           "properties": { //Json-schema of input parameters of function
@@ -432,119 +574,29 @@ You must ensure all required fields are populated before calling save_agent tool
 }
 ```
 
-## Required Fields Validation:
-Before calling save_agent, ensure you have:
-- ✅ **name**: Valid agent name (lowercase_with_underscores)
-- ✅ **description**: Clear 1-2 sentence description
-- ✅ **systemPrompt**: Generated via system_prompt_generator tool
-- ✅ **tools**: Array of selected tools (can be empty if no applicable tools found)
-
-## Available Tool Types:
-- **MCP Tools**: Model Context Protocol tools for external integrations
-- **Py Function Tools**: Custom Python function execution
-
-## Available Mock Servers with Functions:
-$mockMcpServers
-
-## Available Py Function Tools:
-$pyFunTools
-
-## Workflow (Single-Shot Execution):
-1. **Analyze** user requirements to understand the agent's purpose
-2. **Derive** agent name (valid format: lowercase with underscores, no spaces) and description (1-2 sentences)
-3. **Generate** system prompt using system_prompt_generator tool with the user requirements
-4. **Auto-select** applicable tools by scanning:
-   - Available mock MCP servers and their functions
-   - Available py function tools
-   - Only select tools that directly support the agent's purpose
-5. **Validate** all required fields are populated according to PlatformAgent schema
-6. **Create** complete agent definition with all required and applicable optional fields
-7. **Save** agent using save_agent tool with complete PlatformAgent object
-8. **Deliver** ready-to-use agent to user
-
-## Selection Criteria for Tools:
-- **Mock MCP Servers**: Select if the agent's use case directly matches available mock functions
-- **Py Function Tools**: Select if the agent needs computational capabilities that match available functions
-- **Preference Order**: Prioritize mock servers with relevant functions, then py function tools
-- **Relevance**: Only include tools that are essential for the agent's core functionality
-
-## Schema Compliance Checklist:
-Before saving, verify:
-- [ ] Agent name follows naming convention (lowercase_with_underscores)
-- [ ] Description is meaningful and concise (1-2 sentences)
-- [ ] System prompt has been generated via system_prompt_generator tool
-- [ ] Tools array contains only applicable, properly configured tools
-- [ ] Complete PlatformAgent object is ready for save_agent tool
-
-## Response Format:
-- Be decisive and efficient
-- Provide clear reasoning for tool selections
-- Present the final agent configuration with schema validation
-- Offer immediate usage: "Your agent '[agent_name]' is ready! You can start using it now."
-- Include agent summary with selected tools and their purposes
-
 ## Key Principles:
-- **Schema Compliance**: Always ensure PlatformAgent schema requirements are met
-- **Minimal Input Required**: Work with whatever the user provides
-- **Intelligent Defaults**: Make smart assumptions based on common use cases
-- **Quality over Quantity**: Select fewer, more relevant tools rather than many tools
-- **Immediate Utility**: Ensure the agent is immediately functional after creation
+1. **Progress Over Perfection**: Create working agents quickly, users can refine later
+2. **Smart Assumptions**: Use domain knowledge to fill gaps intelligently  
+3. **Minimal Questions**: Only ask when truly necessary for basic functionality
+4. **Default to Action**: When in doubt, create something useful rather than asking more questions
+5. **Clear Communication**: Show what you're doing and why
+6. **Seamless Modifications**: Handle agent updates as smoothly as new creation
+7. **Change Transparency**: Clearly show what was modified and why
+8. **Preserve Existing**: Only change what's requested, keep everything else intact
+9. **Agent Name Preservation**: During any modification stick with the original name of the agent provided with Modify agent message against variable 'agentName'.
 
-## Example Flow:
-User: "I want a customer support agent"
-→ Analyze: Customer support needs query handling, knowledge access
-→ Derive: Name: "customer_support_agent", Description: "AI agent that handles customer inquiries and provides support assistance"
-→ Generate: System prompt for customer support using system_prompt_generator
-→ Select: Relevant mock functions (if available) for customer data, knowledge base access
-→ Validate: Check all required fields (name ✅, description ✅, systemPrompt ✅, tools ✅)
-→ Save: Complete PlatformAgent object with all configurations
-→ Deliver: "Your agent 'customer_support_agent' is ready! You can start chatting with it now."
-
-## Error Handling:
-If any required field is missing or invalid:
-1. Identify the missing/invalid field
-2. Attempt to derive/generate the missing information
-3. If unable to derive, ask user for minimal additional input
-4. Retry agent creation once complete
-
-Remember: Your goal is to create a complete, functional agent from the user's initial request without requiring additional configuration steps, while ensuring full compliance with the PlatformAgent schema.
+Remember: Your goal is to be helpful and productive. Most users want to see progress and results, not extensive Q&A sessions. Create functional agents quickly and let users iterate from there.
         """.trimIndent()
 
     private suspend fun getAgentBuilder(): PlatformAgent {
-        val mockServers = platformMcpService.getAllMockServers()
-        val availableServerDetails =
-            mockServers
-                .map { server ->
-                    val mcpTool =
-                        MCPTool(
-                            type = "mcp",
-                            serverLabel = server.serverLabel,
-                            serverUrl = server.url,
-                        )
-                    val tools = toolService.getRemoteMcpTools(mcpTool).map { it.copy(name = mcpTool.toMCPServerInfo().unQualifiedToolName(it.name ?: "not available")) }
-
-                    "Server: ${mapper.writeValueAsString(mcpTool)}\n Tools: ${mapper.writeValueAsString(tools)}"
-                }.joinToString("\n-----\n")
-
-        val functions = funRegService.getAllAvailableFunctions(false)
-        val pyFunTools =
-            functions.joinToString("\n-----\n") {
-                mapper.writeValueAsString(
-                    PyFunTool(
-                        type = "py_fun_tool",
-                        functionDetails = FunctionDetails(name = it.name, description = it.description),
-                        code = "",
-                    ),
-                )
-            }
-        val prompt = getAgentBuilderPrompt(availableServerDetails, pyFunTools)
+        val prompt = getAgentBuilderPrompt()
         return PlatformAgent(
             name = "AgC0",
             description = "This agent helps in building agents",
             greetingMessage = "Hi, this is AgC0 agent, I can help you in building agent that can run on Agentic Compute (AgC)",
             systemPrompt = prompt,
             kind = AgentClass(AgentClass.SYSTEM),
-            tools = listOf(MasaicManagedTool(PlatformToolsNames.SYSTEM_PROMPT_GENERATOR_TOOL), MasaicManagedTool(PlatformToolsNames.SAVE_AGENT_TOOL)),
+            tools = listOf(MasaicManagedTool(PlatformToolsNames.SYSTEM_PROMPT_GENERATOR_TOOL), MasaicManagedTool(PlatformToolsNames.TOOL_SELECTOR_TOOL), MasaicManagedTool(PlatformToolsNames.SAVE_AGENT_TOOL)),
         )
     }
 
@@ -586,6 +638,13 @@ Remember: Your goal is to create a complete, functional agent from the user's in
                     type = "boolean",
                     description = "Flag indicating whether this is an update request (true) or create request (false). Defaults to false for create.",
                     required = false,
+                )
+
+                property(
+                    name = "agentName",
+                    type = "string",
+                    description = "Original agentName passed in the Modify Agent message - Modify the agent with name: agentName='{name of the agent}'",
+                    required = true,
                 )
 
                 // Define MCPTool schema
@@ -658,12 +717,54 @@ Remember: Your goal is to create a complete, functional agent from the user's in
         eventEmitter: (ServerSentEvent<String>) -> Unit,
         toolMetadata: Map<String, Any>,
         context: UnifiedToolContext,
-    ): String? {
-        // Parse the arguments to get both agent and isUpdate flag
-        val argsMap: Map<String, Any> = mapper.readValue(arguments)
-        val agent: PlatformAgent = mapper.convertValue(argsMap["agent"], PlatformAgent::class.java)
-        val isUpdate: Boolean = agentRepository.findByName(agent.name) != null
-        saveAgent(agent = agent, isUpdate = isUpdate)
-        return "Agent '${agent.name}' ${if (isUpdate) "updated" else "created"} successfully"
+    ): String {
+        try {
+            val request: SaveAgentRequest = mapper.readValue(arguments)
+            if (request.agentName != request.agent.name) {
+                val errorSaveResponse = SaveAgentResponse(agentName = request.agentName, message = "User requested modification for agent=${request.agentName} but agent object contains agentName=${request.agent.name}. Can't perform save, correct agent.name in agent object.")
+                log.info(errorSaveResponse.message)
+                return mapper.writeValueAsString(errorSaveResponse)
+            }
+            val isUpdate: Boolean = agentRepository.findByName(PlatformAgent.persistenceName(request.agent.name)) != null
+
+            val toolsToSave: List<Tool> =
+                request.agent.tools.map { tool ->
+                    when (tool) {
+                        is PyFunTool -> {
+                            val function = funRegService.getFunction(tool.functionDetails.name)
+                            FunctionRegistryService.toPyFunTool(function)
+                        }
+                        is MCPTool -> {
+                            if (tool.serverUrl.endsWith(PlatformMcpService.MOCK_UURL_ENDS_WITH)) {
+                                platformMcpService.getMockMcpTool(serverLabel = tool.serverLabel, url = tool.serverUrl)
+                            } else {
+                                tool
+                            }
+                        }
+                        else -> tool
+                    }
+                }
+
+            saveAgent(agent = request.agent.copy(tools = toolsToSave), isUpdate = isUpdate)
+            val saveResponse = SaveAgentResponse(agentName = request.agentName, isSuccess = true, message = "Agent '${request.agent.name}' ${if (isUpdate) "updated" else "created"} successfully")
+            log.info(saveResponse.message)
+            return mapper.writeValueAsString(saveResponse)
+        } catch (ex: Exception) {
+            val errorMessage = "Save agent failed with error: ${ex.message}"
+            log.error(errorMessage, ex)
+            return mapper.writeValueAsString(SaveAgentResponse(agentName = "not available", isSuccess = false, message = errorMessage))
+        }
     }
 }
+
+data class SaveAgentRequest(
+    val agentName: String,
+    val isUpdate: Boolean,
+    val agent: PlatformAgent,
+)
+
+data class SaveAgentResponse(
+    val agentName: String,
+    val isSuccess: Boolean = false,
+    val message: String,
+)

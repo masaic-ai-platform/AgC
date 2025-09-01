@@ -1,12 +1,13 @@
 package ai.masaic.openresponses.api.client
 
 import ai.masaic.openresponses.api.extensions.toChatCompletionMessageParam
+import ai.masaic.openresponses.api.model.CompletedEventData
+import ai.masaic.openresponses.api.model.ErrorEventData
+import ai.masaic.openresponses.api.model.ExecutingEventData
+import ai.masaic.openresponses.api.model.InProgressEventData
 import ai.masaic.openresponses.api.support.service.GenAIObsAttributes
 import ai.masaic.openresponses.api.support.service.TelemetryService
-import ai.masaic.openresponses.tool.CompletionToolRequestContext
-import ai.masaic.openresponses.tool.ToolProtocol
-import ai.masaic.openresponses.tool.ToolRequestContext
-import ai.masaic.openresponses.tool.ToolService
+import ai.masaic.openresponses.tool.*
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
@@ -719,20 +720,13 @@ class MasaicToolHandler(
                     } else {
                         "response.$funNameForEventPrefix"
                     }
+
                 eventEmitter.invoke(
                     ServerSentEvent
                         .builder<String>()
                         .event("$eventPrefix.in_progress")
                         .data(
-                            " " +
-                                objectMapper.writeValueAsString(
-                                    mapOf(
-                                        "item_id" to (function.id().getOrNull() ?: function.callId()),
-                                        "output_index" to index.toString(),
-                                        "type" to "$eventPrefix.in_progress",
-                                        "tool_args" to function.arguments(),
-                                    ),
-                                ),
+                            " " + objectMapper.writeValueAsString(InProgressEventData(itemId = function.id().getOrNull() ?: function.callId(), outputIndex = index.toString(), type = "$eventPrefix.in_progress", toolArgs = function.arguments())),
                         ).build(),
                 )
 
@@ -742,14 +736,7 @@ class MasaicToolHandler(
                             .builder<String>()
                             .event("$eventPrefix.executing")
                             .data(
-                                " " +
-                                    objectMapper.writeValueAsString(
-                                        mapOf<String, String>(
-                                            "item_id" to (function.id().getOrNull() ?: function.callId()),
-                                            "output_index" to index.toString(),
-                                            "type" to "$eventPrefix.executing",
-                                        ),
-                                    ),
+                                " " + objectMapper.writeValueAsString(ExecutingEventData(itemId = function.id().getOrNull() ?: function.callId(), outputIndex = index.toString(), type = "$eventPrefix.executing")),
                             ).build(),
                     )
                 }
@@ -941,12 +928,7 @@ class MasaicToolHandler(
                                     .data(
                                         " " +
                                             objectMapper.writeValueAsString(
-                                                mapOf<String, String>(
-                                                    "item_id" to function.id().toString(),
-                                                    "output_index" to index.toString(),
-                                                    "type" to "$eventPrefix.completed",
-                                                    "tool_result" to toolResult,
-                                                ),
+                                                CompletedEventData(itemId = function.id().toString(), outputIndex = index.toString(), type = "$eventPrefix.completed", toolResult = toolResult),
                                             ),
                                     ).build(),
                             )
@@ -979,17 +961,11 @@ class MasaicToolHandler(
                             eventEmitter.invoke(
                                 ServerSentEvent
                                     .builder<String>()
-                                    .event("$eventPrefix.completed")
+                                    .event("$eventPrefix.error")
                                     .data(
-                                        " " +
-                                            objectMapper.writeValueAsString(
-                                                mapOf<String, String>(
-                                                    "item_id" to function.id().toString(),
-                                                    "output_index" to index.toString(),
-                                                    "type" to "$eventPrefix.completed",
-                                                    "error" to "Tool returned error or null",
-                                                ),
-                                            ),
+                                        objectMapper.writeValueAsString(
+                                            " " + ErrorEventData(itemId = function.id().toString(), outputIndex = index.toString(), type = "$eventPrefix.error", error = "Tool returned error or null"),
+                                        ),
                                     ).build(),
                             )
                         }
