@@ -180,14 +180,19 @@ class PlatformCoreConfig {
     ) = SystemPromptGeneratorTool(modelSettings, modelService)
 
     @Bean
-    fun toolSelectorTool(modelSettings: ModelSettings,
-                         @Lazy modelService: ModelService,
-                         platformMcpService: PlatformMcpService,
-                         funRegService: FunctionRegistryService,
-                         @Lazy toolService: ToolService) = ToolSelectorTool(modelSettings, modelService, platformMcpService, funRegService, toolService)
+    fun toolSelectorTool(
+        modelSettings: ModelSettings,
+        @Lazy modelService: ModelService,
+        platformMcpService: PlatformMcpService,
+        funRegService: FunctionRegistryService,
+        @Lazy toolService: ToolService,
+    ) = ToolSelectorTool(modelSettings, modelService, platformMcpService, funRegService, toolService)
 
     @Bean
-    fun agentBuilderChatService(responseController: ResponseController, agentService: AgentService) = AgentBuilderChatService(responseController, agentService)
+    fun agentBuilderChatService(
+        responseController: ResponseController,
+        agentService: AgentService,
+    ) = AgentBuilderChatService(responseController, agentService)
 
     @Bean
     @ConditionalOnMissingBean(TelemetryService::class)

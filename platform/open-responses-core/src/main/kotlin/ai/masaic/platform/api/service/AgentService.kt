@@ -18,7 +18,7 @@ import org.springframework.http.codec.ServerSentEvent
 class AgentService(
     private val agentRepository: AgentRepository,
     private val funRegService: FunctionRegistryService,
-    private val platformMcpService: PlatformMcpService
+    private val platformMcpService: PlatformMcpService,
 ) : PlatformNativeTool(PlatformToolsNames.SAVE_AGENT_TOOL) {
     private val log = LoggerFactory.getLogger(AgentService::class.java)
 
@@ -379,7 +379,8 @@ class AgentService(
             MasaicManagedTool(PlatformToolsNames.MODEL_TEST_TOOL),
         )
 
-    private fun getAgentBuilderPrompt() = """
+    private fun getAgentBuilderPrompt() =
+        """
 # Agent Builder Assistant v2.1
 
 You are an expert AI agent builder for the AgC (Agentic Compute) platform. Your role is to help users create custom agents by making intelligent assumptions while asking for clarification only when truly necessary.
@@ -585,7 +586,7 @@ You must ensure all required fields are populated before calling save_agent tool
 9. **Agent Name Preservation**: During any modification stick with the original name of the agent provided with Modify agent message against variable 'agentName'.
 
 Remember: Your goal is to be helpful and productive. Most users want to see progress and results, not extensive Q&A sessions. Create functional agents quickly and let users iterate from there.
-""".trimIndent()
+        """.trimIndent()
 
     private suspend fun getAgentBuilder(): PlatformAgent {
         val prompt = getAgentBuilderPrompt()
@@ -717,36 +718,53 @@ Remember: Your goal is to be helpful and productive. Most users want to see prog
         toolMetadata: Map<String, Any>,
         context: UnifiedToolContext,
     ): String {
-        val request: SaveAgentRequest = mapper.readValue(arguments)
-        if(request.agentName != request.agent.name) {
-            val errorSaveResponse = SaveAgentResponse(agentName = request.agentName, message = "User requested modification for agent=${request.agentName} but agent object contains agentName=${request.agent.name}. Can't perform save, correct agent.name in agent object.")
-            log.info(errorSaveResponse.message)
-            return mapper.writeValueAsString(errorSaveResponse)
-        }
-        val isUpdate: Boolean = agentRepository.findByName(PlatformAgent.persistenceName(request.agent.name)) != null
-
-        val toolsToSave: List<Tool> = request.agent.tools.map { tool ->
-            when(tool) {
-                is PyFunTool -> {
-                     val function = funRegService.getFunction(tool.functionDetails.name)
-                    FunctionRegistryService.toPyFunTool(function)
-                }
-                is MCPTool -> {
-                    if(tool.serverUrl.endsWith(PlatformMcpService.MOCK_UURL_ENDS_WITH)) {
-                        platformMcpService.getMockMcpTool(serverLabel = tool.serverLabel, url = tool.serverUrl)
-                    }else tool
-                }
-                else -> tool
+        try {
+            val request: SaveAgentRequest = mapper.readValue(arguments)
+            if (request.agentName != request.agent.name) {
+                val errorSaveResponse = SaveAgentResponse(agentName = request.agentName, message = "User requested modification for agent=${request.agentName} but agent object contains agentName=${request.agent.name}. Can't perform save, correct agent.name in agent object.")
+                log.info(errorSaveResponse.message)
+                return mapper.writeValueAsString(errorSaveResponse)
             }
-        }
+            val isUpdate: Boolean = agentRepository.findByName(PlatformAgent.persistenceName(request.agent.name)) != null
 
-        saveAgent(agent = request.agent.copy(tools = toolsToSave), isUpdate = isUpdate)
-        val saveResponse = SaveAgentResponse(agentName = request.agentName, isSuccess = true, message = "Agent '${request.agent.name}' ${if (isUpdate) "updated" else "created"} successfully")
-        log.info(saveResponse.message)
-        return mapper.writeValueAsString(saveResponse)
+            val toolsToSave: List<Tool> =
+                request.agent.tools.map { tool ->
+                    when (tool) {
+                        is PyFunTool -> {
+                            val function = funRegService.getFunction(tool.functionDetails.name)
+                            FunctionRegistryService.toPyFunTool(function)
+                        }
+                        is MCPTool -> {
+                            if (tool.serverUrl.endsWith(PlatformMcpService.MOCK_UURL_ENDS_WITH)) {
+                                platformMcpService.getMockMcpTool(serverLabel = tool.serverLabel, url = tool.serverUrl)
+                            } else {
+                                tool
+                            }
+                        }
+                        else -> tool
+                    }
+                }
+
+            saveAgent(agent = request.agent.copy(tools = toolsToSave), isUpdate = isUpdate)
+            val saveResponse = SaveAgentResponse(agentName = request.agentName, isSuccess = true, message = "Agent '${request.agent.name}' ${if (isUpdate) "updated" else "created"} successfully")
+            log.info(saveResponse.message)
+            return mapper.writeValueAsString(saveResponse)
+        } catch (ex: Exception) {
+            val errorMessage = "Save agent failed with error: ${ex.message}"
+            log.error(errorMessage, ex)
+            return mapper.writeValueAsString(SaveAgentResponse(agentName = "not available", isSuccess = false, message = errorMessage))
+        }
     }
 }
 
-data class SaveAgentRequest(val agentName: String, val isUpdate: Boolean, val agent: PlatformAgent)
+data class SaveAgentRequest(
+    val agentName: String,
+    val isUpdate: Boolean,
+    val agent: PlatformAgent,
+)
 
-data class SaveAgentResponse(val agentName: String, val isSuccess: Boolean = false, val message: String)
+data class SaveAgentResponse(
+    val agentName: String,
+    val isSuccess: Boolean = false,
+    val message: String,
+)

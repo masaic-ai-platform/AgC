@@ -726,7 +726,7 @@ class MasaicToolHandler(
                         .builder<String>()
                         .event("$eventPrefix.in_progress")
                         .data(
-                            " " +objectMapper.writeValueAsString(InProgressEventData(itemId = function.id().getOrNull() ?: function.callId(), outputIndex = index.toString(), type = "$eventPrefix.in_progress", toolArgs = function.arguments())),
+                            " " + objectMapper.writeValueAsString(InProgressEventData(itemId = function.id().getOrNull() ?: function.callId(), outputIndex = index.toString(), type = "$eventPrefix.in_progress", toolArgs = function.arguments())),
                         ).build(),
                 )
 
@@ -736,7 +736,7 @@ class MasaicToolHandler(
                             .builder<String>()
                             .event("$eventPrefix.executing")
                             .data(
-                                " " +objectMapper.writeValueAsString(ExecutingEventData(itemId = function.id().getOrNull() ?: function.callId(), outputIndex = index.toString(), type = "$eventPrefix.executing")),
+                                " " + objectMapper.writeValueAsString(ExecutingEventData(itemId = function.id().getOrNull() ?: function.callId(), outputIndex = index.toString(), type = "$eventPrefix.executing")),
                             ).build(),
                     )
                 }
@@ -926,8 +926,10 @@ class MasaicToolHandler(
                                     .builder<String>()
                                     .event("$eventPrefix.completed")
                                     .data(
-                                        " " +objectMapper.writeValueAsString(
-                                                CompletedEventData(itemId = function.id().toString(), outputIndex = index.toString(), type = "$eventPrefix.completed", toolResult = toolResult)),
+                                        " " +
+                                            objectMapper.writeValueAsString(
+                                                CompletedEventData(itemId = function.id().toString(), outputIndex = index.toString(), type = "$eventPrefix.completed", toolResult = toolResult),
+                                            ),
                                     ).build(),
                             )
                         } else {
@@ -960,8 +962,10 @@ class MasaicToolHandler(
                                 ServerSentEvent
                                     .builder<String>()
                                     .event("$eventPrefix.error")
-                                    .data(objectMapper.writeValueAsString(
-                                        " " +ErrorEventData(itemId = function.id().toString(), outputIndex = index.toString(), type = "$eventPrefix.error", error = "Tool returned error or null")),
+                                    .data(
+                                        objectMapper.writeValueAsString(
+                                            " " + ErrorEventData(itemId = function.id().toString(), outputIndex = index.toString(), type = "$eventPrefix.error", error = "Tool returned error or null"),
+                                        ),
                                     ).build(),
                             )
                         }

@@ -5,7 +5,6 @@ import ai.masaic.platform.api.model.PlatformAgent
 import ai.masaic.platform.api.service.AgentBuilderChatRequest
 import ai.masaic.platform.api.service.AgentBuilderChatService
 import ai.masaic.platform.api.service.AgentService
-import com.openai.models.responses.ResponseCreateParams
 import kotlinx.coroutines.flow.Flow
 import org.springframework.context.annotation.Profile
 import org.springframework.http.MediaType
@@ -20,7 +19,7 @@ import java.net.URI
 @CrossOrigin("*")
 class AgentsController(
     private val agentService: AgentService,
-    private val agentBuilderChatService: AgentBuilderChatService
+    private val agentBuilderChatService: AgentBuilderChatService,
 ) {
     @GetMapping("/agents/{agentName}", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun getAgent(
@@ -68,12 +67,13 @@ class AgentsController(
     @PostMapping("/agents/agent-builder/chat", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     suspend fun chatWithAgentBuilder(
         @RequestBody agentBuilderChatRequest: AgentBuilderChatRequest,
-        @RequestHeader("Authorization") authBearerToken: String
-    ): ResponseEntity<Flow<ServerSentEvent<*>>> {
-        return ResponseEntity
+        @RequestHeader("Authorization") authBearerToken: String,
+    ): ResponseEntity<Flow<ServerSentEvent<*>>> =
+        ResponseEntity
             .ok()
             .contentType(MediaType.TEXT_EVENT_STREAM)
-            .body(agentBuilderChatService.
-            chat(agentBuilderChatRequest, authBearerToken))
-    }
+            .body(
+                agentBuilderChatService
+                    .chat(agentBuilderChatRequest, authBearerToken),
+            )
 }

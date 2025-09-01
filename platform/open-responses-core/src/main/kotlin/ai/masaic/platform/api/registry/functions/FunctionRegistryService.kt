@@ -173,11 +173,12 @@ class FunctionRegistryService(
     }
 
     companion object {
-        fun toPyFunTool(functionDoc: FunctionDoc): PyFunTool =  PyFunTool(
-            type = "py_fun_tool",
-            functionDetails = FunctionDetails(name = functionDoc.name, description = functionDoc.description, parameters = functionDoc.inputSchema),
-            code = functionDoc.code,
-        )
+        fun toPyFunTool(functionDoc: FunctionDoc): PyFunTool =
+            PyFunTool(
+                type = "py_fun_tool",
+                functionDetails = FunctionDetails(name = functionDoc.name, description = functionDoc.description, parameters = functionDoc.inputSchema),
+                code = functionDoc.code,
+            )
     }
 }
 

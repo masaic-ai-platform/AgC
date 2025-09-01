@@ -33,6 +33,7 @@ class PlatformMcpService(
     companion object {
         const val MOCK_UURL_ENDS_WITH = ".mock.masaic.ai/api/mcp"
     }
+
     suspend fun createMockServer(request: CreateMockMcpServerRequest): MockMcpServerResponse {
         // 1. create random Id of 9 chars long.
         val id =
@@ -61,18 +62,25 @@ class PlatformMcpService(
         return mockServers
     }
 
-    suspend fun getMockServer(serverLabel: String, url: String): MockMcpServerResponse {
+    suspend fun getMockServer(
+        serverLabel: String,
+        url: String,
+    ): MockMcpServerResponse {
         val servers = getAllMockServers()
         return servers.firstOrNull { mockServer ->
-                mockServer.serverLabel == serverLabel && mockServer.url == url
-            } ?: throw ResponseProcessingException("Unable to find mock mcp server marching serverLabel=$serverLabel and url=$url")
-    }
-
-    suspend fun getMockMcpTool(serverLabel: String, url: String): MCPTool {
-        val servers = mcpMockServerRepository.findAll()
-        val mcpServer = servers.firstOrNull { mockServer ->
             mockServer.serverLabel == serverLabel && mockServer.url == url
         } ?: throw ResponseProcessingException("Unable to find mock mcp server marching serverLabel=$serverLabel and url=$url")
+    }
+
+    suspend fun getMockMcpTool(
+        serverLabel: String,
+        url: String,
+    ): MCPTool {
+        val servers = mcpMockServerRepository.findAll()
+        val mcpServer =
+            servers.firstOrNull { mockServer ->
+                mockServer.serverLabel == serverLabel && mockServer.url == url
+            } ?: throw ResponseProcessingException("Unable to find mock mcp server marching serverLabel=$serverLabel and url=$url")
         val allowedFunctions = mcpServer.toolIds.map { getFunction(it).functionDefinition.name }
         return MCPTool(type = "mcp", serverLabel = serverLabel, serverUrl = url, allowedTools = allowedFunctions)
     }

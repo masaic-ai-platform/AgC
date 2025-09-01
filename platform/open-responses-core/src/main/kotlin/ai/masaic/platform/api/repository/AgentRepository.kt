@@ -68,9 +68,7 @@ class InMemoryAgentRepository : AgentRepository {
         return agentWithTimestamp
     }
 
-    override suspend fun findByName(name: String): PlatformAgentMeta? {
-        return agents[name]
-    }
+    override suspend fun findByName(name: String): PlatformAgentMeta? = agents[name]
 
     override suspend fun deleteByName(name: String): Boolean {
         val existed = agents.containsKey(name)

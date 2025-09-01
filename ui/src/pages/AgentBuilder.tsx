@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ResponsesChat, buildToolsPayload, ResponsesChatRef } from '@/chat';
 import { UseResponsesChatConfig } from '@/chat/types';
 import ModelSelector from '@/components/ModelSelector';
@@ -8,12 +9,14 @@ import AgentBuilderRollingMessages from '@/components/AgentBuilderRollingMessage
 import CodeTabs from '@/playground/CodeTabs';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Bot, Sparkles, RotateCcw, Code } from 'lucide-react';
+import { Bot, Sparkles, RotateCcw, Code, Home } from 'lucide-react';
 import { toast } from 'sonner';
 
 
 
 const AgentBuilder: React.FC = () => {
+  const navigate = useNavigate();
+  
   // Model state
   const [modelProvider, setModelProvider] = useState('');
   const [modelName, setModelName] = useState('');
@@ -567,14 +570,25 @@ const AgentBuilder: React.FC = () => {
                   </span>
                 )}
               </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 dark:hover:text-green-400 transition-colors"
-                onClick={handleNewAgent}
-              >
-                New
-              </Button>
+              <div className="flex items-center space-x-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 dark:hover:text-blue-400 transition-colors"
+                  onClick={() => navigate('/')}
+                  title="Go to AI Playground"
+                >
+                  <Home className="h-3 w-3" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs text-muted-foreground hover:text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 dark:hover:text-green-400 transition-colors"
+                  onClick={handleNewAgent}
+                >
+                  New
+                </Button>
+              </div>
             </div>
             
             {/* Model Selection */}

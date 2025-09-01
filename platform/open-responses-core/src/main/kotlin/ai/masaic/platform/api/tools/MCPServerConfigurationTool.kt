@@ -10,12 +10,12 @@ import ai.masaic.platform.api.service.ModelService
 import com.openai.client.OpenAIClient
 import org.springframework.http.codec.ServerSentEvent
 
-class MCPToolConfigurationTool(
-                               modelSettings: ModelSettings,
-                               modelService: ModelService,
+class MCPServerConfigurationTool(
+    modelSettings: ModelSettings,
+    modelService: ModelService,
 ) : ModelDepPlatformNativeTool(PlatformToolsNames.SYSTEM_PROMPT_GENERATOR_TOOL, modelService, modelSettings) {
-    override fun provideToolDef(): NativeToolDefinition {
-        return nativeToolDefinition {
+    override fun provideToolDef(): NativeToolDefinition =
+        nativeToolDefinition {
             name(toolName)
             description("Generate the system prompt based upon the described requirements.")
             parameters {
@@ -35,7 +35,6 @@ class MCPToolConfigurationTool(
             }
             eventMeta(ToolProgressEventMeta(infix = "agc"))
         }
-    }
 
     override suspend fun executeTool(
         resolvedName: String,
@@ -44,7 +43,7 @@ class MCPToolConfigurationTool(
         client: OpenAIClient,
         eventEmitter: (ServerSentEvent<String>) -> Unit,
         toolMetadata: Map<String, Any>,
-        context: UnifiedToolContext
+        context: UnifiedToolContext,
     ): String? {
         TODO("Not yet implemented")
     }

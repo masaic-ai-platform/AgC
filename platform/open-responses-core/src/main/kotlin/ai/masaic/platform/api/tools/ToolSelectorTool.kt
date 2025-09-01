@@ -18,10 +18,10 @@ class ToolSelectorTool(
     modelService: ModelService,
     private val platformMcpService: PlatformMcpService,
     private val funRegService: FunctionRegistryService,
-    private val toolService: ToolService
+    private val toolService: ToolService,
 ) : ModelDepPlatformNativeTool(PlatformToolsNames.TOOL_SELECTOR_TOOL, modelService, modelSettings) {
-    override fun provideToolDef(): NativeToolDefinition {
-        return nativeToolDefinition {
+    override fun provideToolDef(): NativeToolDefinition =
+        nativeToolDefinition {
             name(toolName)
             description("Based upon the tool requirement, return best relevant tool or tools from the available tools.")
             parameters {
@@ -34,7 +34,6 @@ class ToolSelectorTool(
             }
             eventMeta(ToolProgressEventMeta(infix = "agc"))
         }
-    }
 
     override suspend fun executeTool(
         resolvedName: String,
@@ -43,25 +42,28 @@ class ToolSelectorTool(
         client: OpenAIClient,
         eventEmitter: (ServerSentEvent<String>) -> Unit,
         toolMetadata: Map<String, Any>,
-        context: UnifiedToolContext
+        context: UnifiedToolContext,
     ): String {
         val jsonTree = mapper.readTree(arguments)
         val requirement = jsonTree["requirement"].asText()
         val userMessage =
             "## Available Mock Servers with Functions:\n ${getAvailableMockMcpServers()}\n\n## Available Py Function Tools:\n ${getAvailablePythonFunctions()}\n\nTool requirement: $requirement"
-        val messages = messages {
-            systemMessage(toolSelectorPrompt)
-            userMessage(userMessage)
-        }
+        val messages =
+            messages {
+                systemMessage(toolSelectorPrompt)
+                userMessage(userMessage)
+            }
 
         val selectToolsJson = callModel(paramsAccessor, client, messages)
         val selectedTools: SelectedTools = mapper.readValue<SelectedTools>(selectToolsJson.replace("```json", "").replace("```", ""))
-        val mcpMockTools = selectedTools.mcpServers.map {
-            platformMcpService.getMockMcpTool(it.serverLabel, it.serverUrl)
-        }
-        val pyFunTools = selectedTools.pythonFunctions.map {
-            FunctionRegistryService.toPyFunTool(funRegService.getFunction(it.name))
-        }
+        val mcpMockTools =
+            selectedTools.mcpServers.map {
+                platformMcpService.getMockMcpTool(it.serverLabel, it.serverUrl)
+            }
+        val pyFunTools =
+            selectedTools.pythonFunctions.map {
+                FunctionRegistryService.toPyFunTool(funRegService.getFunction(it.name))
+            }
         return mapper.writeValueAsString(mapOf("mcpTools" to mcpMockTools, "pyFunTools" to pyFunTools))
     }
 
@@ -75,8 +77,10 @@ class ToolSelectorTool(
                         serverLabel = server.serverLabel,
                         serverUrl = server.url,
                     )
-                val tools = toolService.getRemoteMcpTools(mcpTool)
-                    .map { it.copy(name = mcpTool.toMCPServerInfo().unQualifiedToolName(it.name ?: "not available")) }
+                val tools =
+                    toolService
+                        .getRemoteMcpTools(mcpTool)
+                        .map { it.copy(name = mcpTool.toMCPServerInfo().unQualifiedToolName(it.name ?: "not available")) }
 
                 "Server: ${mapper.writeValueAsString(mcpTool)}\n Tools: ${mapper.writeValueAsString(tools)}"
             }.joinToString("\n-----\n")
@@ -88,11 +92,12 @@ class ToolSelectorTool(
             mapper.writeValueAsString(
                 PyFunTool(
                     type = "py_fun_tool",
-                    functionDetails = FunctionDetails(
-                        name = it.name,
-                        description = it.description,
-                        parameters = it.inputSchema?.toMutableMap() ?: mutableMapOf()
-                    ),
+                    functionDetails =
+                        FunctionDetails(
+                            name = it.name,
+                            description = it.description,
+                            parameters = it.inputSchema?.toMutableMap() ?: mutableMapOf(),
+                        ),
                     code = "",
                 ),
             )
@@ -190,4 +195,7 @@ Remember: Your goal is to be a discerning tool curator who selects only the most
     """
 }
 
-data class SelectedTools(val mcpServers: List<MCPTool>, val pythonFunctions: List<FunctionDetails>)
+data class SelectedTools(
+    val mcpServers: List<MCPTool>,
+    val pythonFunctions: List<FunctionDetails>,
+)
