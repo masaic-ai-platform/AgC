@@ -4,6 +4,7 @@ import { UseResponsesChatConfig } from '@/chat/types';
 import ModelSelector from '@/components/ModelSelector';
 import ApiKeysModal from '@/components/ApiKeysModal';
 import AgentsSelectionModal from '@/components/AgentsSelectionModal';
+import AgentBuilderRollingMessages from '@/components/AgentBuilderRollingMessages';
 import CodeTabs from '@/playground/CodeTabs';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -28,6 +29,9 @@ const AgentBuilder: React.FC = () => {
   // Agent creation state
   const [agentCreationStep, setAgentCreationStep] = useState<'idle' | 'building' | 'ready'>('idle');
   const [createdAgentName, setCreatedAgentName] = useState<string>('');
+  
+  // Rolling messages state
+  const [isRollingMessages, setIsRollingMessages] = useState(false);
   
   // Agent builder data
   const [agentBuilderData, setAgentBuilderData] = useState<any>(null);
@@ -196,6 +200,11 @@ const AgentBuilder: React.FC = () => {
     setAgentChatPreviousResponseId(null);
     setAgentChatLastRequest(null);
     
+    // Reset rolling messages state
+    setIsRollingMessages(false);
+    setAgentCreationStep('idle');
+    setCreatedAgentName('');
+    
     // Reset chat initialization to allow greeting message
     setChatInitialized(false);
     
@@ -246,7 +255,30 @@ const AgentBuilder: React.FC = () => {
       // Only refresh if we're in agent modification mode
       if (modifyAgent && modifiedAgentName) {
         handleAgentUpdated();
+      } else {
+        // In new agent creation mode, load the created agent
+        if (evt.data?.agentName) {
+          setCreatedAgentName(evt.data.agentName);
+          setIsRollingMessages(false);
+          
+          // Set up to show the created agent in the right panel
+          setModifyAgent(true);
+          setModifiedAgentName(evt.data.agentName);
+          
+          // Load the created agent data
+          loadSelectedAgentData(evt.data.agentName);
+        }
       }
+    }
+    // Handle agent creation in progress event
+    else if (evt.data?.type === 'response.agent.creation.in_progress') {
+      console.log('Agent creation in progress');
+      setIsRollingMessages(true);
+    }
+    // Handle agent creation paused event
+    else if (evt.data?.type === 'response.agent.creation.paused') {
+      console.log('Agent creation paused');
+      setIsRollingMessages(false);
     }
   }, [modifyAgent, modifiedAgentName, handleAgentUpdated]);
 
@@ -454,37 +486,12 @@ const AgentBuilder: React.FC = () => {
           );
         }
         
-        return (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center">
-              <Bot className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-foreground mb-2">Ready to Build</h3>
-              <p className="text-sm text-muted-foreground">The agent builder is ready. Start describing your agent requirements!</p>
-            </div>
-          </div>
-        );
+        // Show rolling messages component for new agent creation mode
+        return <AgentBuilderRollingMessages isRolling={isRollingMessages} />;
       
       case 'building':
-        return (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center max-w-md">
-              <Sparkles className="h-16 w-16 text-primary mx-auto mb-4 animate-pulse" />
-              <h3 className="text-lg font-medium text-foreground mb-2">Agent Building in Progress</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Your conversation is happening in the left panel. The AI is analyzing your requirements and will create a custom agent based on your needs.
-              </p>
-              <div className="bg-muted/30 rounded-lg p-4 text-left">
-                <h4 className="text-sm font-medium mb-2">What's happening:</h4>
-                <ul className="text-xs text-muted-foreground space-y-1">
-                  <li>• Understanding your requirements</li>
-                  <li>• Selecting appropriate tools</li>
-                  <li>• Configuring agent capabilities</li>
-                  <li>• Preparing for deployment</li>
-                </ul>
-              </div>
-            </div>
-          </div>
-        );
+        // Show rolling messages component for building state as well
+        return <AgentBuilderRollingMessages isRolling={isRollingMessages} />;
       
       case 'ready':
         return (
