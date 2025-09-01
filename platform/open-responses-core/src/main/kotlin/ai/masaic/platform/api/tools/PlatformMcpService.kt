@@ -30,6 +30,9 @@ class PlatformMcpService(
     private val mockFunRepository: MockFunctionRepository,
     private val mocksRepository: MocksRepository,
 ) {
+    companion object {
+        const val MOCK_UURL_ENDS_WITH = ".mock.masaic.ai/api/mcp"
+    }
     suspend fun createMockServer(request: CreateMockMcpServerRequest): MockMcpServerResponse {
         // 1. create random Id of 9 chars long.
         val id =
@@ -40,7 +43,7 @@ class PlatformMcpService(
                 .substring(0, 9)
 
         // 2. frame url like https://{id}.mock.masaic.ai/api/mcp
-        val url = "https://$id.mock.masaic.ai/api/mcp"
+        val url = "https://$id$MOCK_UURL_ENDS_WITH"
         val serverInfo = MCPServerInfo(id = id, url = url)
 
         // 3. persist McpMockServer in DB

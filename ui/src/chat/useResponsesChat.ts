@@ -264,6 +264,11 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                 try {
                   const data = JSON.parse(line.slice(6));
 
+                  // Emit event if handler provided (like in streaming.ts)
+                  if (config.onEvent) {
+                    config.onEvent({ type: lastEvent || data.type || 'data', data });
+                  }
+
                   // Handle explicit error events from SSE stream  
                   if (lastEvent === 'error' || (data.type === 'error') || (data.code && data.message)) {
                     console.log('🚨 Error detected in stream!', { lastEvent, dataType: data.type, dataCode: data.code, dataMessage: data.message });

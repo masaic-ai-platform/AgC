@@ -37,5 +37,5 @@ object PlatformToolsNames {
     const val SYSTEM_PROMPT_GENERATOR_TOOL = "system_prompt_generator"
     const val TOOL_SELECTOR_TOOL = "tool_selector"
     const val SAVE_AGENT_TOOL = "save_agent_tool"
-    const val GET_AGENT_DETAILS_TOOL = "get_agent_details"
+    const val MCP_SERVER_CONFIG_TOOL = "mcp_server_configuration"
 }

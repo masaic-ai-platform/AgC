@@ -1,12 +1,14 @@
-import React, { useState, useRef, useEffect, useMemo } from 'react';
+import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
 import { ResponsesChat, buildToolsPayload, ResponsesChatRef } from '@/chat';
 import { UseResponsesChatConfig } from '@/chat/types';
 import ModelSelector from '@/components/ModelSelector';
 import ApiKeysModal from '@/components/ApiKeysModal';
 import AgentsSelectionModal from '@/components/AgentsSelectionModal';
+import CodeTabs from '@/playground/CodeTabs';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Bot, Sparkles, RotateCcw } from 'lucide-react';
+import { Bot, Sparkles, RotateCcw, Code } from 'lucide-react';
+import { toast } from 'sonner';
 
 
 
@@ -37,16 +39,29 @@ const AgentBuilder: React.FC = () => {
   // Agent modification context
   const [modifyAgent, setModifyAgent] = useState(false);
   const [modifiedAgentName, setModifiedAgentName] = useState('');
+  
+  // Agent modification state
+  const [selectedAgentData, setSelectedAgentData] = useState<any>(null);
+  const [loadingSelectedAgent, setLoadingSelectedAgent] = useState(false);
+  
+  // Chat state for agent modification mode
+  const agentChatRef = useRef<ResponsesChatRef>(null);
+  const [agentChatPreviousResponseId, setAgentChatPreviousResponseId] = useState<string | null>(null);
+  const [agentChatLastRequest, setAgentChatLastRequest] = useState<any>(null);
+  const [codeModalOpen, setCodeModalOpen] = useState(false);
 
   // Load agent builder data and start chat on component mount
   useEffect(() => {
-    fetchAgentBuilderData();
-    
-    // Load saved model from localStorage
+    // Load saved model from localStorage first
     const savedProvider = localStorage.getItem('platform_ab_modelProvider');
     const savedName = localStorage.getItem('platform_ab_modelName');
+    
+    // Set saved values if they exist
     if (savedProvider) setModelProvider(savedProvider);
     if (savedName) setModelName(savedName);
+    
+    // Then fetch agent builder data
+    fetchAgentBuilderData();
   }, []);
 
   const fetchAgentBuilderData = async () => {
@@ -62,8 +77,11 @@ const AgentBuilder: React.FC = () => {
           tools: data.tools || []
         });
         
-        // Set default model if not selected
-        if (!modelProvider && !modelName) {
+        // Set default model if not selected (check localStorage directly to avoid race condition)
+        const savedProvider = localStorage.getItem('platform_ab_modelProvider');
+        const savedName = localStorage.getItem('platform_ab_modelName');
+        
+        if (!savedProvider && !savedName) {
           setModelProvider('openai');
           setModelName('gpt-4o');
         }
@@ -122,14 +140,39 @@ const AgentBuilder: React.FC = () => {
     }
     
     // Set modify context - all subsequent requests will have modifyAgent=true
-    console.log('Setting modifyAgent to true, agent name:', agent.name);
     setModifyAgent(true);
     setModifiedAgentName(agent.name);
+    
+    // Load the selected agent data
+    await loadSelectedAgentData(agent.name);
     
     // Reset chat initialization to prevent greeting message
     setChatInitialized(true);
     
     setAgentsModalOpen(false);
+  };
+
+  // Load selected agent data for modification mode
+  const loadSelectedAgentData = async (agentName: string) => {
+    setLoadingSelectedAgent(true);
+    try {
+      const data = await apiClient.agentJsonRequest(`/v1/agents/${agentName}`);
+      console.log('Loaded agent data:', data);
+      setSelectedAgentData(data);
+      
+      // Reset chat state for agent modification mode
+      if (agentChatRef.current) {
+        agentChatRef.current.resetConversation();
+      }
+      setAgentChatPreviousResponseId(null);
+      setAgentChatLastRequest(null);
+      
+    } catch (error) {
+      console.error('Error loading agent data:', error);
+      toast.error('Failed to load agent data');
+    } finally {
+      setLoadingSelectedAgent(false);
+    }
   };
 
   // Handler for "New" button - reset chat and clear modify context
@@ -142,9 +185,16 @@ const AgentBuilder: React.FC = () => {
     }
     
     // Reset modify context - all subsequent requests will have modifyAgent=false
-    console.log('Setting modifyAgent to false, clearing agent name');
     setModifyAgent(false);
     setModifiedAgentName('');
+    setSelectedAgentData(null);
+    
+    // Reset agent chat state
+    if (agentChatRef.current) {
+      agentChatRef.current.resetConversation();
+    }
+    setAgentChatPreviousResponseId(null);
+    setAgentChatLastRequest(null);
     
     // Reset chat initialization to allow greeting message
     setChatInitialized(false);
@@ -157,6 +207,78 @@ const AgentBuilder: React.FC = () => {
         setChatInitialized(true);
       }
     }, 100);
+  };
+
+  // Reset agent chat conversation
+  const resetAgentChat = () => {
+    if (agentChatRef.current) {
+      agentChatRef.current.resetConversation();
+    }
+    setAgentChatPreviousResponseId(null);
+    setAgentChatLastRequest(null);
+  };
+
+  // Handle agent updated event - refresh agent data (for agent modification mode)
+  const handleAgentUpdated = useCallback(async () => {
+    if (!modifiedAgentName) {
+      return;
+    }
+
+    try {
+      // Reload the agent data from the API
+      await loadSelectedAgentData(modifiedAgentName);
+      
+      // Show a subtle notification that the agent was updated
+      toast.success(`Agent "${modifiedAgentName}" has been updated`, {
+        duration: 3000,
+      });
+      
+    } catch (error) {
+      console.error('Failed to refresh agent data:', error);
+      toast.error('Failed to refresh agent data');
+    }
+  }, [modifiedAgentName, loadSelectedAgentData]);
+
+  // Central event handler for all streaming events from AgentBuilder
+  const handleStreamingEvent = useCallback((evt: { type: string; data: any }) => {
+    // Handle agent updated event - check both event type and data.type
+    if (evt.data?.type === 'response.agent.updated') {
+      // Only refresh if we're in agent modification mode
+      if (modifyAgent && modifiedAgentName) {
+        handleAgentUpdated();
+      }
+    }
+  }, [modifyAgent, modifiedAgentName, handleAgentUpdated]);
+
+  // Transform tools to add code_interpreter for py_fun_tool (similar to AI Playground)
+  const transformToolsForAgentChat = (tools: any[]): any[] => {
+    if (!Array.isArray(tools)) return [];
+    
+    return tools.map(tool => {
+      if (tool.type === 'py_fun_tool') {
+        // Get E2B server configuration from localStorage
+        const e2bConfig = localStorage.getItem('platform_e2b_mcp');
+        let codeInterpreter = {};
+        if (e2bConfig) {
+          try {
+            const e2bData = JSON.parse(e2bConfig);
+            codeInterpreter = {
+              server_label: e2bData.server_label || '',
+              url: e2bData.url || '',
+              apiKey: e2bData.apiKey || ''
+            };
+          } catch (error) {
+            console.error('Error parsing E2B configuration:', error);
+          }
+        }
+        
+        return {
+          ...tool,
+          code_interpreter: codeInterpreter
+        };
+      }
+      return tool;
+    });
   };
 
   // Initialize chat only once when agent builder data loads (not on model changes)
@@ -179,22 +301,14 @@ const AgentBuilder: React.FC = () => {
 
   // Agent Builder request transformer for POST /v1/agents/agent-builder/chat API
   const agentBuilderRequestTransformer = (standardRequest: any, context: any) => {
-    // Debug logging
-    console.log('Request transformer - context:', context);
-    console.log('context.modifyAgent type:', typeof context?.modifyAgent, 'value:', context?.modifyAgent);
-    console.log('context.modifiedAgentName:', context?.modifiedAgentName);
-    
     // Always ensure correct values based on context
     const isModifying = context?.modifyAgent === true && !!context?.modifiedAgentName;
     
-    const result = {
+    return {
       modifyAgent: isModifying,  // Always boolean true/false
       modifiedAgentName: isModifying ? context.modifiedAgentName : '',  // Agent name or empty string
       responsesRequest: standardRequest
     };
-    
-    console.log('Request transformer - result:', result);
-    return result;
   };
 
   // Chat configuration for agent builder - memoized to prevent unnecessary re-renders
@@ -222,13 +336,110 @@ const AgentBuilder: React.FC = () => {
       customContext: {
         modifyAgent,
         modifiedAgentName
-      }
+      },
+      // Add event handler to catch response.agent.updated from left pane stream
+      onEvent: handleStreamingEvent
     };
-  }, [modelProvider, modelName, agentBuilderData, modifyAgent, modifiedAgentName]);
+  }, [modelProvider, modelName, agentBuilderData, modifyAgent, modifiedAgentName, handleStreamingEvent]);
 
 
 
   const renderRightPanel = () => {
+    // Agent modification mode - show chat interface
+    if (modifyAgent && modifiedAgentName) {
+      if (loadingSelectedAgent) {
+        return (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+              <h3 className="text-lg font-medium text-foreground mb-2">Loading Agent</h3>
+              <p className="text-sm text-muted-foreground">Loading {modifiedAgentName} for modification...</p>
+            </div>
+          </div>
+        );
+      }
+
+      if (!selectedAgentData) {
+        return (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center">
+              <Bot className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+              <h3 className="text-lg font-medium text-foreground mb-2">Agent Not Found</h3>
+              <p className="text-sm text-muted-foreground">Could not load agent data for {modifiedAgentName}</p>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex flex-col h-full">
+          {/* Chat Header */}
+          <div className="sticky top-0 z-10 bg-background/95 backdrop-blur-sm border-b border-border px-6 py-3">
+            <div className="flex items-center justify-between w-full">
+              {/* Left side - Agent name and action buttons */}
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-foreground font-medium px-2 py-1 bg-accent/50 rounded-md">
+                  {modifiedAgentName}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={resetAgentChat}
+                  className="flex items-center space-x-2 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  title="Reset conversation"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                  <span className="text-sm">Reset Chat</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setCodeModalOpen(true)}
+                  disabled={!agentChatLastRequest}
+                  className="flex items-center space-x-2 text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  title={agentChatLastRequest ? "View code snippets for last request" : "Send a message to generate code snippets"}
+                >
+                  <Code className="w-4 h-4" />
+                  <span className="text-sm">View Code</span>
+                </Button>
+              </div>
+              
+              {/* Right side - Response ID */}
+              {agentChatPreviousResponseId && (
+                <div className="text-xs text-muted-foreground font-mono">
+                  {agentChatPreviousResponseId}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Chat Area - Wrapper needed since ResponsesChat returns fragment */}
+          <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+            <ResponsesChat
+              ref={agentChatRef}
+              hookConfig={{
+                model: { provider: modelProvider, name: modelName },
+                instructions: selectedAgentData.systemPrompt || '',
+                textFormat: 'text',
+                tools: Array.isArray(selectedAgentData.tools) ? transformToolsForAgentChat(selectedAgentData.tools) : undefined,
+                store: true,
+                stream: true,
+                // Pass the correct API key for AgentBuilder's model provider
+                headers: getProviderApiKey() ? {
+                  'Authorization': `Bearer ${getProviderApiKey()}`
+                } : undefined,
+                // Use the central event handler to catch agent updated events
+                onEvent: handleStreamingEvent
+              }}
+              placeholder={`Chat with ${modifiedAgentName}...`}
+              onPreviousResponseIdChange={setAgentChatPreviousResponseId}
+              onLastRequestChange={setAgentChatLastRequest}
+            />
+          </div>
+        </div>
+      );
+    }
+
     switch (agentCreationStep) {
       case 'idle':
         if (loadingAgentBuilder) {
@@ -320,9 +531,9 @@ const AgentBuilder: React.FC = () => {
   return (
     <div className="h-full bg-background flex">
         {/* Left Panel - Agent Builder Configuration (1/3) */}
-        <div className="w-1/3 min-w-0 border-r border-border flex flex-col">
+        <div className="w-1/3 min-w-0 border-r border-border flex flex-col bg-muted/40">
           {/* Header Section */}
-          <div className="p-6 space-y-4 bg-background">
+          <div className="p-6 space-y-4">
             {/* Header CTAs */}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
@@ -439,6 +650,14 @@ const AgentBuilder: React.FC = () => {
           }
         }}
         requiredProvider={requiredProvider}
+      />
+
+      {/* Code Snippets Modal for Agent Chat */}
+      <CodeTabs
+        open={codeModalOpen}
+        onOpenChange={setCodeModalOpen}
+        lastRequest={agentChatLastRequest}
+        baseUrl="http://localhost:8080"
       />
     </div>
   );

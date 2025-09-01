@@ -69,10 +69,11 @@ class AgentsController(
     suspend fun chatWithAgentBuilder(
         @RequestBody agentBuilderChatRequest: AgentBuilderChatRequest,
         @RequestHeader("Authorization") authBearerToken: String
-    ): ResponseEntity<Flow<ServerSentEvent<String>>> {
+    ): ResponseEntity<Flow<ServerSentEvent<*>>> {
         return ResponseEntity
             .ok()
             .contentType(MediaType.TEXT_EVENT_STREAM)
-            .body(agentBuilderChatService.chat(agentBuilderChatRequest, authBearerToken))
+            .body(agentBuilderChatService.
+            chat(agentBuilderChatRequest, authBearerToken))
     }
 }

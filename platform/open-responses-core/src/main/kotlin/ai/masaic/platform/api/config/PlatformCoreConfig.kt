@@ -162,8 +162,7 @@ class PlatformCoreConfig {
         agentRepository: AgentRepository,
         functionRegistryService: FunctionRegistryService,
         platformMcpService: PlatformMcpService,
-        @Lazy toolService: ToolService,
-    ) = AgentService(agentRepository, functionRegistryService)
+    ) = AgentService(agentRepository, functionRegistryService, platformMcpService)
 
     @Bean
     fun funRegistryValidator() = FunctionRegistryValidator()
