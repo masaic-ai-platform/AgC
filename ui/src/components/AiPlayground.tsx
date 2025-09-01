@@ -48,6 +48,7 @@ interface Message {
   timestamp: Date;
   hasThinkTags?: boolean;
   isLoading?: boolean;
+  isStreaming?: boolean;
 }
 
 interface PromptMessage {
@@ -887,7 +888,8 @@ const AiPlayground: React.FC = () => {
                 content: `Error: ${errorText}`,
                 type: 'text',
                 hasThinkTags: false,
-                isLoading: false
+                isLoading: false,
+                isStreaming: false
               }
             : msg
         ));
@@ -911,7 +913,7 @@ const AiPlayground: React.FC = () => {
       // Track the last SSE event name to properly handle custom events like "error"
       let lastEvent: string | null = null;
 
-      const updateMessage = (blocks: ContentBlock[], fullContent: string) => {
+      const updateMessage = (blocks: ContentBlock[], fullContent: string, streaming: boolean = false) => {
         setMessages(prev => prev.map(msg =>
           msg.id === assistantMessageId
             ? {
@@ -920,7 +922,8 @@ const AiPlayground: React.FC = () => {
                 contentBlocks: [...blocks],
                 type: 'text',
                 hasThinkTags: false,
-                isLoading: false
+                isLoading: false,
+                isStreaming: streaming
               }
             : msg
         ));
@@ -991,7 +994,8 @@ const AiPlayground: React.FC = () => {
                             contentBlocks: errorContentBlocks,
                             type: 'text',
                             hasThinkTags: false,
-                            isLoading: false
+                            isLoading: false,
+                            isStreaming: false
                           }
                         : msg
                     ));
@@ -1033,7 +1037,7 @@ const AiPlayground: React.FC = () => {
                     
                     // If no streaming content was received, use a default message or empty string
                     const finalContent = streamingContent || 'Response completed';
-                    updateMessage(finalBlocks, finalContent);
+                    updateMessage(finalBlocks, finalContent, false);
                   } else if (data.type === 'response.output_text.delta') {
                     // Start or continue streaming
                     if (!isStreaming) {
@@ -1064,7 +1068,7 @@ const AiPlayground: React.FC = () => {
                       
                       // Remove any inline loading when text streaming starts
                       const blocksWithoutLoading = removeInlineLoading(contentBlocks);
-                      updateMessage(blocksWithoutLoading, displayContent);
+                      updateMessage(blocksWithoutLoading, displayContent, true);
                     }
                   } else if (data.type === 'response.output_text.done') {
                     // Streaming completed for this output
@@ -1079,7 +1083,7 @@ const AiPlayground: React.FC = () => {
                           break;
                         }
                       }
-                      updateMessage(contentBlocks, streamingContent);
+                      updateMessage(contentBlocks, streamingContent, false);
                     }
                   } else if (data.type && data.type.startsWith('response.mcp_call.')) {
                     // Handle MCP tool events
@@ -1116,7 +1120,7 @@ const AiPlayground: React.FC = () => {
                         }
                         currentTextBlock = null; // Reset text block for potential next text
                         
-                        updateMessage(contentBlocks, streamingContent);
+                        updateMessage(contentBlocks, streamingContent, false);
                       } else if (status === 'completed') {
                         // Update tool execution status
                         const toolExecution = activeToolExecutions.get(toolIdentifier);
@@ -1134,7 +1138,7 @@ const AiPlayground: React.FC = () => {
                           // Add inline loading when tools complete, indicating we're waiting for next text stream
                           const blocksWithLoading = addInlineLoading(contentBlocks);
                           contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                          updateMessage(blocksWithLoading, streamingContent);
+                          updateMessage(blocksWithLoading, streamingContent, false);
                         }
                       }
                     }
@@ -1168,7 +1172,7 @@ const AiPlayground: React.FC = () => {
                         }
                         currentTextBlock = null; // Reset text block for potential next text
                         
-                        updateMessage(contentBlocks, streamingContent);
+                        updateMessage(contentBlocks, streamingContent, false);
                       } else if (status === 'completed') {
                         // Update Py function tool execution status
                         const toolExecution = activeToolExecutions.get(`agc_${toolName}`);
@@ -1186,7 +1190,7 @@ const AiPlayground: React.FC = () => {
                           // Add inline loading when tools complete, indicating we're waiting for next text stream
                           const blocksWithLoading = addInlineLoading(contentBlocks);
                           contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                          updateMessage(blocksWithLoading, streamingContent);
+                          updateMessage(blocksWithLoading, streamingContent, false);
                         }
                       }
                     }
@@ -1213,7 +1217,7 @@ const AiPlayground: React.FC = () => {
                     }
                     currentTextBlock = null; // Reset text block for potential next text
                     
-                    updateMessage(contentBlocks, streamingContent);
+                    updateMessage(contentBlocks, streamingContent, false);
                   } else if (data.type === 'response.file_search.completed') {
                     // Handle file search tool completion event
                     const toolExecution = activeToolExecutions.get('file_search');
@@ -1231,7 +1235,7 @@ const AiPlayground: React.FC = () => {
                       // Add inline loading when tools complete, indicating we're waiting for next text stream
                       const blocksWithLoading = addInlineLoading(contentBlocks);
                       contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
+                      updateMessage(blocksWithLoading, streamingContent, false);
                     }
                   } else if (data.type === 'response.agentic_search.in_progress') {
                     // Handle agentic search tool start event
@@ -1257,7 +1261,7 @@ const AiPlayground: React.FC = () => {
                     }
                     currentTextBlock = null; // Reset text block for potential next text
                     
-                    updateMessage(contentBlocks, streamingContent);
+                    updateMessage(contentBlocks, streamingContent, false);
                   } else if (data.type === 'response.agentic_search.query_phase.iteration') {
                     // Handle agentic search iteration logs
                     const toolExecution = activeToolExecutions.get('agentic_search');
@@ -1283,7 +1287,7 @@ const AiPlayground: React.FC = () => {
                         }
                       }
                       
-                      updateMessage(contentBlocks, streamingContent);
+                      updateMessage(contentBlocks, streamingContent, false);
                     }
                   } else if (data.type === 'response.agentic_search.completed') {
                     // Handle agentic search tool completion event
@@ -1302,7 +1306,7 @@ const AiPlayground: React.FC = () => {
                       // Add inline loading when tools complete, indicating we're waiting for next text stream
                       const blocksWithLoading = addInlineLoading(contentBlocks);
                       contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
+                      updateMessage(blocksWithLoading, streamingContent, false);
                     }
                   } else if (data.type === 'response.fun_req_gathering_tool.in_progress') {
                     // Handle fun req assembler start
@@ -1324,7 +1328,7 @@ const AiPlayground: React.FC = () => {
                       toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
                     }
                     currentTextBlock = null;
-                    updateMessage(contentBlocks, streamingContent);
+                    updateMessage(contentBlocks, streamingContent, false);
                   } else if (data.type === 'response.fun_req_gathering_tool.completed') {
                     const toolExecution = activeToolExecutions.get('fun_req_gathering_tool');
                     if (toolExecution) {
@@ -1337,7 +1341,7 @@ const AiPlayground: React.FC = () => {
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
                       contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
+                      updateMessage(blocksWithLoading, streamingContent, false);
                     }
                   } else if (data.type === 'response.fun_def_generation_tool.in_progress') {
                     // Handle fun def generator start
@@ -1359,7 +1363,7 @@ const AiPlayground: React.FC = () => {
                       toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
                     }
                     currentTextBlock = null;
-                    updateMessage(contentBlocks, streamingContent);
+                    updateMessage(contentBlocks, streamingContent, false);
                   } else if (data.type === 'response.fun_def_generation_tool.completed') {
                     const toolExecution = activeToolExecutions.get('fun_def_generation_tool');
                     if (toolExecution) {
@@ -1371,7 +1375,7 @@ const AiPlayground: React.FC = () => {
                         }
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
-                      updateMessage(blocksWithLoading, streamingContent);
+                      updateMessage(blocksWithLoading, streamingContent, false);
                     }
                   } else if (data.type === 'response.mock_fun_save_tool.in_progress') {
                     const toolExecution: ToolExecution = {
@@ -1389,7 +1393,7 @@ const AiPlayground: React.FC = () => {
                       toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
                     }
                     currentTextBlock = null;
-                    updateMessage(contentBlocks, streamingContent);
+                    updateMessage(contentBlocks, streamingContent, false);
                   } else if (data.type === 'response.mock_fun_save_tool.completed') {
                     const toolExecution = activeToolExecutions.get('mock_fun_save_tool');
                     if (toolExecution) {
@@ -1402,7 +1406,7 @@ const AiPlayground: React.FC = () => {
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
                       contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
+                      updateMessage(blocksWithLoading, streamingContent, false);
                     }
                   } else if (data.type === 'response.mock_generation_tool.in_progress') {
                     const toolExecution: ToolExecution = {
@@ -1419,7 +1423,7 @@ const AiPlayground: React.FC = () => {
                       toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
                     }
                     currentTextBlock = null;
-                    updateMessage(contentBlocks, streamingContent);
+                    updateMessage(contentBlocks, streamingContent, false);
                   } else if (data.type === 'response.mock_generation_tool.completed') {
                     const toolExecution = activeToolExecutions.get('mock_generation_tool');
                     if (toolExecution) {
@@ -1432,7 +1436,7 @@ const AiPlayground: React.FC = () => {
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
                       contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
+                      updateMessage(blocksWithLoading, streamingContent, false);
                     }
                   } else if (data.type === 'response.mock_save_tool.in_progress') {
                     const toolExecution: ToolExecution = {
@@ -1449,7 +1453,7 @@ const AiPlayground: React.FC = () => {
                       toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
                     }
                     currentTextBlock = null;
-                    updateMessage(contentBlocks, streamingContent);
+                    updateMessage(contentBlocks, streamingContent, false);
                   } else if (data.type === 'response.mock_save_tool.completed') {
                     const toolExecution = activeToolExecutions.get('mock_save_tool');
                     if (toolExecution) {
@@ -1462,7 +1466,7 @@ const AiPlayground: React.FC = () => {
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
                       contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
+                      updateMessage(blocksWithLoading, streamingContent, false);
                     }
                   }
                 } catch (parseError) {
@@ -1508,7 +1512,7 @@ const AiPlayground: React.FC = () => {
         }
         
         const finalContent = streamingContent || 'Response completed';
-        updateMessage(finalBlocks, finalContent);
+        updateMessage(finalBlocks, finalContent, false);
       }
 
       // Update previous response ID for next request
@@ -2599,7 +2603,8 @@ const AiPlayground: React.FC = () => {
                 content: `Error: ${errorText}`,
                 type: 'text',
                 hasThinkTags: false,
-                isLoading: false
+                isLoading: false,
+                isStreaming: false
               }
             : msg
         ));
@@ -2622,7 +2627,7 @@ const AiPlayground: React.FC = () => {
       let toolCompleted = false;
       let encounteredStreamError = false;
 
-      const updateMessage = (blocks: ContentBlock[], fullContent: string) => {
+      const updateMessage = (blocks: ContentBlock[], fullContent: string, streaming: boolean = false) => {
         setMessages(prev => prev.map(msg =>
           msg.id === assistantMessageId
             ? {
@@ -2631,7 +2636,8 @@ const AiPlayground: React.FC = () => {
                 contentBlocks: [...blocks],
                 type: 'text',
                 hasThinkTags: false,
-                isLoading: false
+                isLoading: false,
+                isStreaming: streaming
               }
             : msg
         ));
@@ -2693,7 +2699,8 @@ const AiPlayground: React.FC = () => {
                             ],
                             type: 'text',
                             hasThinkTags: false,
-                            isLoading: false
+                            isLoading: false,
+                            isStreaming: false
                           }
                         : msg
                     ));
@@ -2738,7 +2745,7 @@ const AiPlayground: React.FC = () => {
                     
                     // If no streaming content was received, use a default message or empty string
                     const finalContent = streamingContent || 'Response completed';
-                    updateMessage(finalBlocks, finalContent);
+                    updateMessage(finalBlocks, finalContent, false);
                     
                     // Determine save model state based on completion status
                     if (toolCompleted) {
@@ -2782,7 +2789,7 @@ const AiPlayground: React.FC = () => {
                       
                       // Remove any inline loading when text streaming starts
                       const blocksWithoutLoading = removeInlineLoading(contentBlocks);
-                      updateMessage(blocksWithoutLoading, displayContent);
+                      updateMessage(blocksWithoutLoading, displayContent, true);
                     }
                   } else if (data.type === 'response.output_text.done') {
                     // Streaming completed for this output
@@ -2797,7 +2804,7 @@ const AiPlayground: React.FC = () => {
                           break;
                         }
                       }
-                      updateMessage(contentBlocks, streamingContent);
+                      updateMessage(contentBlocks, streamingContent, false);
                     }
                   } else if (data.type === 'response.get_weather_by_city.in_progress') {
                     // Handle get_weather_by_city tool in_progress
@@ -2817,7 +2824,7 @@ const AiPlayground: React.FC = () => {
                       toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
                     }
                     currentTextBlock = null;
-                    updateMessage(contentBlocks, streamingContent);
+                    updateMessage(contentBlocks, streamingContent, false);
                   } else if (data.type === 'response.get_weather_by_city.completed') {
                     // Handle get_weather_by_city tool completed
                     const toolExecution = activeToolExecutions.get('get_weather_by_city');
@@ -2839,7 +2846,7 @@ const AiPlayground: React.FC = () => {
                       }
                       const blocksWithLoading = addInlineLoading(contentBlocks);
                       contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
+                      updateMessage(blocksWithLoading, streamingContent, false);
                     }
                   }
                 } catch (parseError) {
@@ -2889,7 +2896,7 @@ const AiPlayground: React.FC = () => {
         }
         
         const finalContent = streamingContent || 'Response completed';
-        updateMessage(finalBlocks, finalContent);
+        updateMessage(finalBlocks, finalContent, false);
       }
 
       // Ensure the assistant message is properly finalized
@@ -3398,6 +3405,7 @@ const AiPlayground: React.FC = () => {
                       selectedVectorStore={selectedVectorStore}
                       instructions={instructions}
                       isLoading={message.isLoading}
+                      isStreaming={message.isStreaming}
                       onRetry={modelTestMode ? undefined : handleRetry}
                     />
                   ))}

@@ -220,7 +220,7 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
       let responseCompleted = false;
       let toolCompleted = false;
 
-      const updateMessage = (blocks: ContentBlock[], fullContent: string) => {
+      const updateMessage = (blocks: ContentBlock[], fullContent: string, streaming: boolean = false) => {
         setMessages(prev => prev.map(msg =>
           msg.id === assistantMessageId
             ? {
@@ -229,7 +229,8 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                 contentBlocks: [...blocks],
                 type: 'text',
                 hasThinkTags: false,
-                isLoading: false
+                isLoading: false,
+                isStreaming: streaming
               }
             : msg
         ));
@@ -296,7 +297,8 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                             contentBlocks: errorContentBlocks,
                             type: 'text',
                             hasThinkTags: false,
-                            isLoading: false
+                            isLoading: false,
+                            isStreaming: false
                           }
                         : msg
                     ));
@@ -335,7 +337,7 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                     }
                     
                     const finalContent = streamingContent || 'Response completed';
-                    updateMessage(finalBlocks, finalContent);
+                    updateMessage(finalBlocks, finalContent, false);
                     
                     // EXACT COPY: Model test mode save model state logic from old implementation
                     if (config.modelTestMode) {
@@ -379,9 +381,9 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                         }
                       }
                       
-                      // Remove any inline loading when text streaming starts
-                      const blocksWithoutLoading = removeInlineLoading(contentBlocks);
-                      updateMessage(blocksWithoutLoading, displayContent);
+                                          // Remove any inline loading when text streaming starts
+                    const blocksWithoutLoading = removeInlineLoading(contentBlocks);
+                    updateMessage(blocksWithoutLoading, displayContent, true);
                     }
 
                   } else if (data.type === 'response.output_text.done') {
@@ -397,7 +399,7 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                           break;
                         }
                       }
-                      updateMessage(contentBlocks, streamingContent);
+                      updateMessage(contentBlocks, streamingContent, false);
                     }
 
                   } else if (data.type && data.type.startsWith('response.mcp_call.')) {
@@ -431,7 +433,7 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                         }
                         currentTextBlock = null;
                         
-                        updateMessage(contentBlocks, streamingContent);
+                        updateMessage(contentBlocks, streamingContent, false);
                       } else if (status === 'completed') {
                         const toolExecution = activeToolExecutions.get(toolIdentifier);
                         if (toolExecution) {
@@ -446,7 +448,7 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                           
                           const blocksWithLoading = addInlineLoading(contentBlocks);
                           contentBlocks = blocksWithLoading;
-                          updateMessage(blocksWithLoading, streamingContent);
+                          updateMessage(blocksWithLoading, streamingContent, false);
                         }
                       }
                     }
@@ -481,7 +483,7 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                         }
                         currentTextBlock = null; // Reset text block for potential next text
                         
-                        updateMessage(contentBlocks, streamingContent);
+                        updateMessage(contentBlocks, streamingContent, false);
                       } else if (status === 'completed') {
                         // Update agc tool execution status
                         const toolExecution = activeToolExecutions.get(`agc_${toolName}`);
@@ -499,7 +501,7 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
                           // Add inline loading when tools complete, indicating we're waiting for next text stream
                           const blocksWithLoading = addInlineLoading(contentBlocks);
                           contentBlocks = blocksWithLoading;
-                          updateMessage(blocksWithLoading, streamingContent);
+                          updateMessage(blocksWithLoading, streamingContent, false);
                         }
                       }
                     }

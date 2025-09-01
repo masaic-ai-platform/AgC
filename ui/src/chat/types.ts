@@ -30,6 +30,7 @@ export interface Message {
   timestamp: Date;
   hasThinkTags?: boolean;
   isLoading?: boolean;
+  isStreaming?: boolean;
 }
 
 export interface PromptMessage {
