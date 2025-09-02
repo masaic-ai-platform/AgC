@@ -373,6 +373,15 @@ object PartnerGroup {
             enabled = true,
             deploymentLink = "https://cloud.langfuse.com/",
         )
+
+    val box =
+        Partner(
+            code = "box",
+            name = "AgC Drive",
+            category = PartnerCategory.FILE,
+            enabled = true,
+            deploymentLink = "https://app.box.com/folder/0",
+        )
 }
 
 @Profile("platform")
@@ -414,6 +423,8 @@ class PartnersConfiguration(
         if (vectorStoreInfo.isEnabled) {
             partners += PartnerGroup.qdrant
         }
+
+        partners += PartnerGroup.box
 
         return Partners(details = partners)
     }
@@ -526,4 +537,5 @@ enum class PartnerCategory {
     VECTOR_DB,
     EVALS,
     OBSERVABILITY,
+    FILE,
 }
