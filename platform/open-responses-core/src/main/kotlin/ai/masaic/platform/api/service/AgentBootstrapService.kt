@@ -18,7 +18,7 @@ import org.springframework.core.io.ClassPathResource
  * Service responsible for bootstrapping pre-built agents from JSON configuration
  * during application startup.
  */
-class AgentBootstrapService(
+open class AgentBootstrapService(
     private val agentService: AgentService,
     private val platformMcpService: PlatformMcpService,
     private val mockFunctionRepository: MockFunctionRepository,
@@ -35,7 +35,7 @@ class AgentBootstrapService(
      * Initiates the agent bootstrapping process.
      */
     @EventListener(ApplicationReadyEvent::class)
-    suspend fun bootstrapAgentsOnStartup() {
+    open suspend fun bootstrapAgentsOnStartup() {
         try {
             log.info("Starting agent bootstrapping process...")
             val agents = loadAgentDefinitions()

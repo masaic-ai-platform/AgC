@@ -98,6 +98,7 @@ class PlatformCoreConfig {
     )
 
     @Bean
+    @ConditionalOnMissingBean(PlatformMcpClientFactory::class)
     fun mcpClientFactory(
         mcpMockServerRepository: McpMockServerRepository,
         mockFunctionRepository: MockFunctionRepository,

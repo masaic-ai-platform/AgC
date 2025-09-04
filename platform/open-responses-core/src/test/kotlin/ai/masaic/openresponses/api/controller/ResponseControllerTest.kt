@@ -6,6 +6,7 @@ import ai.masaic.openresponses.api.model.InputMessageItem
 import ai.masaic.openresponses.api.model.ResponseInputItemList
 import ai.masaic.openresponses.api.service.MasaicResponseService
 import ai.masaic.openresponses.api.service.ResponseNotFoundException
+import ai.masaic.openresponses.api.service.ResponseStoreService
 import ai.masaic.openresponses.api.utils.PayloadFormatter
 import ai.masaic.openresponses.api.validation.RequestValidator
 import com.fasterxml.jackson.databind.JsonNode
@@ -34,6 +35,7 @@ class ResponseControllerTest {
     private var payloadFormatter: PayloadFormatter
     private lateinit var requestValidator: RequestValidator
     val objectMapper = jacksonObjectMapper()
+    private val responseStoreService: ResponseStoreService
 
     init {
         val responseStore = mockk<ResponseStore>()
@@ -48,7 +50,8 @@ class ResponseControllerTest {
                 }
             }
         coEvery { requestValidator.validateResponseRequest(any()) } returns Unit
-        val controller = ResponseController(responseService, payloadFormatter, responseStore, requestValidator)
+        responseStoreService = mockk<ResponseStoreService>()
+        val controller = ResponseController(responseService, payloadFormatter, responseStore, requestValidator, responseStoreService)
         webTestClient = WebTestClient.bindToController(controller).build()
     }
 
@@ -127,7 +130,7 @@ class ResponseControllerTest {
                 ),
             )
 
-        coEvery { responseService.listInputItems(any(), any(), any(), null, null) } returns
+        coEvery { responseStoreService.listInputItems(any(), any(), any(), null, null) } returns
             ResponseInputItemList(
                 data = inputItems,
                 firstId = "test",
@@ -153,7 +156,7 @@ class ResponseControllerTest {
         // Given
         val responseId = "nonexistent_resp"
 
-        coEvery { responseService.listInputItems(any(), any(), any(), null, null) } throws ResponseNotFoundException(message = "not found")
+        coEvery { responseStoreService.listInputItems(any(), any(), any(), null, null) } throws ResponseNotFoundException(message = "not found")
 
         // When/Then
         webTestClient
