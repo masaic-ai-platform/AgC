@@ -121,7 +121,7 @@ class PlatformMcpService(
     }
 }
 
-class PlatformMcpClientFactory(
+open class PlatformMcpClientFactory(
     private val mockServerRepository: McpMockServerRepository,
     private val mockFunRepository: MockFunctionRepository,
     private val mocksRepository: MocksRepository,
@@ -141,7 +141,7 @@ class PlatformMcpClientFactory(
     }
 }
 
-class MockMcpClient(
+open class MockMcpClient(
     private val mockServerRepository: McpMockServerRepository,
     private val mockFunRepository: MockFunctionRepository,
     private val mocksRepository: MocksRepository,
