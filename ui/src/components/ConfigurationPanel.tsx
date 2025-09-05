@@ -39,6 +39,14 @@ import {
 import { MCP } from '@lobehub/icons';
 import { API_URL } from '@/config';
 import { apiClient } from '@/lib/api';
+
+// Provider interface for dashboard models API
+interface Provider {
+  name: string;
+  description: string;
+  inferenceBaseUrl?: string;
+  supportedModels?: any[];
+}
 import ToolConfigModal from './ToolConfigModal';
 import ToolsSelectionModal from './ToolsSelectionModal';
 import PromptMessagesInline from './PromptMessagesInline';
@@ -229,6 +237,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   onAgentSelect
 }) => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  // State for URL suggestions
+  const [baseUrlSuggestions, setBaseUrlSuggestions] = useState<string[]>([]);
   const [editingFunction, setEditingFunction] = useState<Tool | null>(null);
   const [editingMCP, setEditingMCP] = useState<Tool | null>(null);
   const [editingFileSearch, setEditingFileSearch] = useState<Tool | null>(null);
@@ -585,6 +596,30 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
   const [saveAgentModalOpen, setSaveAgentModalOpen] = useState(false);
 
+  // Fetch base URL suggestions from dashboard models API
+  useEffect(() => {
+    const fetchBaseUrlSuggestions = async () => {
+      try {
+        const providers = await apiClient.jsonRequest<Provider[]>('/v1/dashboard/models');
+        const urls = providers
+          .map(provider => provider.inferenceBaseUrl)
+          .filter((url): url is string => Boolean(url) && url.trim() !== '')
+          .filter((url, index, array) => array.indexOf(url) === index); // Remove duplicates
+        
+        setBaseUrlSuggestions(urls);
+      } catch (error) {
+        console.error('Error fetching base URL suggestions:', error);
+        // Don't show error to user as this is just for suggestions
+        setBaseUrlSuggestions([]);
+      }
+    };
+
+    // Only fetch suggestions when in model test mode
+    if (modelTestMode) {
+      fetchBaseUrlSuggestions();
+    }
+  }, [modelTestMode]);
+
   return (
     <div className={cn("bg-background border-r border-border h-full overflow-y-auto", className)}>
       <div className="p-4 h-full flex flex-col">
@@ -616,6 +651,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                           }`}
                         />
                         <datalist id="model-base-url-suggestions">
+                          {baseUrlSuggestions.map((url, index) => (
+                            <option key={index} value={url} />
+                          ))}
                         </datalist>
                       </div>
                     </TooltipTrigger>

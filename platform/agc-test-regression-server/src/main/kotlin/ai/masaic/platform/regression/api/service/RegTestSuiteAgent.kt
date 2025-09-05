@@ -12,7 +12,7 @@ class RegTestSuiteAgent {
             systemPrompt = agentPrompt,
             userMessage = "Tell me the weather of San Francisco",
             tools = listOf(MCPTool(type = "mcp", serverLabel = "reg-mcp-server", serverUrl = RegSuiteMcpClient.REGRESS_SERVER_URL, allowedTools = listOf(RegSuiteMcpClient.RUN_PW_SCRIPT_TOOL_NAME, RegSuiteMcpClient.GET_TEST_TRAIL_TOOL_NAME))),
-            suggestedQueries = listOf(allBirdsMCPTest),
+            suggestedQueries = listOf(allBirdsMCPTest, addModelTest, fileSearchTest, agentBuilderTest, ecommerceAgentTest, mockyTest),
         )
 
     private val agentPrompt =
@@ -93,5 +93,52 @@ Run: allbirds-ecommerce.spec.ts
 Assertions:
 1. Tools: search catalog and update call must be executed.
 2. Output: output must contain details of the product and checkout link
+        """.trimIndent()
+
+    private val addModelTest =
+        """
+Run: add-gptoss-model.spec.ts
+Assertions:
+1. User sends message: Hi, can you greet me good morning? 
+2. Assistant: Assistant replied with valid a response greeting user good morning. 
+        """.trimIndent()
+
+    private val fileSearchTest =
+        """
+Run: file-search.spec.ts
+Assertions:
+1. User sends message: What are balanced chemical equations. Describe in 100 words with two examples of Iron
+2. File search tool must be executed.
+3. Assistant: Assistant replied with valid a response that:
+- explains balanced chemical equations 
+- provides example chemical equation. 
+- also give citation reference to jesc101.pdf
+        """.trimIndent()
+
+    private val agentBuilderTest =
+        """
+Run: agent-builder.spec.ts
+Assertions:
+1. User sends message: Just finished call with  Innov Corporation. Check the call transcript and provide by insights.
+2. call transcript tool must be executed.
+3. Assistant: Assistant replied with valid a response that provides insights about the company from the call transcript. 
+        """.trimIndent()
+
+    private val ecommerceAgentTest =
+        """
+Run: chat-with-ecommerce-agent.spec.ts
+Assertions:
+1. User sends message to find sneakers.
+2. search catalog tool must be executed.
+3. Assistant: Assistant replied with list of sneakers options available.
+        """.trimIndent()
+
+    private val mockyTest =
+        """
+Run: mocky.spec.ts
+Assertions:
+1. User sends message: 'Use the given tool to add two number.\nAdd +7 and +5'
+2. a tool to add given numbers must be executed.
+3. Assistant: Assistant replied with sum of two numbers.
         """.trimIndent()
 }

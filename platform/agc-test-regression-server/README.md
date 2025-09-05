@@ -24,6 +24,16 @@ npx playwright install
    platform/agc-test-regression-server/src/main/resources/playwright/tests
    ```
 
+## Recording and playing Playwright script
+1. The following command would create script allbirds-ecommerce.spec.ts inside tests folder from UI hosted at http://localhost:6645.
+```bash
+npx playwright codegen http://localhost:6645 --output tests/allbirds-ecommerce.spec.ts
+```
+2. Run the recorded script with below command, (if want to run standalone)
+```bash
+npx playwright test tests/allbirds-ecommerce.spec.ts --headed
+```
+
 ## Configuration
 
 Before running the AgC regression Spring Boot server, configure the environment:

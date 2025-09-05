@@ -9,6 +9,7 @@ test.beforeEach(async ({ context }) => {
 });
 
 test('test', async ({ page }) => {
+    test.setTimeout(120_000);
     const openAiApiKey = process.env.OPENAI_API_KEY;
     if (!openAiApiKey) throw new Error('OPENAI_API_KEY not set');
 

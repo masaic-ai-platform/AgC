@@ -728,21 +728,10 @@ Remember: Your goal is to be helpful and productive. Most users want to see prog
             val isUpdate: Boolean = agentRepository.findByName(PlatformAgent.persistenceName(request.agent.name)) != null
 
             val toolsToSave: List<Tool> =
-                request.agent.tools.map { tool ->
-                    when (tool) {
-                        is PyFunTool -> {
-                            val function = funRegService.getFunction(tool.functionDetails.name)
-                            FunctionRegistryService.toPyFunTool(function)
-                        }
-                        is MCPTool -> {
-                            if (tool.serverUrl.endsWith(PlatformMcpService.MOCK_UURL_ENDS_WITH)) {
-                                platformMcpService.getMockMcpTool(serverLabel = tool.serverLabel, url = tool.serverUrl)
-                            } else {
-                                tool
-                            }
-                        }
-                        else -> tool
-                    }
+                try {
+                    prepareToolsToSave(request.agent.tools)
+                } catch (ex: AgentBuilderException) {
+                    return ex.message ?: "AgentBuilderException occurred. Can't save agent"
                 }
 
             saveAgent(agent = request.agent.copy(tools = toolsToSave), isUpdate = isUpdate)
@@ -755,7 +744,29 @@ Remember: Your goal is to be helpful and productive. Most users want to see prog
             return mapper.writeValueAsString(SaveAgentResponse(agentName = "not available", isSuccess = false, message = errorMessage))
         }
     }
+
+    private suspend fun prepareToolsToSave(tools: List<Tool>) =
+        tools.map { tool ->
+            when (tool) {
+                is PyFunTool -> {
+                    val function = funRegService.getFunction(tool.functionDetails.name)
+                    FunctionRegistryService.toPyFunTool(function)
+                }
+                is MCPTool -> {
+                    if (tool.serverUrl.endsWith(PlatformMcpService.MOCK_UURL_ENDS_WITH)) {
+                        platformMcpService.getMockMcpTool(serverLabel = tool.serverLabel, url = tool.serverUrl)
+                    } else {
+                        throw AgentBuilderException("tool provided with label=${tool.serverLabel} and url=${tool.serverUrl} is not known. Correct the provided tool and then send save agent request.")
+                    }
+                }
+                else -> throw AgentBuilderException("unknown tool type. At the moment I can save agents with tools like McpTool and PyFunTool/")
+            }
+        }
 }
+
+class AgentBuilderException(
+    message: String,
+) : ResponseProcessingException(message)
 
 data class SaveAgentRequest(
     val agentName: String,

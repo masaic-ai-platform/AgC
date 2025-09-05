@@ -9,7 +9,7 @@ import AgentBuilderRollingMessages from '@/components/AgentBuilderRollingMessage
 import CodeTabs from '@/playground/CodeTabs';
 import { apiClient } from '@/lib/api';
 import { Button } from '@/components/ui/button';
-import { Bot, Sparkles, RotateCcw, Code, Home } from 'lucide-react';
+import { Bot, Sparkles, RotateCcw, Code, Home, Copy, Check } from 'lucide-react';
 import { toast } from 'sonner';
 
 
@@ -50,6 +50,9 @@ const AgentBuilder: React.FC = () => {
   // Agent modification state
   const [selectedAgentData, setSelectedAgentData] = useState<any>(null);
   const [loadingSelectedAgent, setLoadingSelectedAgent] = useState(false);
+  
+  // Copy response ID state
+  const [copiedResponseId, setCopiedResponseId] = useState(false);
   
   // Chat state for agent modification mode
   const agentChatRef = useRef<ResponsesChatRef>(null);
@@ -228,6 +231,21 @@ const AgentBuilder: React.FC = () => {
     }
     setAgentChatPreviousResponseId(null);
     setAgentChatLastRequest(null);
+  };
+
+  // Handle copying response ID to clipboard
+  const handleCopyResponseId = async () => {
+    if (!agentChatPreviousResponseId) return;
+    
+    try {
+      await navigator.clipboard.writeText(agentChatPreviousResponseId);
+      setCopiedResponseId(true);
+      setTimeout(() => setCopiedResponseId(false), 2000);
+      toast.success('Response ID copied to clipboard');
+    } catch (err) {
+      console.error('Failed to copy response ID:', err);
+      toast.error('Failed to copy response ID');
+    }
   };
 
   // Handle agent updated event - refresh agent data (for agent modification mode)
@@ -441,8 +459,29 @@ const AgentBuilder: React.FC = () => {
               
               {/* Right side - Response ID */}
               {agentChatPreviousResponseId && (
-                <div className="text-xs text-muted-foreground font-mono">
-                  {agentChatPreviousResponseId}
+                <div className="flex items-center space-x-2">
+                  <span className="text-xs text-muted-foreground">Response ID:</span>
+                  <div className="flex items-center space-x-1 bg-muted/50 rounded px-2 py-1">
+                    <code className="text-xs font-mono text-foreground">
+                      {agentChatPreviousResponseId.length > 20 
+                        ? `${agentChatPreviousResponseId.substring(0, 20)}...` 
+                        : agentChatPreviousResponseId
+                      }
+                    </code>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleCopyResponseId}
+                      className="h-6 w-6 p-0 text-muted-foreground hover:text-foreground"
+                      title="Copy response ID"
+                    >
+                      {copiedResponseId ? (
+                        <Check className="w-3 h-3 text-positive-trend" />
+                      ) : (
+                        <Copy className="w-3 h-3" />
+                      )}
+                    </Button>
+                  </div>
                 </div>
               )}
             </div>
