@@ -53,7 +53,7 @@ class MockFunSaveTool(
         val jsonTree = mapper.readTree(arguments)
         val functionDefinition = jsonTree["functionDefinition"].asText()
         logger.info { "functionDefinition to save: $functionDefinition" }
-        val functionBody: FunctionBody = mapper.readValue(functionDefinition)
+        val functionBody: FunctionBody = mapper.readValue(functionDefinition.replace("```json", "").replace("```", ""))
         val savedDefinition = mockFunctionRepository.upsert(MockFunctionDefinition(functionBody = functionBody, outputSchem = jsonTree["outputSchema"].asText()))
         return "functionId: ${savedDefinition.id}"
     }

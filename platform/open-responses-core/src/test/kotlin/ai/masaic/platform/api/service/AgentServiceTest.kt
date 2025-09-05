@@ -32,7 +32,7 @@ class AgentServiceTest {
         funRegService = mockk()
         platformMcpService = mockk()
         toolService = mockk()
-        agentService = AgentService(agentRepository, funRegService, platformMcpService, toolService)
+        agentService = AgentService(agentRepository, funRegService, platformMcpService)
     }
 
     @Test
@@ -81,7 +81,7 @@ class AgentServiceTest {
     fun `getAgent should return built-in AgentBuilder when name matches`() =
         runTest {
             // Given
-            val agentName = "Agent-Builder"
+            val agentName = "agent-builder"
             every { runBlocking { platformMcpService.getAllMockServers() } } returns emptyList()
             every { runBlocking { funRegService.getAllAvailableFunctions(false) } } returns emptyList()
             // When

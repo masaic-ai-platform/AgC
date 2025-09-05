@@ -3,6 +3,7 @@ package ai.masaic.platform.api.config
 import ai.masaic.openresponses.api.client.ResponseStore
 import ai.masaic.openresponses.api.config.QdrantVectorProperties
 import ai.masaic.openresponses.api.config.VectorSearchConfigProperties
+import ai.masaic.openresponses.api.controller.ResponseController
 import ai.masaic.openresponses.api.model.MCPTool
 import ai.masaic.openresponses.api.model.ModelInfo
 import ai.masaic.openresponses.api.model.PyInterpreterServer
@@ -97,6 +98,7 @@ class PlatformCoreConfig {
     )
 
     @Bean
+    @ConditionalOnMissingBean(PlatformMcpClientFactory::class)
     fun mcpClientFactory(
         mcpMockServerRepository: McpMockServerRepository,
         mockFunctionRepository: MockFunctionRepository,
@@ -161,8 +163,7 @@ class PlatformCoreConfig {
         agentRepository: AgentRepository,
         functionRegistryService: FunctionRegistryService,
         platformMcpService: PlatformMcpService,
-        @Lazy toolService: ToolService,
-    ) = AgentService(agentRepository, functionRegistryService, platformMcpService, toolService)
+    ) = AgentService(agentRepository, functionRegistryService, platformMcpService)
 
     @Bean
     fun funRegistryValidator() = FunctionRegistryValidator()
@@ -178,6 +179,21 @@ class PlatformCoreConfig {
         modelSettings: ModelSettings,
         @Lazy modelService: ModelService,
     ) = SystemPromptGeneratorTool(modelSettings, modelService)
+
+    @Bean
+    fun toolSelectorTool(
+        modelSettings: ModelSettings,
+        @Lazy modelService: ModelService,
+        platformMcpService: PlatformMcpService,
+        funRegService: FunctionRegistryService,
+        @Lazy toolService: ToolService,
+    ) = ToolSelectorTool(modelSettings, modelService, platformMcpService, funRegService, toolService)
+
+    @Bean
+    fun agentBuilderChatService(
+        responseController: ResponseController,
+        agentService: AgentService,
+    ) = AgentBuilderChatService(responseController, agentService)
 
     @Bean
     @ConditionalOnMissingBean(TelemetryService::class)

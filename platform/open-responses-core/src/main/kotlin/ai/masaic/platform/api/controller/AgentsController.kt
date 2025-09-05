@@ -2,10 +2,14 @@ package ai.masaic.platform.api.controller
 
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.platform.api.model.PlatformAgent
+import ai.masaic.platform.api.service.AgentBuilderChatRequest
+import ai.masaic.platform.api.service.AgentBuilderChatService
 import ai.masaic.platform.api.service.AgentService
+import kotlinx.coroutines.flow.Flow
 import org.springframework.context.annotation.Profile
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.http.codec.ServerSentEvent
 import org.springframework.web.bind.annotation.*
 import java.net.URI
 
@@ -15,6 +19,7 @@ import java.net.URI
 @CrossOrigin("*")
 class AgentsController(
     private val agentService: AgentService,
+    private val agentBuilderChatService: AgentBuilderChatService,
 ) {
     @GetMapping("/agents/{agentName}", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun getAgent(
@@ -58,4 +63,17 @@ class AgentsController(
             throw ResponseProcessingException("Agent: $agentName is not found.")
         }
     }
+
+    @PostMapping("/agents/agent-builder/chat", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+    suspend fun chatWithAgentBuilder(
+        @RequestBody agentBuilderChatRequest: AgentBuilderChatRequest,
+        @RequestHeader("Authorization") authBearerToken: String,
+    ): ResponseEntity<Flow<ServerSentEvent<*>>> =
+        ResponseEntity
+            .ok()
+            .contentType(MediaType.TEXT_EVENT_STREAM)
+            .body(
+                agentBuilderChatService
+                    .chat(agentBuilderChatRequest, authBearerToken),
+            )
 }

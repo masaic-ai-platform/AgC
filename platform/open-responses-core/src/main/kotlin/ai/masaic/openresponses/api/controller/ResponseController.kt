@@ -5,6 +5,7 @@ import ai.masaic.openresponses.api.model.CreateResponseRequest
 import ai.masaic.openresponses.api.model.ResponseInputItemList
 import ai.masaic.openresponses.api.service.MasaicResponseService
 import ai.masaic.openresponses.api.service.ResponseNotFoundException
+import ai.masaic.openresponses.api.service.ResponseStoreService
 import ai.masaic.openresponses.api.utils.PayloadFormatter
 import ai.masaic.openresponses.api.validation.RequestValidator
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -26,6 +27,7 @@ class ResponseController(
     private val payloadFormatter: PayloadFormatter,
     private val responseStore: ResponseStore,
     private val requestValidator: RequestValidator,
+    private val responseStoreService: ResponseStoreService,
 ) {
     private val log = LoggerFactory.getLogger(ResponseController::class.java)
     val mapper = jacksonObjectMapper()
@@ -82,13 +84,13 @@ class ResponseController(
         exchange: ServerWebExchange,
     ): ResponseEntity<*> {
         try {
-            return ResponseEntity.ok(payloadFormatter.formatResponse(masaicResponseService.getResponse(responseId)))
+            return ResponseEntity.ok(responseStoreService.getFormattedResponse(responseId))
         } catch (e: ResponseNotFoundException) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, e.message)
         }
     }
 
-    @DeleteMapping("/responses/{responseId}")
+    @DeleteMapping("/responses/{responseId}", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun deleteResponse(
         @PathVariable responseId: String,
     ): ResponseEntity<Map<String, Any>> {
@@ -102,7 +104,7 @@ class ResponseController(
         )
     }
 
-    @GetMapping("/responses/{responseId}/input_items")
+    @GetMapping("/responses/{responseId}/input_items", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun listInputItems(
         @PathVariable responseId: String,
         @RequestParam(defaultValue = "20") limit: Int,
@@ -111,7 +113,7 @@ class ResponseController(
         @RequestParam(required = false) before: String?,
     ): ResponseEntity<ResponseInputItemList> =
         try {
-            ResponseEntity.ok(masaicResponseService.listInputItems(responseId, limit, order, after, before))
+            ResponseEntity.ok(responseStoreService.listInputItems(responseId, limit, order, after, before))
         } catch (e: ResponseNotFoundException) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, e.message)
         }

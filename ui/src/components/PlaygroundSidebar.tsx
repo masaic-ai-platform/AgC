@@ -28,6 +28,7 @@ interface PlaygroundSidebarProps {
   className?: string;
   onAgentSelect?: (agent: any) => void;
   onCreateAgent?: () => void;
+  onNewAgentBuilder?: () => void;
 }
 
 interface Partner {
@@ -49,7 +50,8 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
   onTabChange,
   className = '',
   onAgentSelect,
-  onCreateAgent
+  onCreateAgent,
+  onNewAgentBuilder
 }) => {
   const { logout, authEnabled, isAuthenticated } = useAuth();
   const [agentsModalOpen, setAgentsModalOpen] = useState(false);
@@ -169,6 +171,7 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
                   setAgentsModalOpen(false);
                 }}
                 onCreateAgent={onCreateAgent}
+                onNewAgentBuilder={onNewAgentBuilder}
                 triggerButton={
                   <Button
                     variant={activeTab === option.id ? "secondary" : "ghost"}

@@ -99,7 +99,7 @@ data class PyFunTool(
 
 data class FunctionDetails(
     val type: String = "function",
-    val description: String,
+    val description: String = "",
     val name: String,
     val parameters: MutableMap<String, Any> = mutableMapOf(),
     val strict: Boolean = true,
