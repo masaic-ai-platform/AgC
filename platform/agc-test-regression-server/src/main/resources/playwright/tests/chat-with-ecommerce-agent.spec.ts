@@ -9,6 +9,7 @@ test.beforeEach(async ({ context }) => {
 });
 
 test('test', async ({ page }) => {
+    test.setTimeout(120_000);
     const openAiApiKey = process.env.OPENAI_API_KEY;
             if (!openAiApiKey) throw new Error('OPENAI_API_KEY not set');
 
@@ -25,7 +26,6 @@ test('test', async ({ page }) => {
   await page.getByRole('button', { name: 'Find me sneakers of size 8 in' }).click();
   await page.getByRole('button', { name: 'openai gpt-4o' }).click();
   await page.getByRole('button', { name: 'gpt-4.1-mini' }).click();
-  await page.getByRole('button', { name: 'Send message' }).click();
   await page.getByRole('button', { name: 'Copy response ID' }).click();
 
       const copiedText = await page.evaluate(() => navigator.clipboard.readText());

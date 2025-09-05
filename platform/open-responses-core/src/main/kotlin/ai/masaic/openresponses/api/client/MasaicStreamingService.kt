@@ -640,17 +640,22 @@ class MasaicStreamingService(
         params: ResponseCreateParams,
     ) {
         completion.toResponseStreamEvent().forEach { event ->
+            logger.debug { "completionChunk: $completion\nresponseStreamEvent: $event\nfunctionCallAccumulator: $functionCallAccumulator" }
             when {
                 event.isFunctionCallArgumentsDelta() -> {
+                    logger.debug { "event.isFunctionCallArgumentsDelta." }
                     handleFunctionCallDelta(event, functionCallAccumulator, internalToolItemIds, completion)
                 }
                 event.isOutputItemAdded() && event.asOutputItemAdded().item().isFunctionCall() -> {
+                    logger.debug { "event.isOutputItemAdded." }
                     handleOutputItemAdded(event, functionNameAccumulator, responseOutputItemAccumulator, internalToolItemIds, params)
                 }
                 event.isOutputTextDelta() -> {
+                    logger.debug { "event.isOutputTextDelta." }
                     handleOutputTextDelta(event, textAccumulator)
                 }
                 event.isFunctionCallArgumentsDone() -> {
+                    logger.debug { "event.isFunctionCallArgumentsDone." }
                     handleFunctionCallDone(
                         functionCallAccumulator,
                         functionNameAccumulator,
@@ -660,14 +665,17 @@ class MasaicStreamingService(
                     )
                 }
                 event.isOutputItemDone() -> {
+                    logger.debug { "event.isOutputItemDone." }
                     // Add final item
                     responseOutputItemAccumulator.add(event.asOutputItemDone().item())
                     trySend(EventUtils.convertEvent(event, payloadFormatter, objectMapper))
                 }
                 else -> {
+                    logger.debug { "No special handling required. Just emitting" }
                     trySend(EventUtils.convertEvent(event, payloadFormatter, objectMapper))
                 }
             }
+            logger.debug { "=======================================\n\n" }
         }
     }
 

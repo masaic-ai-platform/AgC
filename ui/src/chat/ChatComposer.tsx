@@ -181,10 +181,6 @@ export default function ChatComposer({
             </div>
           </form>
           
-          {/* Temporary testing label */}
-          <div className="text-center mt-2">
-            <span className="text-xs text-muted-foreground/70">You are using new chat</span>
-          </div>
         </div>
       ) : null}
     </div>

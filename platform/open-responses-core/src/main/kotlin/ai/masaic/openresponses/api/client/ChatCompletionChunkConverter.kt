@@ -126,14 +126,27 @@ object ChatCompletionChunkConverter {
                                     .get()
                                     .toString(),
                             ).arguments(
-                                toolCall
-                                    .function()
-                                    .get()
-                                    .arguments()
-                                    .get()
-                                    .toString(),
-                            ).callId(toolCall.id().get())
-                            .putAllAdditionalProperties(toolCall._additionalProperties())
+                                // Arguments may stream later; use empty string if not present yet
+                                if (
+                                    toolCall
+                                        .function()
+                                        .get()
+                                        .arguments()
+                                        .isPresent
+                                ) {
+                                    toolCall
+                                        .function()
+                                        .get()
+                                        .arguments()
+                                        .get()
+                                        .toString()
+                                } else {
+                                    ""
+                                },
+                            ).callId(
+                                // id() may be absent on early chunks; fall back to callId()
+                                if (toolCall.id().isPresent) toolCall.id().get() else "not available",
+                            ).putAllAdditionalProperties(toolCall._additionalProperties())
                             .id(completionId)
                             .status(ResponseFunctionToolCall.Status.IN_PROGRESS)
                             .build(),
