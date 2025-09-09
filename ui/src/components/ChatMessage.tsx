@@ -194,6 +194,7 @@ interface ChatMessageProps {
   timestamp: Date;
   hasThinkTags?: boolean;
   isLoading?: boolean;
+  isStreaming?: boolean;
   formatType?: 'text' | 'json_object' | 'json_schema';
   // New props for code generation
   apiKey?: string;
@@ -227,6 +228,7 @@ const ChatMessage: React.FC<ChatMessageProps> = React.memo(({
   selectedVectorStore = '',
   instructions = '',
   isLoading = false,
+  isStreaming = false,
   onRetry
 }) => {
   const [showCodeModal, setShowCodeModal] = useState(false);
@@ -663,13 +665,33 @@ print(response.json())`;
             }
             return null;
           })}
+          {/* Show streaming dots for assistant messages when streaming is active */}
+          {role === 'assistant' && isStreaming && (
+            <div className="flex items-center space-x-2 mt-2">
+              <div className="w-2 h-2 bg-foreground rounded-full animate-pulse"></div>
+              <div className="w-2 h-2 bg-foreground rounded-full animate-pulse" style={{ animationDelay: '200ms' }}></div>
+              <div className="w-2 h-2 bg-foreground rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></div>
+            </div>
+          )}
           </div>
       );
     }
 
     // Fallback to regular content rendering
     const contentToDisplay = role === 'assistant' ? parseAssistantContent(content) : content;
-    return <ContentRenderer content={contentToDisplay} formatType={formatType} />;
+    return (
+      <div className="space-y-2">
+        <ContentRenderer content={contentToDisplay} formatType={formatType} />
+        {/* Show streaming dots for assistant messages when streaming is active */}
+        {role === 'assistant' && isStreaming && (
+          <div className="flex items-center space-x-2 mt-2">
+            <div className="w-2 h-2 bg-foreground rounded-full animate-pulse"></div>
+            <div className="w-2 h-2 bg-foreground rounded-full animate-pulse" style={{ animationDelay: '200ms' }}></div>
+            <div className="w-2 h-2 bg-foreground rounded-full animate-pulse" style={{ animationDelay: '400ms' }}></div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const contentToDisplay = role === 'assistant' ? parseAssistantContent(content) : content;
@@ -788,7 +810,8 @@ print(response.json())`;
     prevProps.timestamp === nextProps.timestamp &&
     prevProps.hasThinkTags === nextProps.hasThinkTags &&
     prevProps.formatType === nextProps.formatType &&
-    prevProps.isLoading === nextProps.isLoading
+    prevProps.isLoading === nextProps.isLoading &&
+    prevProps.isStreaming === nextProps.isStreaming
   );
 });
 

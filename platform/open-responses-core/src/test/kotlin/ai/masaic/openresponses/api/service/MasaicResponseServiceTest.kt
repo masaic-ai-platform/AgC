@@ -3,7 +3,6 @@ package ai.masaic.openresponses.api.service
 import ai.masaic.openresponses.api.client.MasaicOpenAiResponseServiceImpl
 import ai.masaic.openresponses.api.client.MasaicParameterConverter
 import ai.masaic.openresponses.api.client.ResponseStore
-import ai.masaic.openresponses.api.model.InputMessageItem
 import ai.masaic.openresponses.api.model.InstrumentationMetadataInput
 import ai.masaic.openresponses.api.support.service.TelemetryService
 import ai.masaic.openresponses.api.utils.PayloadFormatter
@@ -17,10 +16,6 @@ import com.openai.models.ResponsesModel
 import com.openai.models.chat.completions.ChatCompletionCreateParams
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
-import com.openai.models.responses.ResponseFunctionToolCall
-import com.openai.models.responses.ResponseInputContent
-import com.openai.models.responses.ResponseInputItem
-import com.openai.models.responses.ResponseInputText
 import com.openai.models.responses.ResponseTextConfig
 import com.openai.models.responses.ToolChoiceOptions
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry
@@ -31,7 +26,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -275,140 +269,6 @@ class MasaicResponseServiceTest {
                 masaicResponseService.createStreamingResponse(request, headers, queryParams)
             }
         }
-    }
-
-    @Test
-    fun `listInputItems should retrieve input items from ResponseStore`() {
-        // Given
-        val responseId = "resp_123456"
-        val mockResponse = mockk<Response>()
-
-        // Create actual ResponseInputItem objects instead of mocks
-        val inputItems =
-            listOf(
-                objectMapper.convertValue(
-                    ResponseInputItem.ofFunctionCall(
-                        ResponseFunctionToolCall
-                            .builder()
-                            .id("fc_1")
-                            .name("test_function")
-                            .arguments("{}")
-                            .callId("fc_1")
-                            .build(),
-                    ),
-                    InputMessageItem::class.java,
-                ),
-                objectMapper.convertValue(
-                    ResponseInputItem.ofFunctionCallOutput(
-                        ResponseInputItem.FunctionCallOutput
-                            .builder()
-                            .callId("fc_1")
-                            .output("{\"result\": \"success\"}")
-                            .build(),
-                    ),
-                    InputMessageItem::class.java,
-                ),
-                objectMapper.convertValue(
-                    ResponseInputItem.ofMessage(
-                        ResponseInputItem.Message
-                            .builder()
-                            .role(ResponseInputItem.Message.Role.USER)
-                            .content(
-                                listOf(
-                                    ResponseInputContent.ofInputText(
-                                        ResponseInputText
-                                            .builder()
-                                            .text("Hello")
-                                            .build(),
-                                    ),
-                                ),
-                            ).build(),
-                    ),
-                    InputMessageItem::class.java,
-                ),
-            )
-
-        coEvery { responseStore.getResponse(responseId) } returns mockResponse
-        coEvery { responseStore.getInputItems(responseId) } returns inputItems
-
-        // When
-        val result = runBlocking { masaicResponseService.listInputItems(responseId, 2, "desc", null, null) }
-
-        // Then
-        assertEquals(2, result.data.size, "Should return limited input items")
-        coVerify(exactly = 1) { responseStore.getResponse(responseId) }
-        coVerify(exactly = 1) { responseStore.getInputItems(responseId) }
-    }
-
-    @Test
-    fun `listInputItems should return all items if limit is greater than available items`() =
-        runTest {
-            // Given
-            val responseId = "resp_123456"
-            val mockResponse = mockk<Response>()
-
-            // Create actual ResponseInputItem objects instead of mocks
-            val inputItems =
-                listOf(
-                    objectMapper.convertValue(
-                        ResponseInputItem.ofFunctionCall(
-                            ResponseFunctionToolCall
-                                .builder()
-                                .id("fc_1")
-                                .name("test_function")
-                                .arguments("{}")
-                                .callId("fc_1")
-                                .build(),
-                        ),
-                        InputMessageItem::class.java,
-                    ),
-                    objectMapper.convertValue(
-                        ResponseInputItem.ofMessage(
-                            ResponseInputItem.Message
-                                .builder()
-                                .role(ResponseInputItem.Message.Role.USER)
-                                .content(
-                                    listOf(
-                                        ResponseInputContent.ofInputText(
-                                            ResponseInputText
-                                                .builder()
-                                                .text("Hello")
-                                                .build(),
-                                        ),
-                                    ),
-                                ).build(),
-                        ),
-                        InputMessageItem::class.java,
-                    ),
-                )
-
-            coEvery { responseStore.getResponse(responseId) } returns mockResponse
-            coEvery { responseStore.getInputItems(responseId) } returns inputItems
-
-            // When
-            val result = masaicResponseService.listInputItems(responseId, 5, "desc", null, null)
-
-            // Then
-            assertEquals(2, result.data.size, "Should return all input items")
-            coVerify(exactly = 1) { responseStore.getResponse(responseId) }
-            coVerify(exactly = 1) { responseStore.getInputItems(responseId) }
-        }
-
-    @Test
-    fun `listInputItems should throw ResponseNotFoundException if response not found`() {
-        // Given
-        val responseId = "nonexistent_resp"
-        coEvery { responseStore.getResponse(responseId) } returns null
-
-        // When & Then
-        assertThrows(ResponseNotFoundException::class.java) {
-            runBlocking {
-                masaicResponseService.listInputItems(responseId, 10, "desc", null, null)
-            }
-        }
-
-        coVerify(exactly = 1) { responseStore.getResponse(responseId) }
-        coVerify(exactly = 0) { responseStore.getInputItems(any()) }
     }
 
     @Test

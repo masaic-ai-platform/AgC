@@ -20,12 +20,12 @@
     },
     "mocks": [
         {
-          "scenario": "valid_nordstern_customer_call_transcript",
-          "request": "{\"customer_name\": \"Nordstern Mobility AG\"}",
+          "scenario": "call_transcript_for_all_customers",
+          "request": "{\"customer_name\": \"Any customer\"}",
           "response": {
             "transcript": "### Summary of Call (Held on Aug 1, 2025)\n**Customer:** Nordstern Mobility AG – A leading German automotive group launching a new electric vehicle fleet management division for corporate clients.\n\n---\n\n#### Expansion Scope\n- Rolling out connected fleet depots in Germany (**Berlin, Hamburg, Munich**), Austria (**Vienna, Graz**), and Poland (**Warsaw, Gdańsk, Wrocław**).\n- Each location will serve as a charging hub, maintenance center, and customer handover point.\n\n#### Key Requirements Discussed\n- **Connectivity & Redundancy:**\n  - Dedicated fiber internet at each depot, with LTE/5G backup for telemetry and operational systems.\n  - Redundant connections for EV charging control systems and customer booking kiosks.\n- **Network Architecture:**\n  - Centralized SD-WAN for secure interconnectivity between depots and HQ in Stuttgart.\n  - Integration with Fortinet for security compliance.\n  - Local breakout for sites in countries with strict data residency requirements (e.g., Austria, Poland).\n- **Service & SLAs:**\n  - 24/7 SLA, <1 hour response time for any outage.\n  - On-site support available in all three countries.\n- **Billing & Operations:**\n  - Single monthly consolidated bill in EUR, broken down per depot.\n  - Detailed per-site cost breakdown for internal ROI tracking.\n  - Rollout timeline and onboarding documentation before signing.\n- **Future Needs:**\n  - Managed guest Wi-Fi for customer lounges in Q4.\n  - VoIP telephony integration for service desks in 2026.\n\n#### Special Notes\n- Nordstern Mobility AG is already an EuropaNet Communications AG enterprise customer (core MPLS and SIP trunking).\n- Procurement lead mentioned a competitor offered a similar SD-WAN + connectivity bundle with marginally better SLAs, but without EuropaNet’s regional on-site presence.\n\n#### Next Steps\n- Expecting a tailored proposal with:\n  - Connectivity + SD-WAN + SLA + Fortinet integration\n  - Rollout plan and visuals for all depots\n  - Per-site cost breakdown\n  - Optional Managed Wi-Fi add-on for later phases"
           },
-          "selection_rule": "Use when customer_name is exactly 'Nordstern Mobility AG'."
+          "selection_rule": "Use whenever call transcript is requested"
         }
       ]
   }

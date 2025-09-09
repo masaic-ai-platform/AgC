@@ -39,11 +39,19 @@ import {
 import { MCP } from '@lobehub/icons';
 import { API_URL } from '@/config';
 import { apiClient } from '@/lib/api';
+
+// Provider interface for dashboard models API
+interface Provider {
+  name: string;
+  description: string;
+  inferenceBaseUrl?: string;
+  supportedModels?: any[];
+}
 import ToolConfigModal from './ToolConfigModal';
 import ToolsSelectionModal from './ToolsSelectionModal';
 import PromptMessagesInline from './PromptMessagesInline';
 import ApiKeysModal from './ApiKeysModal';
-import ModelSelectionModal from './ModelSelectionModal';
+import ModelSelector from './ModelSelector';
 import ConfigurationSettingsModal from './ConfigurationSettingsModal';
 import SystemPromptGenerator from './SystemPromptGenerator';
 import MCPModal from './MCPModal';
@@ -53,17 +61,9 @@ import { toast } from 'sonner';
 import SaveAgentModal from './SaveAgentModal';
 import AgentList from './AgentList';
 
-interface Model {
-  name: string;
-  modelSyntax: string;
-  isEmbeddingModel?: boolean;
-}
 
-interface Provider {
-  name: string;
-  description: string;
-  supportedModels: Model[];
-}
+
+
 
 interface PromptMessage {
   id: string;
@@ -236,10 +236,10 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   onAgentSaved,
   onAgentSelect
 }) => {
-  const [providers, setProviders] = useState<Provider[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  // State for URL suggestions
+  const [baseUrlSuggestions, setBaseUrlSuggestions] = useState<string[]>([]);
   const [editingFunction, setEditingFunction] = useState<Tool | null>(null);
   const [editingMCP, setEditingMCP] = useState<Tool | null>(null);
   const [editingFileSearch, setEditingFileSearch] = useState<Tool | null>(null);
@@ -342,99 +342,11 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     }
   };
 
-  // Fetch models from API
-  useEffect(() => {
-    const fetchModels = async () => {
-      setLoading(true);
-      setError(null);
-      
-      try {
-        const data = await apiClient.jsonRequest<any[]>('/v1/dashboard/models');
-        setProviders(data);
-      } catch (err) {
-        console.error('Error fetching models:', err);
-        
-        // Check if it's an authentication error
-        if (err instanceof Error && err.message === 'Authentication required') {
-          // This will trigger the login screen via ApiClient's handleAuthError
-          return;
-        }
-        
-        // For other errors, show appropriate message
-        const errorMessage = err instanceof Error && err.message.includes('Network error')
-          ? 'Cannot connect to API server.'
-          : 'Failed to load models.';
-        setError(errorMessage);
-        setProviders([]);
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    fetchModels();
-  }, []);
 
-  // Get all available models from providers - memoized to prevent unnecessary recalculations
-  const allModels = useMemo(() => {
-    // Get models from API providers (defensive against undefined server response)
-    const safeProviders = Array.isArray(providers) ? providers : [];
-    const apiModels = safeProviders.flatMap((provider: any) =>
-      (provider?.supportedModels ?? [])
-        .filter((model: any) => !model?.isEmbeddingModel)
-        .map((model: any) => ({
-          ...model,
-          providerName: provider?.name ?? 'unknown',
-          providerDescription: provider?.description ?? ''
-        }))
-    );
 
-    // Get models from localStorage (own models)
-    let ownModels: any[] = [];
-    try {
-      const savedOwnModels = localStorage.getItem('platform_own_model');
-      if (savedOwnModels) {
-        const ownModelsData = JSON.parse(savedOwnModels);
-        const supported = Array.isArray(ownModelsData?.supportedModels) ? ownModelsData.supportedModels : [];
-        ownModels = supported.map((model: any) => ({
-          name: model.name,
-          modelSyntax: model.modelSyntax,
-          providerName: ownModelsData?.name ?? 'own model',
-          providerDescription: ownModelsData?.description ?? '',
-          isEmbeddingModel: false
-        }));
-      }
-    } catch (error) {
-      console.error('Error loading own models from localStorage:', error);
-    }
 
-    // Return own models first, then API models
-    return [...ownModels, ...apiModels];
-  }, [providers, refreshTrigger]);
 
-  // Suggestions for model base URL sourced from providers.inferenceBaseUrl
-  const baseUrlSuggestions = useMemo((): { url: string; label: string }[] => {
-    try {
-      const safeProviders = Array.isArray(providers) ? providers : [];
-      const urlToNames = new Map<string, Set<string>>();
-      safeProviders.forEach((p: any) => {
-        const url = p?.inferenceBaseUrl as string | undefined;
-        if (typeof url === 'string' && url.trim().length > 0) {
-          const name = typeof p?.name === 'string' && p.name.trim().length > 0 ? p.name : 'provider';
-          const existing = urlToNames.get(url) ?? new Set<string>();
-          existing.add(name);
-          urlToNames.set(url, existing);
-        }
-      });
-      const result: { url: string; label: string }[] = [];
-      urlToNames.forEach((names, url) => {
-        const label = `${Array.from(names).join(', ')} — ${url}`;
-        result.push({ url, label });
-      });
-      return result;
-    } catch {
-      return [];
-    }
-  }, [providers]);
 
   const normalizeBaseUrlInput = (val: string): string => {
     try {
@@ -450,72 +362,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
     }
   };
 
-  const getModelString = () => `${modelProvider}@${modelName}`;
 
-  const handleDeleteModel = (modelSyntax: string) => {
-    try {
-      const existingOwnModels = localStorage.getItem('platform_own_model');
-      if (existingOwnModels) {
-        const ownModelsData = JSON.parse(existingOwnModels);
-        
-        // Remove the model from supportedModels array
-        ownModelsData.supportedModels = ownModelsData.supportedModels.filter(
-          (model: any) => model.modelSyntax !== modelSyntax
-        );
-        
-        localStorage.setItem('platform_own_model', JSON.stringify(ownModelsData));
-        
-        // Trigger refresh to update the dropdown
-        setRefreshTrigger(prev => prev + 1);
-        
-        // Also dispatch storage event for other components
-        window.dispatchEvent(new Event('storage'));
-      }
-    } catch (error) {
-      console.error('Error deleting model:', error);
-    }
-  };
 
-  // Listen for storage events to auto-refresh when models are saved
-  useEffect(() => {
-    const handleStorageChange = () => {
-      setRefreshTrigger(prev => prev + 1);
-    };
 
-    window.addEventListener('storage', handleStorageChange);
-    return () => window.removeEventListener('storage', handleStorageChange);
-  }, []);
-
-  // Check if API key exists for provider
-  const checkApiKey = (provider: string): boolean => {
-    try {
-      const saved = localStorage.getItem('platform_apiKeys');
-      if (!saved) return false;
-      
-      const savedKeys: { name: string; apiKey: string }[] = JSON.parse(saved);
-      return savedKeys.some(item => item.name === provider && item.apiKey.trim());
-    } catch (error) {
-      console.error('Error checking API key:', error);
-      return false;
-    }
-  };
-
-  const handleModelSelect = (modelSyntax: string) => {
-    const [provider, name] = modelSyntax.split('@');
-    
-    // Check if API key exists for this provider
-    if (!checkApiKey(provider)) {
-      setPendingModelSelection(modelSyntax);
-      setRequiredProvider(provider);
-      setApiKeysModalOpen(true);
-      return; // Don't set the model until API key is provided
-    }
-    
-    // API key exists, proceed with model selection
-    setModelProvider(provider);
-    setModelName(name);
-    setPendingModelSelection(null);
-  };
 
   const imageModels = [
     { provider: 'openai', name: 'dall-e-3', description: 'Advanced image generation' },
@@ -747,25 +596,36 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
   const [saveAgentModalOpen, setSaveAgentModalOpen] = useState(false);
 
+  // Fetch base URL suggestions from dashboard models API
+  useEffect(() => {
+    const fetchBaseUrlSuggestions = async () => {
+      try {
+        const providers = await apiClient.jsonRequest<Provider[]>('/v1/dashboard/models');
+        const urls = providers
+          .map(provider => provider.inferenceBaseUrl)
+          .filter((url): url is string => Boolean(url) && url.trim() !== '')
+          .filter((url, index, array) => array.indexOf(url) === index); // Remove duplicates
+        
+        setBaseUrlSuggestions(urls);
+      } catch (error) {
+        console.error('Error fetching base URL suggestions:', error);
+        // Don't show error to user as this is just for suggestions
+        setBaseUrlSuggestions([]);
+      }
+    };
+
+    // Only fetch suggestions when in model test mode
+    if (modelTestMode) {
+      fetchBaseUrlSuggestions();
+    }
+  }, [modelTestMode]);
+
   return (
     <div className={cn("bg-background border-r border-border h-full overflow-y-auto", className)}>
       <div className="p-4 h-full flex flex-col">
         
         {/* Header with Model Selection and Config Icons */}
         <div className="space-y-3 flex-shrink-0">
-          {/* Error Banner for API Connection Issues */}
-          {error && (
-            <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
-              <div className="flex items-center space-x-2">
-                <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
-                <span className="text-sm text-red-600 font-medium">API Connection Error</span>
-              </div>
-              <p className="text-xs text-red-500/80 mt-1">{error}</p>
-              <p className="text-xs text-red-500/60 mt-1">
-                Please check your API server connection and try again.
-              </p>
-            </div>
-          )}
           
           {/* Model Test Agent UI */}
           {modelTestMode ? (
@@ -791,8 +651,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                           }`}
                         />
                         <datalist id="model-base-url-suggestions">
-                          {baseUrlSuggestions.map((s) => (
-                            <option key={s.url} value={`${s.label}`} />
+                          {baseUrlSuggestions.map((url, index) => (
+                            <option key={index} value={url} />
                           ))}
                         </datalist>
                       </div>
@@ -884,13 +744,16 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3 flex-1">
                 <Label className="text-sm font-medium whitespace-nowrap">Model</Label>
-                <ModelSelectionModal
-                  models={allModels}
-                  selectedModel={getModelString()}
-                  onModelSelect={handleModelSelect}
-                  loading={loading}
-                  error={error}
-                  onDeleteModel={handleDeleteModel}
+                <ModelSelector
+                  modelProvider={modelProvider}
+                  setModelProvider={setModelProvider}
+                  modelName={modelName}
+                  setModelName={setModelName}
+                  onApiKeyRequired={(provider) => {
+                    setPendingModelSelection(`${provider}@${modelName}`);
+                    setRequiredProvider(provider);
+                    setApiKeysModalOpen(true);
+                  }}
                 />
               </div>
               {/* Settings icon hidden in Masaic Mocky mode */}
@@ -1438,11 +1301,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           if (pendingModelSelection && requiredProvider) {
             // Add a small delay to ensure localStorage is updated
             setTimeout(() => {
-              if (checkApiKey(requiredProvider)) {
-                const [provider, name] = pendingModelSelection.split('@');
-                setModelProvider(provider);
-                setModelName(name);
-              }
+              const [provider, name] = pendingModelSelection.split('@');
+              setModelProvider(provider);
+              setModelName(name);
             }, 100);
           }
         }}

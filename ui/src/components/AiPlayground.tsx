@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Drawer, DrawerTrigger, DrawerContent } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import UnifiedCard from '@/components/ui/unified-card';
-import { Loader2, Send, Sparkles, RotateCcw, Copy, Check, Menu, Code, Brain, Image, Puzzle, Save, Layers, Search } from 'lucide-react';
+import { Sparkles, RotateCcw, Copy, Check, Menu, Code, Brain, Image, Puzzle, Save, Layers, Search } from 'lucide-react';
 import { toast } from 'sonner';
-import ChatMessage from './ChatMessage';
 import ConfigurationPanel from './ConfigurationPanel';
 import PlaygroundSidebar from './PlaygroundSidebar';
 import AgentsSelectionModal from './AgentsSelectionModal';
@@ -15,6 +14,7 @@ import { PlaygroundRequest } from '@/playground/PlaygroundRequest';
 import { API_URL } from '@/config';
 import { apiClient } from '@/lib/api';
 import { usePlatformInfo } from '@/contexts/PlatformContext';
+import { ResponsesChat, buildToolsPayload, ResponsesChatRef } from '@/chat';
 
 interface ToolExecution {
   serverName: string;
@@ -46,6 +46,7 @@ interface Message {
   timestamp: Date;
   hasThinkTags?: boolean;
   isLoading?: boolean;
+  isStreaming?: boolean;
 }
 
 interface PromptMessage {
@@ -86,11 +87,8 @@ const isValidUrl = (url: string): boolean => {
 };
 
 const AiPlayground: React.FC = () => {
+  const navigate = useNavigate();
 
-
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputValue, setInputValue] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('http://localhost:8080');
   const [modelProvider, setModelProvider] = useState('openai');
@@ -110,6 +108,7 @@ const AiPlayground: React.FC = () => {
   const [storeLogs, setStoreLogs] = useState(true);
   const [textFormat, setTextFormat] = useState<'text' | 'json_object' | 'json_schema'>('text');
   const [toolChoice, setToolChoice] = useState<'auto' | 'none'>('auto');
+  
   
   // Prompt messages state
   const [promptMessages, setPromptMessages] = useState<PromptMessage[]>([]);
@@ -213,7 +212,7 @@ const AiPlayground: React.FC = () => {
   // Import API_URL from central config
   const apiUrl = API_URL;
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const newChatRef = useRef<ResponsesChatRef>(null);
 
   const { platformInfo } = usePlatformInfo();
   const modelSettings = platformInfo?.modelSettings;
@@ -334,17 +333,12 @@ const AiPlayground: React.FC = () => {
     localStorage.setItem('aiPlayground_otherTools', JSON.stringify(otherTools));
   }, [apiKey, baseUrl, modelProvider, modelName, imageModelProvider, imageModelName, imageProviderKey, selectedVectorStore, instructions, temperature, maxTokens, topP, storeLogs, textFormat, toolChoice, promptMessages, selectedTools]);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
 
   const resetConversation = () => {
-    setMessages([]);
-    setConversationId(null);
-    setPreviousResponseId(null);
-    
-    // Generate new sessionId for new conversation
-    generateNewSessionId();
+    if (newChatRef.current) {
+      // Use new chat's reset function
+      newChatRef.current.resetConversation();
+    }
     
     toast.success('Conversation reset');
   };
@@ -605,1001 +599,18 @@ const AiPlayground: React.FC = () => {
     localStorage.setItem('platform_py_fun_tools', JSON.stringify(pyFunctionToolsMap));
   };
 
-  const generateResponse = async (prompt: string) => {
-    const provider = modelProvider;
-    
-    // Check if a model is selected
-    if (!modelName || modelName.trim() === '') {
-      toast.error('Please select a model before sending a message.');
-      return;
-    }
-    
-    const apiKeyForProvider = getProviderApiKey(provider);
-    if (!apiKeyForProvider) {
-      toast.error('Please set your API key for the selected provider.');
-      return;
-    }
-
-    setIsLoading(true);
-
-    // Add user message
-    const userMessage: Message = {
-      id: Date.now().toString() + '_user',
-      role: 'user',
-      content: prompt,
-      type: 'text',
-      timestamp: new Date()
-    };
-    setMessages(prev => [...prev, userMessage]);
-
-    // Add assistant message placeholder
-    const assistantMessageId = Date.now().toString() + '_assistant';
-    const assistantMessage: Message = {
-      id: assistantMessageId,
-      role: 'assistant',
-      content: '',
-      type: 'text',
-      timestamp: new Date(),
-      isLoading: true
-    };
-    setMessages(prev => [...prev, assistantMessage]);
-
-    // Build API request
-    const input = [
-      {
-        role: 'user',
-        content: [
-          {
-            type: 'input_text',
-            text: prompt
-          }
-        ]
-      }
-    ];
-
-    let textFormatBlock: any = { type: textFormat };
-    if (textFormat === 'json_schema') {
-      let schema = null;
-      let schemaName = jsonSchemaName;
-      try {
-        if (jsonSchemaContent) {
-          const parsed = JSON.parse(jsonSchemaContent);
-          schema = parsed.schema;
-          schemaName = parsed.name || schemaName;
-        }
-      } catch {}
-      if (!schema || !schemaName) {
-        const errorMsg = 'JSON schema is missing or invalid. Please define a valid schema in settings.';
-        toast.error(errorMsg);
-        setMessages(prev => prev.map(msg =>
-          msg.id === assistantMessageId
-            ? {
-                ...msg,
-                content: errorMsg,
-                type: 'text',
-                hasThinkTags: false,
-                isLoading: false
-              }
-            : msg
-        ));
-        setIsLoading(false);
-        return;
-      }
-      textFormatBlock = {
-        type: 'json_schema',
-        name: schemaName,
-        schema
-      };
-    }
-
-    const effectiveInstructions = 
-      mockyMode && mockyAgentData ? mockyAgentData.systemPrompt 
-      : agentBuilderMode && agentBuilderData ? agentBuilderData.systemPrompt 
-      : instructions;
-
-    const requestBody: any = {
-      model: `${modelProvider}@${modelName}`,
-      instructions: effectiveInstructions,
-      input,
-      text: {
-        format: textFormatBlock
-      },
-      temperature,
-      max_output_tokens: maxTokens,
-      top_p: topP,
-      store: true,
-      stream: true
-    };
-    
-    // Tools handling
-    if (mockyMode && mockyAgentData && Array.isArray(mockyAgentData.tools) && mockyAgentData.tools.length > 0) {
-      requestBody.tools = mockyAgentData.tools;
-    } else if (agentBuilderMode && agentBuilderData && Array.isArray(agentBuilderData.tools) && agentBuilderData.tools.length > 0) {
-      requestBody.tools = agentBuilderData.tools;
-    } else if (selectedTools.length > 0) {
-      requestBody.tools = selectedTools.map(tool => {
-        if (tool.id === 'mcp_server' && tool.mcpConfig) {
-          return {
-            type: 'mcp',
-            server_label: tool.mcpConfig.label,
-            server_url: tool.mcpConfig.url,
-            allowed_tools: tool.mcpConfig.selectedTools,
-            headers: tool.mcpConfig.authentication === 'access_token' && tool.mcpConfig.accessToken
-              ? { 'Authorization': `Bearer ${tool.mcpConfig.accessToken}` }
-              : tool.mcpConfig.authentication === 'custom_headers' && tool.mcpConfig.customHeaders
-              ? tool.mcpConfig.customHeaders.reduce((acc: any, header: any) => {
-                  if (header.key && header.value) {
-                    acc[header.key] = header.value;
-                  }
-                  return acc;
-                }, {})
-              : {}
-          };
-        } else         if (tool.id === 'file_search' && tool.fileSearchConfig) {
-          const toolBody: any = {
-            type: 'file_search',
-            vector_store_ids: tool.fileSearchConfig.selectedVectorStores
-          };
-          if (modelSettings?.settingsType === 'RUNTIME') {
-            const provider = localStorage.getItem('platform_embedding_modelProvider') || '';
-            const modelName = localStorage.getItem('platform_embedding_modelName') || '';
-            const apiKeysRaw = localStorage.getItem('platform_apiKeys');
-            let bearerToken = '';
-            if (apiKeysRaw) {
-              try {
-                const apiKeys = JSON.parse(apiKeysRaw);
-                const found = apiKeys.find((item: any) => item.name === provider);
-                if (found) bearerToken = found.apiKey;
-              } catch {}
-            }
-            toolBody.modelInfo = {
-              bearerToken,
-              model: provider && modelName ? `${provider}@${modelName}` : ''
-            };
-          }
-          return toolBody;
-        } else if (tool.id === 'agentic_file_search' && tool.agenticFileSearchConfig) {
-          const toolBody: any = {
-            type: 'agentic_search',
-            vector_store_ids: tool.agenticFileSearchConfig.selectedVectorStores,
-            max_iterations: tool.agenticFileSearchConfig.iterations,
-            max_num_results: tool.agenticFileSearchConfig.maxResults
-          };
-          if (modelSettings?.settingsType === 'RUNTIME') {
-            const provider = localStorage.getItem('platform_embedding_modelProvider') || '';
-            const modelName = localStorage.getItem('platform_embedding_modelName') || '';
-            const apiKeysRaw = localStorage.getItem('platform_apiKeys');
-            let bearerToken = '';
-            if (apiKeysRaw) {
-              try {
-                const apiKeys = JSON.parse(apiKeysRaw);
-                const found = apiKeys.find((item: any) => item.name === provider);
-                if (found) bearerToken = found.apiKey;
-              } catch {}
-            }
-            toolBody.modelInfo = {
-              bearerToken,
-              model: provider && modelName ? `${provider}@${modelName}` : ''
-            };
-          }
-          return toolBody;
-        } else if (tool.id === 'fun_req_gathering_tool') {
-          // Add Fun Req Assembler tool
-          return {
-            type: 'fun_req_gathering_tool'
-          };
-        } else if (tool.id === 'fun_def_generation_tool') {
-          // Add Fun Def Generator tool
-          return {
-            type: 'fun_def_generation_tool'
-          };
-        } else if (tool.id === 'mock_fun_save_tool') {
-          return { type: 'mock_fun_save_tool' };
-        } else if (tool.id === 'mock_generation_tool') {
-          return { type: 'mock_generation_tool' };
-        } else if (tool.id === 'mock_save_tool') {
-          return { type: 'mock_save_tool' };
-        } else if (tool.id === 'py_fun_tool' && tool.pyFunctionConfig) {
-          // Get E2B server configuration from localStorage
-          const e2bConfig = localStorage.getItem('platform_e2b_mcp');
-          let codeInterpreter = {};
-          if (e2bConfig) {
-            try {
-              const e2bData = JSON.parse(e2bConfig);
-              codeInterpreter = {
-                server_label: e2bData.server_label || '',
-                url: e2bData.url || '',
-                apiKey: e2bData.apiKey || ''
-              };
-            } catch (error) {
-              console.error('Error parsing E2B configuration:', error);
-            }
-          }
-          
-          return {
-            type: 'py_fun_tool',
-            tool_def: {
-              name: tool.pyFunctionConfig.tool_def.name,
-              description: tool.pyFunctionConfig.tool_def.description,
-              parameters: tool.pyFunctionConfig.tool_def.parameters
-            },
-            code: tool.pyFunctionConfig.code,
-            code_interpreter: codeInterpreter
-          };
-        }
-        // Add other tool types as needed
-        return null;
-      }).filter(Boolean);
-    }
-    
-    if (previousResponseId) {
-      requestBody.previous_response_id = previousResponseId;
-    }
-
-    // Capture request for code snippet generation
-    const playgroundRequest: PlaygroundRequest = {
-      method: 'POST',
-      url: '/v1/responses',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKeyForProvider}`
-      },
-      body: requestBody
-    };
-    setLastRequest(playgroundRequest);
-
-    try {
-      const response = await apiClient.rawRequest('/v1/responses', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKeyForProvider}`
-        },
-        body: JSON.stringify(requestBody)
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        setMessages(prev => prev.map(msg =>
-          msg.id === assistantMessageId
-            ? {
-                ...msg,
-                content: `Error: ${errorText}`,
-                type: 'text',
-                hasThinkTags: false,
-                isLoading: false
-              }
-            : msg
-        ));
-        setIsLoading(false);
-        return;
-      }
-
-      // Handle streaming response
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let streamingContent = '';
-      let responseId = '';
-      let isStreaming = false;
-      let contentBlocks: ContentBlock[] = [];
-      let currentTextBlock: ContentBlock | null = null;
-      const activeToolExecutions = new Map<string, ToolExecution>();
-      // Tracks whether an unrecoverable error was received in the SSE stream
-      let encounteredStreamError = false;
-
-      // Track the last SSE event name to properly handle custom events like "error"
-      let lastEvent: string | null = null;
-
-      const updateMessage = (blocks: ContentBlock[], fullContent: string) => {
-        setMessages(prev => prev.map(msg =>
-          msg.id === assistantMessageId
-            ? {
-                ...msg,
-                content: fullContent,
-                contentBlocks: [...blocks],
-                type: 'text',
-                hasThinkTags: false,
-                isLoading: false
-              }
-            : msg
-        ));
-      };
-
-      const addInlineLoading = (blocks: ContentBlock[]) => {
-        // Remove any existing inline loading blocks first
-        const blocksWithoutLoading = blocks.filter(block => block.type !== 'inline_loading');
-        // Add new inline loading block at the end
-        return [...blocksWithoutLoading, { type: 'inline_loading' as const }];
-      };
-
-      const removeInlineLoading = (blocks: ContentBlock[]) => {
-        return blocks.filter(block => block.type !== 'inline_loading');
-      };
-
-      if (reader) {
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              // Capture event name if present
-              if (line.startsWith('event: ')) {
-                lastEvent = line.slice(7).trim();
-                continue;
-              }
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(6));
-
-                  // Handle explicit error events from SSE stream  
-                  // Primary check: event: error (this is the main SSE error pattern)
-                  // Secondary checks: legacy error formats for backward compatibility
-                  if (lastEvent === 'error' || (data.type === 'error') || (data.code && data.message)) {
-                    console.log('🚨 Error detected in stream!', { lastEvent, dataType: data.type, dataCode: data.code, dataMessage: data.message });
-                    const errorCode = data.code || 'error';
-                    const errorMsg = data.message || 'Unknown error';
-                    const errorContent = `Error: [${errorCode}] ${errorMsg}`;
-
-                    // Clear all active tool executions to stop loading spinners
-                    activeToolExecutions.clear();
-                    encounteredStreamError = true;
-                    encounteredStreamError = true;
-                    
-                    // Remove any inline loading blocks and tool progress blocks
-                    const errorContentBlocks = contentBlocks.filter(block => 
-                      block.type !== 'inline_loading' && block.type !== 'tool_progress'
-                    );
-                    
-                    // Add the error content block
-                    errorContentBlocks.push({
-                      type: 'text',
-                      content: `[${errorCode}] ${errorMsg}`
-                    });
-
-                    // Update assistant message with error content, stop loading state
-                    setMessages(prev => prev.map(msg =>
-                      msg.id === assistantMessageId
-                        ? {
-                            ...msg,
-                            content: errorContent,
-                            contentBlocks: errorContentBlocks,
-                            type: 'text',
-                            hasThinkTags: false,
-                            isLoading: false
-                          }
-                        : msg
-                    ));
-
-                    // Set global loading state to false
-                    setIsLoading(false);
-
-                    // Exit streaming loop on error
-                    reader.cancel().catch(() => {});
-                    break;
-                  }
-                  // Handle different event types
-                  if (data.type === 'response.completed') {
-                    if (data.response?.id) {
-                      responseId = data.response.id;
-                    }
-                    // Mark all in-progress tool executions as completed when response completes
-                    activeToolExecutions.forEach((execution, key) => {
-                      if (execution.status === 'in_progress') {
-                        execution.status = 'completed';
-                      }
-                    });
-                    
-                    // Update tool progress blocks with completed status
-                    contentBlocks.forEach(block => {
-                      if (block.type === 'tool_progress' && block.toolExecutions) {
-                        block.toolExecutions = Array.from(activeToolExecutions.values());
-                      }
-                    });
-                    
-                    // Remove inline loading when response is completed
-                    const blocksWithoutLoading = removeInlineLoading(contentBlocks);
-                    
-                    // If no content blocks exist, create a default text block
-                    let finalBlocks = blocksWithoutLoading;
-                    if (finalBlocks.length === 0) {
-                      finalBlocks = [{ type: 'text' as const, content: 'Response completed' }];
-                    }
-                    
-                    // If no streaming content was received, use a default message or empty string
-                    const finalContent = streamingContent || 'Response completed';
-                    updateMessage(finalBlocks, finalContent);
-                  } else if (data.type === 'response.output_text.delta') {
-                    // Start or continue streaming
-                    if (!isStreaming) {
-                      isStreaming = true;
-                    }
-                    
-                    if (data.delta) {
-                      streamingContent += data.delta;
-                      
-                      // Create or update current text block
-                      if (!currentTextBlock) {
-                        currentTextBlock = { type: 'text', content: data.delta };
-                        contentBlocks.push(currentTextBlock);
-                      } else {
-                        currentTextBlock.content = (currentTextBlock.content || '') + data.delta;
-                      }
-                      
-                      // Check if we have a complete JSON object for real-time formatting
-                      let displayContent = streamingContent;
-                      if (textFormat === 'json_object' || textFormat === 'json_schema') {
-                        try {
-                          JSON.parse(streamingContent);
-                          displayContent = streamingContent;
-                        } catch {
-                          displayContent = streamingContent;
-                        }
-                      }
-                      
-                      // Remove any inline loading when text streaming starts
-                      const blocksWithoutLoading = removeInlineLoading(contentBlocks);
-                      updateMessage(blocksWithoutLoading, displayContent);
-                    }
-                  } else if (data.type === 'response.output_text.done') {
-                    // Streaming completed for this output
-                    isStreaming = false;
-                    currentTextBlock = null; // Reset for potential next text stream
-                    if (data.text) {
-                      streamingContent = data.text;
-                      // Update the last text block with complete content
-                      for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                        if (contentBlocks[i].type === 'text') {
-                          contentBlocks[i].content = data.text;
-                          break;
-                        }
-                      }
-                      updateMessage(contentBlocks, streamingContent);
-                    }
-                  } else if (data.type && data.type.startsWith('response.mcp_call.')) {
-                    // Handle MCP tool events
-                    const typeParts = data.type.split('.');
-                    if (typeParts.length >= 4) {
-                      const toolIdentifier = typeParts[2];
-                      const status = typeParts[3];
-                      
-                      // Parse tool identifier: myshopify_search_shop_catalog
-                      const identifierParts = toolIdentifier.split('_');
-                      const serverName = identifierParts[0];
-                      const toolName = identifierParts.slice(1).join('_');
-                      
-                      if (status === 'in_progress') {
-                        // Add new tool execution
-                        const toolExecution: ToolExecution = {
-                          serverName,
-                          toolName,
-                          status: 'in_progress'
-                        };
-                        activeToolExecutions.set(toolIdentifier, toolExecution);
-                        
-                        // Find existing tool progress block or create new one
-                        let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
-                        if (!toolProgressBlock) {
-                          toolProgressBlock = {
-                            type: 'tool_progress',
-                            toolExecutions: Array.from(activeToolExecutions.values())
-                          };
-                          contentBlocks.push(toolProgressBlock);
-                        } else {
-                          // Update existing tool progress block
-                          toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
-                        }
-                        currentTextBlock = null; // Reset text block for potential next text
-                        
-                        updateMessage(contentBlocks, streamingContent);
-                      } else if (status === 'completed') {
-                        // Update tool execution status
-                        const toolExecution = activeToolExecutions.get(toolIdentifier);
-                        if (toolExecution) {
-                          toolExecution.status = 'completed';
-                          
-                                                  // Update the last tool progress block
-                        for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                          if (contentBlocks[i].type === 'tool_progress') {
-                            contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
-                            break;
-                          }
-                        }
-                          
-                          // Add inline loading when tools complete, indicating we're waiting for next text stream
-                          const blocksWithLoading = addInlineLoading(contentBlocks);
-                          contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                          updateMessage(blocksWithLoading, streamingContent);
-                        }
-                      }
-                    }
-                  } else if (data.type && data.type.startsWith('response.agc.')) {
-                    // Handle Py function tool events
-                    const typeParts = data.type.split('.');
-                    if (typeParts.length >= 4) {
-                      const toolName = typeParts[2];
-                      const status = typeParts[3];
-                      
-                      if (status === 'executing' || status === 'in_progress') {
-                        // Add new Py function tool execution
-                        const toolExecution: ToolExecution = {
-                          serverName: 'agc',
-                          toolName,
-                          status: 'in_progress'
-                        };
-                        activeToolExecutions.set(`agc_${toolName}`, toolExecution);
-                        
-                        // Find existing tool progress block or create new one
-                        let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
-                        if (!toolProgressBlock) {
-                          toolProgressBlock = {
-                            type: 'tool_progress',
-                            toolExecutions: Array.from(activeToolExecutions.values())
-                          };
-                          contentBlocks.push(toolProgressBlock);
-                        } else {
-                          // Update existing tool progress block
-                          toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
-                        }
-                        currentTextBlock = null; // Reset text block for potential next text
-                        
-                        updateMessage(contentBlocks, streamingContent);
-                      } else if (status === 'completed') {
-                        // Update Py function tool execution status
-                        const toolExecution = activeToolExecutions.get(`agc_${toolName}`);
-                        if (toolExecution) {
-                          toolExecution.status = 'completed';
-                          
-                          // Update the last tool progress block
-                          for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                            if (contentBlocks[i].type === 'tool_progress') {
-                              contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
-                              break;
-                            }
-                          }
-                          
-                          // Add inline loading when tools complete, indicating we're waiting for next text stream
-                          const blocksWithLoading = addInlineLoading(contentBlocks);
-                          contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                          updateMessage(blocksWithLoading, streamingContent);
-                        }
-                      }
-                    }
-                  } else if (data.type === 'response.file_search.in_progress') {
-                    // Handle file search tool start event
-                    const toolExecution: ToolExecution = {
-                      serverName: 'file_search',
-                      toolName: 'search',
-                      status: 'in_progress'
-                    };
-                    activeToolExecutions.set('file_search', toolExecution);
-                    
-                    // Find existing tool progress block or create new one
-                    let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
-                    if (!toolProgressBlock) {
-                      toolProgressBlock = {
-                        type: 'tool_progress',
-                        toolExecutions: Array.from(activeToolExecutions.values())
-                      };
-                      contentBlocks.push(toolProgressBlock);
-                    } else {
-                      // Update existing tool progress block
-                      toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
-                    }
-                    currentTextBlock = null; // Reset text block for potential next text
-                    
-                    updateMessage(contentBlocks, streamingContent);
-                  } else if (data.type === 'response.file_search.completed') {
-                    // Handle file search tool completion event
-                    const toolExecution = activeToolExecutions.get('file_search');
-                    if (toolExecution) {
-                      toolExecution.status = 'completed';
-                      
-                      // Update the last tool progress block
-                      for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                        if (contentBlocks[i].type === 'tool_progress') {
-                          contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
-                          break;
-                        }
-                      }
-                      
-                      // Add inline loading when tools complete, indicating we're waiting for next text stream
-                      const blocksWithLoading = addInlineLoading(contentBlocks);
-                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
-                    }
-                  } else if (data.type === 'response.agentic_search.in_progress') {
-                    // Handle agentic search tool start event
-                    const toolExecution: ToolExecution = {
-                      serverName: 'agentic_search',
-                      toolName: 'search',
-                      status: 'in_progress',
-                      agenticSearchLogs: []
-                    };
-                    activeToolExecutions.set('agentic_search', toolExecution);
-                    
-                    // Find existing tool progress block or create new one
-                    let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
-                    if (!toolProgressBlock) {
-                      toolProgressBlock = {
-                        type: 'tool_progress',
-                        toolExecutions: Array.from(activeToolExecutions.values())
-                      };
-                      contentBlocks.push(toolProgressBlock);
-                    } else {
-                      // Update existing tool progress block
-                      toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
-                    }
-                    currentTextBlock = null; // Reset text block for potential next text
-                    
-                    updateMessage(contentBlocks, streamingContent);
-                  } else if (data.type === 'response.agentic_search.query_phase.iteration') {
-                    // Handle agentic search iteration logs
-                    const toolExecution = activeToolExecutions.get('agentic_search');
-                    if (toolExecution && data.iteration && data.query) {
-                      const logEntry: AgenticSearchLog = {
-                        iteration: data.iteration,
-                        query: data.query,
-                        reasoning: data.reasoning || '',
-                        citations: data.citations || [],
-                        remaining_iterations: data.remaining_iterations || 0
-                      };
-                      
-                      if (!toolExecution.agenticSearchLogs) {
-                        toolExecution.agenticSearchLogs = [];
-                      }
-                      toolExecution.agenticSearchLogs.push(logEntry);
-                      
-                      // Update the tool progress block
-                      for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                        if (contentBlocks[i].type === 'tool_progress') {
-                          contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
-                          break;
-                        }
-                      }
-                      
-                      updateMessage(contentBlocks, streamingContent);
-                    }
-                  } else if (data.type === 'response.agentic_search.completed') {
-                    // Handle agentic search tool completion event
-                    const toolExecution = activeToolExecutions.get('agentic_search');
-                    if (toolExecution) {
-                      toolExecution.status = 'completed';
-                      
-                      // Update the last tool progress block
-                      for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                        if (contentBlocks[i].type === 'tool_progress') {
-                          contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
-                          break;
-                        }
-                      }
-                      
-                      // Add inline loading when tools complete, indicating we're waiting for next text stream
-                      const blocksWithLoading = addInlineLoading(contentBlocks);
-                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
-                    }
-                  } else if (data.type === 'response.fun_req_gathering_tool.in_progress') {
-                    // Handle fun req assembler start
-                    const toolExecution: ToolExecution = {
-                      serverName: 'fun_req_gathering_tool',
-                      toolName: 'assemble',
-                      status: 'in_progress'
-                    };
-                    activeToolExecutions.set('fun_req_gathering_tool', toolExecution);
-
-                    let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
-                    if (!toolProgressBlock) {
-                      toolProgressBlock = {
-                        type: 'tool_progress',
-                        toolExecutions: Array.from(activeToolExecutions.values())
-                      };
-                      contentBlocks.push(toolProgressBlock);
-                    } else {
-                      toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
-                    }
-                    currentTextBlock = null;
-                    updateMessage(contentBlocks, streamingContent);
-                  } else if (data.type === 'response.fun_req_gathering_tool.completed') {
-                    const toolExecution = activeToolExecutions.get('fun_req_gathering_tool');
-                    if (toolExecution) {
-                      toolExecution.status = 'completed';
-                      for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                        if (contentBlocks[i].type === 'tool_progress') {
-                          contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
-                          break;
-                        }
-                      }
-                      const blocksWithLoading = addInlineLoading(contentBlocks);
-                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
-                    }
-                  } else if (data.type === 'response.fun_def_generation_tool.in_progress') {
-                    // Handle fun def generator start
-                    const toolExecution: ToolExecution = {
-                      serverName: 'fun_def_generation_tool',
-                      toolName: 'generate',
-                      status: 'in_progress'
-                    };
-                    activeToolExecutions.set('fun_def_generation_tool', toolExecution);
-
-                    let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
-                    if (!toolProgressBlock) {
-                      toolProgressBlock = {
-                        type: 'tool_progress',
-                        toolExecutions: Array.from(activeToolExecutions.values())
-                      };
-                      contentBlocks.push(toolProgressBlock);
-                    } else {
-                      toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
-                    }
-                    currentTextBlock = null;
-                    updateMessage(contentBlocks, streamingContent);
-                  } else if (data.type === 'response.fun_def_generation_tool.completed') {
-                    const toolExecution = activeToolExecutions.get('fun_def_generation_tool');
-                    if (toolExecution) {
-                      toolExecution.status = 'completed';
-                      for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                        if (contentBlocks[i].type === 'tool_progress') {
-                          contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
-                          break;
-                        }
-                      }
-                      const blocksWithLoading = addInlineLoading(contentBlocks);
-                      updateMessage(blocksWithLoading, streamingContent);
-                    }
-                  } else if (data.type === 'response.mock_fun_save_tool.in_progress') {
-                    const toolExecution: ToolExecution = {
-                      serverName: 'mock_fun_save_tool',
-                      toolName: 'save_function',
-                      status: 'in_progress'
-                    };
-                    activeToolExecutions.set('mock_fun_save_tool', toolExecution);
-
-                    let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
-                    if (!toolProgressBlock) {
-                      toolProgressBlock = { type: 'tool_progress', toolExecutions: Array.from(activeToolExecutions.values()) };
-                      contentBlocks.push(toolProgressBlock);
-                    } else {
-                      toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
-                    }
-                    currentTextBlock = null;
-                    updateMessage(contentBlocks, streamingContent);
-                  } else if (data.type === 'response.mock_fun_save_tool.completed') {
-                    const toolExecution = activeToolExecutions.get('mock_fun_save_tool');
-                    if (toolExecution) {
-                      toolExecution.status = 'completed';
-                      for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                        if (contentBlocks[i].type === 'tool_progress') {
-                          contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
-                          break;
-                        }
-                      }
-                      const blocksWithLoading = addInlineLoading(contentBlocks);
-                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
-                    }
-                  } else if (data.type === 'response.mock_generation_tool.in_progress') {
-                    const toolExecution: ToolExecution = {
-                      serverName: 'mock_generation_tool',
-                      toolName: 'generate',
-                      status: 'in_progress'
-                    };
-                    activeToolExecutions.set('mock_generation_tool', toolExecution);
-                    let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
-                    if (!toolProgressBlock) {
-                      toolProgressBlock = { type: 'tool_progress', toolExecutions: Array.from(activeToolExecutions.values()) };
-                      contentBlocks.push(toolProgressBlock);
-                    } else {
-                      toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
-                    }
-                    currentTextBlock = null;
-                    updateMessage(contentBlocks, streamingContent);
-                  } else if (data.type === 'response.mock_generation_tool.completed') {
-                    const toolExecution = activeToolExecutions.get('mock_generation_tool');
-                    if (toolExecution) {
-                      toolExecution.status = 'completed';
-                      for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                        if (contentBlocks[i].type === 'tool_progress') {
-                          contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
-                          break;
-                        }
-                      }
-                      const blocksWithLoading = addInlineLoading(contentBlocks);
-                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
-                    }
-                  } else if (data.type === 'response.mock_save_tool.in_progress') {
-                    const toolExecution: ToolExecution = {
-                      serverName: 'mock_save_tool',
-                      toolName: 'save',
-                      status: 'in_progress'
-                    };
-                    activeToolExecutions.set('mock_save_tool', toolExecution);
-                    let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
-                    if (!toolProgressBlock) {
-                      toolProgressBlock = { type: 'tool_progress', toolExecutions: Array.from(activeToolExecutions.values()) };
-                      contentBlocks.push(toolProgressBlock);
-                    } else {
-                      toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
-                    }
-                    currentTextBlock = null;
-                    updateMessage(contentBlocks, streamingContent);
-                  } else if (data.type === 'response.mock_save_tool.completed') {
-                    const toolExecution = activeToolExecutions.get('mock_save_tool');
-                    if (toolExecution) {
-                      toolExecution.status = 'completed';
-                      for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                        if (contentBlocks[i].type === 'tool_progress') {
-                          contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
-                          break;
-                        }
-                      }
-                      const blocksWithLoading = addInlineLoading(contentBlocks);
-                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
-                    }
-                  }
-                } catch (parseError) {
-                  console.error('Error parsing SSE data:', parseError);
-                }
-              }
-            }
-          }
-        } catch (streamError) {
-          console.error('Error reading stream:', streamError);
-          // Clear all active tool executions to stop loading spinners
-          activeToolExecutions.clear();
-          
-          setMessages(prev => prev.map(msg =>
-            msg.id === assistantMessageId
-              ? {
-                  ...msg,
-                  content: `Error: Failed to read streaming response`,
-                  contentBlocks: [
-                    {
-                      type: 'text',
-                      content: 'Failed to read streaming response'
-                    }
-                  ],
-                  type: 'text',
-                  hasThinkTags: false,
-                  isLoading: false
-                }
-              : msg
-          ));
-        } finally {
-          reader.releaseLock();
-        }
-      }
-
-      // Final message update to ensure loading state is properly cleared
-      if (!encounteredStreamError && contentBlocks.length > 0) {
-        const finalBlocks = removeInlineLoading(contentBlocks);
-        
-        // If no content blocks exist after removing loading, create a default text block
-        if (finalBlocks.length === 0) {
-          finalBlocks.push({ type: 'text' as const, content: 'Response completed' });
-        }
-        
-        const finalContent = streamingContent || 'Response completed';
-        updateMessage(finalBlocks, finalContent);
-      }
-
-      // Update previous response ID for next request
-      if (responseId) {
-        setPreviousResponseId(responseId);
-      }
-
-    } catch (error: any) {
-      // Clear any lingering tool executions and loading states on error
-      setMessages(prev => prev.map(msg =>
-        msg.id === assistantMessageId
-          ? {
-              ...msg,
-              content: `Error: ${error.message}`,
-              contentBlocks: [
-                {
-                  type: 'text',
-                  content: error.message
-                }
-              ],
-              type: 'text',
-              hasThinkTags: false,
-              isLoading: false
-            }
-          : msg
-      ));
-    } finally {
-      setIsLoading(false);
-      
-      // Ensure the assistant message is properly finalized
-      setMessages(prev => prev.map(msg =>
-        msg.id === assistantMessageId
-          ? {
-              ...msg,
-              isLoading: false
-            }
-          : msg
-      ));
-      
-      // Focus the textarea after streaming completes
-      setTimeout(() => {
-        const textarea = document.querySelector('.chat-input-textarea') as HTMLTextAreaElement;
-        if (textarea) {
-          textarea.focus();
-        }
-      }, 100);
-    }
-  };
+  // REMOVED: Old chat generateResponse function (was ~900 lines of legacy code)
 
   // Retry logic for error messages
-  const handleRetry = (errorMessageId: string) => {
-    // Find the index of the error message and its preceding user prompt
-    const errorIndex = messages.findIndex(msg => msg.id === errorMessageId);
-    if (errorIndex <= 0) return;
+  // REMOVED: handleRetry - part of old chat implementation
 
-    const userMessage = messages[errorIndex - 1];
-    if (userMessage.role !== 'user') return;
+  // REMOVED: handleSubmit - part of old chat implementation
 
-    const promptToReplay = userMessage.content;
+  // REMOVED: handleKeyPress - part of old chat implementation
 
-    // Remove the user + error messages from chat history
-    setMessages(prev => prev.filter((_, idx) => idx < errorIndex - 1));
+  // REMOVED: handleSuggestedQuerySelect - part of old chat implementation
 
-    // Trigger the prompt again
-    generateResponse(promptToReplay);
-  };
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (inputValue.trim() && !isLoading) {
-      generateResponse(inputValue.trim());
-      setInputValue('');
-      
-      // Reset textarea height to default
-      const textarea = document.querySelector('.chat-input-textarea') as HTMLTextAreaElement;
-      if (textarea) {
-        textarea.style.height = '96px';
-      }
-    }
-  };
-
-  const handleKeyPress = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSubmit(e);
-    }
-  };
-
-  const handleSuggestedQuerySelect = (query: string) => {
-    setInputValue(query);
-    // Focus the textarea
-    const textarea = document.querySelector('.chat-input-textarea') as HTMLTextAreaElement;
-    if (textarea) {
-      textarea.focus();
-    }
-  };
-
-  const handleTextareaChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const textarea = e.target;
-    setInputValue(textarea.value);
-    
-    // Auto-resize functionality with minimum and maximum heights
-    const minHeight = 96;
-    const maxHeight = Math.round(window.innerHeight * 0.4);
-    
-    // Reset height to auto to get proper scrollHeight
-    textarea.style.height = 'auto';
-    
-    // Set new height
-    const newHeight = Math.max(Math.min(textarea.scrollHeight, maxHeight), minHeight);
-    textarea.style.height = `${newHeight}px`;
-  };
+  // REMOVED: handleTextareaChange - part of old chat implementation
 
   // Helper function to transform agent tools to UI tool format
   const transformAgentToolsToUI = (agentTools: any[]): Tool[] => {
@@ -1865,7 +876,10 @@ const AiPlayground: React.FC = () => {
       setSelectedTools(transformedTools);
 
       // Reset conversation state
-      setMessages([]);
+      if (newChatRef.current) {
+        newChatRef.current.resetConversation();
+      }
+      
       setConversationId(null);
       setPreviousResponseId(null);
       
@@ -1905,8 +919,7 @@ const AiPlayground: React.FC = () => {
     setAgentBuilderMode(true);
     setActiveTab('agent-builder');
     
-    // Reset conversation
-    setMessages([]);
+    // Reset conversation handled by new chat
     setConversationId(null);
     setPreviousResponseId(null);
     
@@ -1925,6 +938,10 @@ const AiPlayground: React.FC = () => {
     fetchAgentBuilder();
   };
 
+  const handleNewAgentBuilder = () => {
+    navigate('/agent-builder');
+  };
+
   const fetchAgentBuilder = async () => {
     try {
       const data = await apiClient.agentJsonRequest<any>('/v1/agents/agent-builder');
@@ -1941,35 +958,16 @@ const AiPlayground: React.FC = () => {
         setConversationId(null);
         setPreviousResponseId(null);
 
-        // Reset previous conversation and show greeting
-        setMessages([]);
+        // Reset previous conversation handled by new chat
         
         // Generate new sessionId for new Agent Builder conversation
         generateNewSessionId();
 
-        const greetingId = Date.now().toString() + '_assistant';
-        const greetingMessage: Message = {
-          id: greetingId,
-          role: 'assistant',
-          content: '',
-          type: 'text',
-          timestamp: new Date(),
-          isLoading: true
-        };
-        setMessages([greetingMessage]);
-
-        // Artificial streaming of greeting text
-        const greetingText: string = data.greetingMessage || '';
-        let idx = 0;
-        const interval = setInterval(() => {
-          idx += 1;
-          const partial = greetingText.slice(0, idx);
-          setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
-          if (idx >= greetingText.length) {
-            clearInterval(interval);
-            setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
-          }
-        }, 25);
+        // Handle greeting message
+        if (newChatRef.current) {
+          // Use new chat's streaming greeting
+          newChatRef.current.streamGreetingMessage(data.greetingMessage || '');
+        }
       } else {
         toast.error('Failed to load Agent Builder');
       }
@@ -1985,7 +983,12 @@ const AiPlayground: React.FC = () => {
       if (mockyMode) {
         setMockyMode(false);
         setMockyAgentData(null);
-        setMessages([]);
+        
+        // Reset conversation
+        if (newChatRef.current) {
+          newChatRef.current.resetConversation();
+        }
+        
         setConversationId(null);
         setPreviousResponseId(null);
         generateNewSessionId(); // Generate new sessionId for new conversation
@@ -2002,7 +1005,12 @@ const AiPlayground: React.FC = () => {
         setIsTestingModel(false);
         setShowSaveModel(false);
         setSaveModelState(null);
-        setMessages([]);
+        
+        // Reset conversation
+        if (newChatRef.current) {
+          newChatRef.current.resetConversation();
+        }
+        
         setConversationId(null);
         setPreviousResponseId(null);
         generateNewSessionId(); // Generate new sessionId for new conversation
@@ -2013,7 +1021,12 @@ const AiPlayground: React.FC = () => {
       if (agentMode) {
         setAgentMode(false);
         setAgentData(null);
-        setMessages([]);
+        
+        // Reset conversation
+        if (newChatRef.current) {
+          newChatRef.current.resetConversation();
+        }
+        
         setConversationId(null);
         setPreviousResponseId(null);
         generateNewSessionId(); // Generate new sessionId for new conversation
@@ -2032,7 +1045,12 @@ const AiPlayground: React.FC = () => {
       if (agentBuilderMode) {
         setAgentBuilderMode(false);
         setAgentBuilderData(null);
-        setMessages([]);
+        
+        // Reset conversation
+        if (newChatRef.current) {
+          newChatRef.current.resetConversation();
+        }
+        
         setConversationId(null);
         setPreviousResponseId(null);
         generateNewSessionId(); // Generate new sessionId for new conversation
@@ -2066,35 +1084,16 @@ const AiPlayground: React.FC = () => {
             setConversationId(null);
             setPreviousResponseId(null);
 
-            // Reset previous conversation and show greeting
-            setMessages([]);
+            // Reset previous conversation handled by new chat
             
             // Generate new sessionId for new Masaic Mocky conversation
             generateNewSessionId();
 
-            const greetingId = Date.now().toString() + '_assistant';
-            const greetingMessage: Message = {
-              id: greetingId,
-              role: 'assistant',
-              content: '',
-              type: 'text',
-              timestamp: new Date(),
-              isLoading: true
-            };
-            setMessages([greetingMessage]);
-
-            // Artificial streaming of greeting text
-            const greetingText: string = data.greetingMessage || '';
-            let idx = 0;
-            const interval = setInterval(() => {
-              idx += 1;
-              const partial = greetingText.slice(0, idx);
-              setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
-              if (idx >= greetingText.length) {
-                clearInterval(interval);
-                setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
-              }
-            }, 25);
+            // Handle greeting message
+            if (newChatRef.current) {
+              // Use new chat's streaming greeting
+              newChatRef.current.streamGreetingMessage(data.greetingMessage || '');
+            }
           } else {
             toast.error('Failed to load Masaic Mocky agent data');
           }
@@ -2133,32 +1132,12 @@ const AiPlayground: React.FC = () => {
             setConversationId(null);
             setPreviousResponseId(null);
 
-            // Reset previous conversation and show greeting
-            setMessages([]);
-
-            const greetingId = Date.now().toString() + '_assistant';
-            const greetingMessage: Message = {
-              id: greetingId,
-              role: 'assistant',
-              content: '',
-              type: 'text',
-              timestamp: new Date(),
-              isLoading: true
-            };
-            setMessages([greetingMessage]);
-
-            // Artificial streaming of greeting text
-            const greetingText: string = data.greetingMessage || '';
-            let idx = 0;
-            const interval = setInterval(() => {
-              idx += 1;
-              const partial = greetingText.slice(0, idx);
-              setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
-              if (idx >= greetingText.length) {
-                clearInterval(interval);
-                setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
-              }
-            }, 25);
+            // Reset previous conversation handled by new chat
+            
+            // Stream greeting message using new chat
+            if (newChatRef.current) {
+              newChatRef.current.streamGreetingMessage(data.greetingMessage || '');
+            }
           } else {
             toast.error('Failed to load Agent Builder');
           }
@@ -2205,7 +1184,9 @@ const AiPlayground: React.FC = () => {
             setPreviousResponseId(null);
 
             // Reset previous conversation
-            setMessages([]);
+            if (newChatRef.current) {
+              newChatRef.current.resetConversation();
+            }
             
             // Generate new sessionId for new Model Test conversation
             generateNewSessionId();
@@ -2280,75 +1261,44 @@ const AiPlayground: React.FC = () => {
     setSaveModelState(null);
 
     // Reset conversation state like Reset Chat CTA
-    setMessages([]);
-    setConversationId(null);
-    setPreviousResponseId(null);
+    if (newChatRef.current) {
+      // Use new chat's reset function
+      newChatRef.current.resetConversation();
+    }
+    
+      setConversationId(null);
+      setPreviousResponseId(null);
     
     // Generate new sessionId for new model test conversation
     generateNewSessionId();
 
-    // Display greeting message from agent
-    const greetingId = Date.now().toString() + '_assistant';
-    const greetingMessage: Message = {
-      id: greetingId,
-      role: 'assistant',
-      content: '',
-      type: 'text',
-      timestamp: new Date(),
-      isLoading: true
-    };
-    
-    setMessages([greetingMessage]);
-
-    // Artificial streaming of greeting text
-    const greetingText: string = modelTestAgentData.greetingMessage || '';
-    let idx = 0;
-    const greetingInterval = setInterval(() => {
-      idx += 1;
-      const partial = greetingText.slice(0, idx);
-      setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, content: partial } : msg));
-      if (idx >= greetingText.length) {
-        clearInterval(greetingInterval);
-        setMessages(prev => prev.map(msg => msg.id === greetingId ? { ...msg, isLoading: false } : msg));
+    // Handle greeting and user message streaming
+      const greetingText: string = modelTestAgentData.greetingMessage || '';
+      const userText: string = modelTestAgentData.userMessage || '';
+      
+      if (newChatRef.current) {
+        // Stream greeting first
+        newChatRef.current.streamGreetingMessage(greetingText);
         
-        // After greeting is complete, add user message
+        // After greeting completes, send user message directly which will trigger API call
         setTimeout(() => {
-          const userMessageId = Date.now().toString() + '_user';
-          const userMessage: Message = {
-            id: userMessageId,
-            role: 'user',
-            content: '',
-            type: 'text',
-            timestamp: new Date(),
-            isLoading: true
-          };
-          
-          setMessages(prev => [...prev, userMessage]);
-          
-          // Stream user message
-          const userText = modelTestAgentData.userMessage || '';
-          let userIdx = 0;
-          const userInterval = setInterval(() => {
-            userIdx += 1;
-            const userPartial = userText.slice(0, userIdx);
-            setMessages(prev => prev.map(msg => msg.id === userMessageId ? { ...msg, content: userPartial } : msg));
-            if (userIdx >= userText.length) {
-              clearInterval(userInterval);
-              setMessages(prev => prev.map(msg => msg.id === userMessageId ? { ...msg, isLoading: false } : msg));
-              
-              // After user message is complete, make API call
-              setTimeout(() => {
-                makeModelTestApiCall();
-              }, 500);
-            }
-          }, 25);
-        }, 1000);
+          if (newChatRef.current) {
+            // Use sendTextMessage directly - this will add the user message and make the API call
+            newChatRef.current.sendTextMessage(userText).catch((error) => {
+              console.error('Error in new chat model test call:', error);
+              setIsTestingModel(false);
+              toast.error('Failed to test model connectivity');
+            });
+          }
+        }, (greetingText.length * 25) + 1000);
       }
-    }, 25);
   };
 
+  // REMOVED: updateMessagesForModelTest - not needed with new chat implementation
+
   const makeModelTestApiCall = async () => {
-    if (!modelTestAgentData) return;
+    console.log('makeModelTestApiCall called', { modelTestAgentData });
+    if (!modelTestAgentData || !newChatRef.current) return;
 
     // Check if model test fields are filled
     if (!modelTestName || modelTestName.trim() === '') {
@@ -2369,421 +1319,52 @@ const AiPlayground: React.FC = () => {
       return;
     }
 
-    const assistantMessageId = Date.now().toString() + '_assistant_response';
-    const assistantMessage: Message = {
-      id: assistantMessageId,
-      role: 'assistant',
-      content: '',
-      contentBlocks: [{
-        type: 'text',
-        content: ''
-      }],
-      type: 'text',
-      timestamp: new Date(),
-      isLoading: true
-    };
-
-    setMessages(prev => [...prev, assistantMessage]);
-
-    // Build text format from current settings
-    let textFormatBlock: any = { type: textFormat };
-    if (textFormat === 'json_schema') {
-      let schema = null;
-      let schemaName = jsonSchemaName;
-      try {
-        if (jsonSchemaContent) {
-          const parsed = JSON.parse(jsonSchemaContent);
-          schema = parsed.schema;
-          schemaName = parsed.name || schemaName;
-        }
-      } catch {}
-      if (!schema || !schemaName) {
-        const errorMsg = 'JSON schema is missing or invalid. Please define a valid schema in settings.';
-        toast.error(errorMsg);
-        setMessages(prev => prev.map(msg =>
-          msg.id === assistantMessageId
-            ? {
-                ...msg,
-                content: errorMsg,
-                type: 'text',
-                hasThinkTags: false,
-                isLoading: false
-              }
-            : msg
-        ));
+    // Use the new chat implementation which is already configured with model test settings
+    const userText = modelTestAgentData.userMessage || '';
+    
+    try {
+      await newChatRef.current.sendTextMessage(userText);
+    } catch (error) {
+      console.error('Error in model test API call:', error);
         setIsTestingModel(false);
-        return;
-      }
-      textFormatBlock = {
-        type: 'json_schema',
-        name: schemaName,
-        schema
-      };
+      toast.error('Failed to test model connectivity');
     }
 
-    const requestBody = {
-      model: `${modelTestUrl.trim()}@${modelTestName.trim()}`,
-      instructions: modelTestAgentData.systemPrompt,
-      input: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'input_text',
-              text: modelTestAgentData.userMessage
-            }
-          ]
-        }
-      ],
-      text: {
-        format: textFormatBlock
-      },
-      tools: modelTestAgentData.tools || [],
-      temperature: temperature,
-      max_output_tokens: maxTokens,
-      top_p: topP,
-      store: true,
-      stream: true,
-      previous_response_id: null
-    };
+  };
 
-    try {
-      const response = await apiClient.rawRequest('/v1/responses', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${modelTestApiKey.trim()}`
-        },
-        body: JSON.stringify(requestBody)
-      });
+  // LIFT AND SHIFT: Complete new chat implementation for model test mode
+  const makeNewChatModelTestCall = async () => {
+    if (!modelTestAgentData || !newChatRef.current) return;
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        setMessages(prev => prev.map(msg =>
-          msg.id === assistantMessageId
-            ? {
-                ...msg,
-                content: `Error: ${errorText}`,
-                type: 'text',
-                hasThinkTags: false,
-                isLoading: false
-              }
-            : msg
-        ));
-        setIsTestingModel(false);
-        return;
-      }
-
-      // Handle streaming response (reuse existing streaming logic)
-      const reader = response.body?.getReader();
-      const decoder = new TextDecoder();
-      let buffer = '';
-      let streamingContent = '';
-      let responseId = '';
-      let isStreaming = false;
-      let contentBlocks: ContentBlock[] = [];
-      let currentTextBlock: ContentBlock | null = null;
-      const activeToolExecutions = new Map<string, ToolExecution>();
-      let lastEvent: string | null = null;
-      let responseCompleted = false;
-      let toolCompleted = false;
-      let encounteredStreamError = false;
-
-      const updateMessage = (blocks: ContentBlock[], fullContent: string) => {
-        setMessages(prev => prev.map(msg =>
-          msg.id === assistantMessageId
-            ? {
-                ...msg,
-                content: fullContent,
-                contentBlocks: [...blocks],
-                type: 'text',
-                hasThinkTags: false,
-                isLoading: false
-              }
-            : msg
-        ));
-      };
-
-      const addInlineLoading = (blocks: ContentBlock[]) => {
-        const blocksWithoutLoading = blocks.filter(block => block.type !== 'inline_loading');
-        return [...blocksWithoutLoading, { type: 'inline_loading' as const }];
-      };
-
-      const removeInlineLoading = (blocks: ContentBlock[]) => {
-        return blocks.filter(block => block.type !== 'inline_loading');
-      };
-
-      if (reader) {
-        try {
-          while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
-
-            for (const line of lines) {
-              // Capture event name if present
-              if (line.startsWith('event: ')) {
-                lastEvent = line.slice(7).trim();
-                continue;
-              }
-              if (line.startsWith('data: ')) {
-                try {
-                  const data = JSON.parse(line.slice(6));
-
-                  // Handle explicit error events from SSE stream  
-                  // Primary check: event: error (this is the main SSE error pattern)
-                  // Secondary checks: legacy error formats for backward compatibility
-                  if (lastEvent === 'error' || (data.type === 'error') || (data.code && data.message)) {
-                    console.log('🚨 Error detected in stream!', { lastEvent, dataType: data.type, dataCode: data.code, dataMessage: data.message });
-                    const errorCode = data.code || 'error';
-                    const errorMsg = data.message || 'Unknown error';
-                    const errorContent = `Error: [${errorCode}] ${errorMsg}`;
-
-                    // Clear all active tool executions to stop loading spinners
-                    activeToolExecutions.clear();
-                    encounteredStreamError = true;
-
-                    // Update assistant message with error content, stop loading state
-                    setMessages(prev => prev.map(msg =>
-                      msg.id === assistantMessageId
-                        ? {
-                            ...msg,
-                            content: errorContent,
-                            contentBlocks: [
-                              {
-                                type: 'text',
-                                content: `[${errorCode}] ${errorMsg}`
-                              }
-                            ],
-                            type: 'text',
-                            hasThinkTags: false,
-                            isLoading: false
-                          }
-                        : msg
-                    ));
-
-                    // Exit streaming loop on error and reset testing state
-                    setIsTestingModel(false);
-                    setSaveModelState('error');
-                    setShowSaveModel(true);
-                    reader.cancel().catch(() => {});
-                    return;
-                  }
-
-                  // Handle different event types
-                  if (data.type === 'response.completed') {
-                    if (data.response?.id) {
-                      responseId = data.response.id;
-                    }
-                    responseCompleted = true;
-                    
-                    // Mark all in-progress tool executions as completed when response completes
-                    activeToolExecutions.forEach((execution, key) => {
-                      if (execution.status === 'in_progress') {
-                        execution.status = 'completed';
-                      }
-                    });
-                    
-                    // Update tool progress blocks with completed status
-                    contentBlocks.forEach(block => {
-                      if (block.type === 'tool_progress' && block.toolExecutions) {
-                        block.toolExecutions = Array.from(activeToolExecutions.values());
-                      }
-                    });
-                    
-                    // Remove inline loading when response is completed
-                    const blocksWithoutLoading = removeInlineLoading(contentBlocks);
-                    
-                    // If no content blocks exist, create a default text block
-                    let finalBlocks = blocksWithoutLoading;
-                    if (finalBlocks.length === 0) {
-                      finalBlocks = [{ type: 'text' as const, content: 'Response completed' }];
-                    }
-                    
-                    // If no streaming content was received, use a default message or empty string
-                    const finalContent = streamingContent || 'Response completed';
-                    updateMessage(finalBlocks, finalContent);
-                    
-                    // Determine save model state based on completion status
-                    if (toolCompleted) {
-                      // Both response and tool completed successfully
-                      setSaveModelState('success');
-                    } else {
-                      // Response completed but no tool completion - tool calling issue
-                      setSaveModelState('tool_issue');
-                    }
-                    
-                    // Response completed - stop testing and show save button
-                    setIsTestingModel(false);
-                    setShowSaveModel(true);
-                  } else if (data.type === 'response.output_text.delta') {
-                    // Start or continue streaming
-                    if (!isStreaming) {
-                      isStreaming = true;
-                    }
-                    
-                    if (data.delta) {
-                      streamingContent += data.delta;
-                      
-                      // Create or update current text block
-                      if (!currentTextBlock) {
-                        currentTextBlock = { type: 'text', content: data.delta };
-                        contentBlocks.push(currentTextBlock);
-                      } else {
-                        currentTextBlock.content = (currentTextBlock.content || '') + data.delta;
-                      }
-                      
-                      // Check if we have a complete JSON object for real-time formatting
-                      let displayContent = streamingContent;
-                      if (textFormat === 'json_object' || textFormat === 'json_schema') {
-                        try {
-                          JSON.parse(streamingContent);
-                          displayContent = streamingContent;
-                        } catch {
-                          displayContent = streamingContent;
-                        }
-                      }
-                      
-                      // Remove any inline loading when text streaming starts
-                      const blocksWithoutLoading = removeInlineLoading(contentBlocks);
-                      updateMessage(blocksWithoutLoading, displayContent);
-                    }
-                  } else if (data.type === 'response.output_text.done') {
-                    // Streaming completed for this output
-                    isStreaming = false;
-                    currentTextBlock = null; // Reset for potential next text stream
-                    if (data.text) {
-                      streamingContent = data.text;
-                      // Update the last text block with complete content
-                      for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                        if (contentBlocks[i].type === 'text') {
-                          contentBlocks[i].content = data.text;
-                          break;
-                        }
-                      }
-                      updateMessage(contentBlocks, streamingContent);
-                    }
-                  } else if (data.type === 'response.get_weather_by_city.in_progress') {
-                    // Handle get_weather_by_city tool in_progress
-                    const toolExecution: ToolExecution = {
-                      serverName: 'get_weather_by_city',
-                      toolName: 'get_weather_by_city',
-                      status: 'in_progress'
-                    };
-                    activeToolExecutions.set('get_weather_by_city', toolExecution);
-                    
-                    // Find or create tool progress block
-                    let toolProgressBlock = contentBlocks.find(block => block.type === 'tool_progress');
-                    if (!toolProgressBlock) {
-                      toolProgressBlock = { type: 'tool_progress', toolExecutions: Array.from(activeToolExecutions.values()) };
-                      contentBlocks.push(toolProgressBlock);
-                    } else {
-                      toolProgressBlock.toolExecutions = Array.from(activeToolExecutions.values());
-                    }
-                    currentTextBlock = null;
-                    updateMessage(contentBlocks, streamingContent);
-                  } else if (data.type === 'response.get_weather_by_city.completed') {
-                    // Handle get_weather_by_city tool completed
-                    const toolExecution = activeToolExecutions.get('get_weather_by_city');
-                    if (toolExecution) {
-                      toolExecution.status = 'completed';
-                      toolCompleted = true;
-                      
-                      // If response already completed, update save model state to success
-                      if (responseCompleted) {
-                        setSaveModelState('success');
-                      }
-                      
-                      // Update the tool progress block
-                      for (let i = contentBlocks.length - 1; i >= 0; i--) {
-                        if (contentBlocks[i].type === 'tool_progress') {
-                          contentBlocks[i].toolExecutions = Array.from(activeToolExecutions.values());
-                          break;
-                        }
-                      }
-                      const blocksWithLoading = addInlineLoading(contentBlocks);
-                      contentBlocks = blocksWithLoading; // Update local contentBlocks array
-                      updateMessage(blocksWithLoading, streamingContent);
-                    }
-                  }
-                } catch (parseError) {
-                  console.error('Error parsing SSE data:', parseError);
-                }
-              }
-            }
-          }
-        } catch (streamError) {
-          console.error('Error reading stream:', streamError);
-          // Clear all active tool executions to stop loading spinners
-          activeToolExecutions.clear();
-          encounteredStreamError = true;
-          
-          setMessages(prev => prev.map(msg =>
-            msg.id === assistantMessageId
-              ? {
-                  ...msg,
-                  content: `Error: Failed to read streaming response`,
-                  contentBlocks: [
-                    {
-                      type: 'text',
-                      content: 'Failed to read streaming response'
-                    }
-                  ],
-                  type: 'text',
-                  hasThinkTags: false,
-                  isLoading: false
-                }
-              : msg
-          ));
-          setIsTestingModel(false);
-          setSaveModelState('error');
-          setShowSaveModel(true);
-        } finally {
-          reader.releaseLock();
-        }
-      }
-
-      // Final message update to ensure loading state is properly cleared
-      if (!encounteredStreamError && contentBlocks.length > 0) {
-        const finalBlocks = removeInlineLoading(contentBlocks);
-        
-        // If no content blocks exist after removing loading, create a default text block
-        if (finalBlocks.length === 0) {
-          finalBlocks.push({ type: 'text' as const, content: 'Response completed' });
-        }
-        
-        const finalContent = streamingContent || 'Response completed';
-        updateMessage(finalBlocks, finalContent);
-      }
-
-      // Ensure the assistant message is properly finalized
-      setMessages(prev => prev.map(msg =>
-        msg.id === assistantMessageId
-          ? {
-              ...msg,
-              isLoading: false
-            }
-          : msg
-      ));
-
-      } catch (error) {
-      console.error('Error making model test API call:', error);
-      setMessages(prev => prev.map(msg =>
-        msg.id === assistantMessageId
-          ? {
-              ...msg,
-              content: `Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`,
-              type: 'text',
-              hasThinkTags: false,
-              isLoading: false
-            }
-          : msg
-      ));
+    // Check if model test fields are filled (EXACT COPY from old)
+    if (!modelTestName || modelTestName.trim() === '') {
+      toast.error('Please enter a model name for testing.');
       setIsTestingModel(false);
-      setSaveModelState('error');
-      setShowSaveModel(true);
+      return;
+    }
+
+    if (!modelTestUrl || modelTestUrl.trim() === '') {
+      toast.error('Please enter a model URL for testing.');
+      setIsTestingModel(false);
+      return;
+    }
+
+    if (!modelTestApiKey || modelTestApiKey.trim() === '') {
+      toast.error('Please enter an API key for testing.');
+      setIsTestingModel(false);
+      return;
+    }
+
+    // Now that the new chat is properly configured with model test settings,
+    // we can simply use sendTextMessage and it will work correctly!
+    const userText = modelTestAgentData.userMessage || '';
+    
+    try {
+      await newChatRef.current.sendTextMessage(userText);
+    } catch (error) {
+      console.error('Error in new chat model test call:', error);
+      setIsTestingModel(false);
+      toast.error('Failed to test model connectivity');
     }
   };
 
@@ -2893,6 +1474,7 @@ const AiPlayground: React.FC = () => {
           activeTab={activeTab}
           onTabChange={handleTabChange}
           onCreateAgent={handleCreateAgent}
+          onNewAgentBuilder={handleNewAgentBuilder}
           className="flex flex-col w-full"
         />
         {/* Configuration Panel */}
@@ -2969,6 +1551,7 @@ const AiPlayground: React.FC = () => {
         onTabChange={handleTabChange}
         onAgentSelect={handleAgentSelect}
         onCreateAgent={handleCreateAgent}
+        onNewAgentBuilder={handleNewAgentBuilder}
         className="hidden md:flex md:flex-col md:w-[10%] md:min-w-[160px]"
       />
 
@@ -3122,149 +1705,63 @@ const AiPlayground: React.FC = () => {
           </div>
         </div>
 
-        {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto px-6 py-8">
-        {messages.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="text-center text-muted-foreground">
-              <p className="text-sm">Start a conversation...</p>
-            </div>
-          </div>
-        ) : (
-          <div className="max-w-4xl mx-auto">
-            {messages.map((message) => (
-              <ChatMessage
-                key={message.id}
-                id={message.id}
-                role={message.role}
-                content={message.content}
-                contentBlocks={message.contentBlocks}
-                type={message.type}
-                timestamp={message.timestamp}
-                hasThinkTags={message.hasThinkTags}
-                formatType={message.role === 'assistant' ? textFormat : 'text'}
-                apiKey={apiKey}
-                baseUrl={baseUrl}
-                modelProvider={modelProvider}
-                modelName={modelName}
-                imageModelProvider={imageModelProvider}
-                imageModelName={imageModelName}
-                imageProviderKey={imageProviderKey}
-                selectedVectorStore={selectedVectorStore}
-                instructions={instructions}
-                isLoading={message.isLoading}
-                onRetry={modelTestMode ? undefined : handleRetry}
-              />
-            ))}
-          </div>
-        )}
-        <div ref={messagesEndRef} />
-      </div>
-
-        {/* Input Area */}
-        <div className="bg-background px-6 py-4">
-          {modelTestMode && showSaveModel ? (
-            <div className="max-w-4xl mx-auto space-y-2">
-              {saveModelState === 'success' && (
-                <Button 
-                  onClick={handleSaveModel}
-                  className="w-full h-12 bg-positive-trend hover:bg-positive-trend/90 text-white rounded-xl font-medium"
-                >
-                  <Save className="h-4 w-4 mr-2" />
-                  Save Model
-                </Button>
-              )}
-              
-              {saveModelState === 'tool_issue' && (
-                <>
-                  <p className="text-xs text-yellow-600 text-center">Model has problem with tool calling</p>
-                  <Button 
-                    onClick={handleSaveModel}
-                    className="w-full h-12 bg-yellow-500 hover:bg-yellow-600 text-white rounded-xl font-medium"
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Model
-                  </Button>
-                </>
-              )}
-              
-              {saveModelState === 'error' && (
-                <>
-                  <p className="text-xs text-red-600 text-center">Model connectivity test was not complete</p>
-                  <Button 
-                    onClick={handleSaveModel}
-                    className="w-full h-12 bg-red-500 hover:bg-red-600 text-white rounded-xl font-medium"
-                  >
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Model
-                  </Button>
-                </>
-              )}
-            </div>
-          ) : !modelTestMode ? (
-            <div className="max-w-4xl mx-auto">
-              {/* Suggested Queries */}
-              {suggestedQueries.length > 0 && agentMode && !previousResponseId && (
-                <div className="mb-4">
-                  <p className="text-xs text-muted-foreground mb-2">Suggested queries:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {suggestedQueries.map((query, index) => (
-                      <button
-                        key={index}
-                        onClick={() => handleSuggestedQuerySelect(query)}
-                        className="px-3 py-1.5 text-xs bg-muted hover:bg-muted/80 border border-border rounded-lg text-foreground transition-colors duration-200 truncate max-w-xs"
-                        title={query}
-                      >
-                        {query}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              <form onSubmit={handleSubmit}>
-                <div className="relative">
-                <Textarea
-                  value={inputValue}
-                  onChange={handleTextareaChange}
-                  onKeyPress={handleKeyPress}
-                  placeholder="Chat with your prompt..."
-                  className="chat-input-textarea w-full min-h-[96px] max-h-[40vh] resize-none rounded-xl border border-border bg-muted/50 px-4 py-4 pr-12 text-sm placeholder:text-muted-foreground focus:outline-none focus:border-positive-trend/60 focus:ring-0 focus:ring-offset-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-positive-trend/60 transition-all duration-200"
-                  disabled={isLoading}
-                  rows={1}
-                  style={{ 
-                    lineHeight: '1.5',
-                    paddingTop: '18px',
-                    paddingBottom: '18px',
-                    boxShadow: 'none !important',
-                    outline: 'none !important'
-                  }}
-                />
-                <div className="absolute bottom-3 right-3">
-                  <Button
-                    type="submit"
-                    disabled={!inputValue.trim() || isLoading || !modelProvider || !modelName}
-                    className="h-8 w-8 p-0 bg-positive-trend hover:bg-positive-trend/90 text-white rounded-lg transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={
-                      !modelProvider || !modelName
-                        ? "Select a model to send messages"
-                        : !inputValue.trim()
-                        ? "Type a message to send"
-                        : "Send message"
-                    }
-                  >
-                    {isLoading ? (
-                      <Loader2 className="h-3 w-3 animate-spin" />
-                    ) : (
-                      <Send className="h-3 w-3" />
-                    )}
-                  </Button>
-                </div>
-              </div>
-            </form>
-            </div>
-          ) : null}
-        </div>
+          <ResponsesChat
+            ref={newChatRef}
+            hookConfig={{
+              model: modelTestMode && modelTestUrl && modelTestName ? 
+                { provider: modelTestUrl, name: modelTestName } :
+                { provider: modelProvider, name: modelName },
+              instructions: mockyMode && mockyAgentData ? mockyAgentData.systemPrompt 
+                : modelTestMode && modelTestAgentData ? modelTestAgentData.systemPrompt
+                : agentBuilderMode && agentBuilderData ? agentBuilderData.systemPrompt 
+                : instructions,
+              textFormat,
+              jsonSchema: textFormat === 'json_schema' ? { 
+                name: jsonSchemaName ?? undefined, 
+                schema: (() => {
+                  try {
+                    return jsonSchemaContent ? JSON.parse(jsonSchemaContent).schema : undefined;
+                  } catch {
+                    return undefined;
+                  }
+                })()
+              } : undefined,
+              tools: mockyMode && mockyAgentData && Array.isArray(mockyAgentData.tools) ? mockyAgentData.tools
+                : modelTestMode && modelTestAgentData && Array.isArray(modelTestAgentData.tools) ? modelTestAgentData.tools
+                : agentBuilderMode && agentBuilderData && Array.isArray(agentBuilderData.tools) ? agentBuilderData.tools
+                : selectedTools.length > 0 ? buildToolsPayload(selectedTools, modelSettings ? { settingsType: modelSettings.settingsType as 'RUNTIME' | 'PLATFORM' } : undefined) : undefined,
+              store: storeLogs,
+              stream: true,
+              headers: modelTestMode && modelTestApiKey ? {
+                'Authorization': `Bearer ${modelTestApiKey}`
+              } : undefined,
+              onEvent: (evt) => {
+                console.log('Chat event:', evt);
+              },
+              // Model test mode callbacks
+              modelTestMode,
+              onSaveModelStateChange: setSaveModelState,
+              onShowSaveModelChange: setShowSaveModel
+            }}
+            placeholder="Chat with your prompt..."
+            apiKey={apiKey}
+            baseUrl={baseUrl}
+            imageModelProvider={imageModelProvider}
+            imageModelName={imageModelName}
+            imageProviderKey={imageProviderKey}
+            selectedVectorStore={selectedVectorStore}
+            suggestedQueries={suggestedQueries}
+            agentMode={agentMode}
+            previousResponseId={previousResponseId}
+            // Pass callbacks to sync state with parent
+            onPreviousResponseIdChange={setPreviousResponseId}
+            onLastRequestChange={setLastRequest}
+          // Model test mode support
+            modelTestMode={modelTestMode}
+            showSaveModel={showSaveModel}
+            saveModelState={saveModelState}
+            onSaveModel={handleSaveModel}
+          />
       </div>
     </div>
     
