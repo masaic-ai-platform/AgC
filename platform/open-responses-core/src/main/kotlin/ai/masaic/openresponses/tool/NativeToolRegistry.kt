@@ -79,9 +79,13 @@ open class NativeToolRegistry(
         toolMetadata: Map<String, Any>,
         context: UnifiedToolContext,
     ): String? {
-        toolRepository[resolvedName] ?: return null
+        val toolDefinition = toolRepository[resolvedName] ?: return null
         val originalName = toolMetadata["originalName"] as? String ?: resolvedName
         log.debug("Executing native tool '$originalName' (resolved to '$resolvedName') with arguments: $arguments")
+
+        if (toolDefinition is FileSearchToolDefinition) {
+            return runFileSearch(toolDefinition.vectorStoreIds, objectMapper.readValue(arguments, FileSearchParams::class.java), null, toolDefinition.maxNumResults, toolDefinition.modelInfo)
+        }
 
         return when (resolvedName) {
             "think" -> "Your thought has been logged."
@@ -90,7 +94,7 @@ open class NativeToolRegistry(
             "image_generation" -> executeImageGeneration(arguments, paramsAccessor, resolvedName, toolMetadata, context)
             else -> {
                 log.warn("Attempted to execute unknown native tool: $resolvedName")
-                null
+                "$resolvedName is unknown tool, this is unexpected state, can't execute this tool."
             }
         }
     }
@@ -130,7 +134,18 @@ open class NativeToolRegistry(
             return objectMapper.writeValueAsString(FileSearchResponse(emptyList()))
         }
 
+        return runFileSearch(vectorStoreIds, params, filters, maxResults, fileSearchToolConfig.modelInfo)
+    }
+
+    private suspend fun runFileSearch(
+        vectorStoreIds: List<String>,
+        params: FileSearchParams,
+        filters: Filter?,
+        maxResults: Int,
+        modelInfo: ModelInfo?,
+    ): String {
         val allResults = mutableListOf<VectorStoreSearchResult>()
+        val exceptionPerStore = mutableListOf<Throwable>()
         for (vectorStoreId in vectorStoreIds) {
             try {
                 val searchRequest =
@@ -138,13 +153,18 @@ open class NativeToolRegistry(
                         query = params.query,
                         maxNumResults = maxResults,
                         filters = filters,
-                        modelInfo = fileSearchToolConfig.modelInfo,
+                        modelInfo = modelInfo,
                     )
                 val results = vectorStoreService.searchVectorStore(vectorStoreId, searchRequest)
                 allResults.addAll(results.data)
             } catch (e: Exception) {
+                exceptionPerStore += e
                 log.error("Error searching vector store $vectorStoreId", e)
             }
+        }
+
+        if (allResults.isEmpty() && exceptionPerStore.isNotEmpty()) {
+            return "unable to search due to the following error(s)" + exceptionPerStore.joinToString { "\n${it.message}" }
         }
 
         val sortedResults =

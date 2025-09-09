@@ -47,6 +47,7 @@ data class FileSearchTool(
     @JsonProperty("vector_store_ids")
     val vectorStoreIds: List<String>? = null,
     val alias: String? = type,
+    val description: String? = null,
     val modelInfo: ModelInfo?,
 ) : Tool
 

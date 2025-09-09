@@ -1,13 +1,14 @@
 package ai.masaic.platform.api.controller
 
-import ai.masaic.openresponses.api.model.*
+import ai.masaic.openresponses.api.model.CreateCompletionRequest
+import ai.masaic.openresponses.api.model.FunctionTool
+import ai.masaic.openresponses.api.model.MCPTool
+import ai.masaic.openresponses.api.model.ModelInfo
 import ai.masaic.openresponses.api.service.ResponseProcessingException
-import ai.masaic.openresponses.tool.*
-import ai.masaic.openresponses.tool.mcp.CallToolResponse
-import ai.masaic.openresponses.tool.mcp.MCPServerInfo
-import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
-import ai.masaic.openresponses.tool.mcp.MCPToolRegistry
-import ai.masaic.platform.api.config.*
+import ai.masaic.openresponses.tool.ToolService
+import ai.masaic.openresponses.tool.mcp.*
+import ai.masaic.platform.api.config.ModelSettings
+import ai.masaic.platform.api.config.PlatformInfo
 import ai.masaic.platform.api.interpreter.CodeExecResult
 import ai.masaic.platform.api.interpreter.CodeExecuteReq
 import ai.masaic.platform.api.interpreter.CodeRunnerService
@@ -20,6 +21,7 @@ import ai.masaic.platform.api.tools.FunDefGenerationTool
 import ai.masaic.platform.api.tools.SystemPromptGeneratorTool
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import mu.KotlinLogging
 import org.springframework.context.annotation.Profile
 import org.springframework.core.io.ClassPathResource
 import org.springframework.http.MediaType
@@ -45,6 +47,7 @@ class DashboardController(
 ) {
     private val mapper = jacksonObjectMapper()
     private lateinit var modelProviders: Set<ModelProvider>
+    private val log = KotlinLogging.logger { }
 
     init {
         val resource = ClassPathResource("model-providers.json")
@@ -173,7 +176,15 @@ ${request.description}
         @RequestBody toolRequest: ExecuteToolRequest,
     ): String {
         val toolDefinition = toolService.findToolByName(toolRequest.name) ?: throw ResponseProcessingException("Tool ${toolRequest.name} not found.")
-        val toolResponse = mcpToolExecutor.executeTool(toolDefinition, mapper.writeValueAsString(toolRequest.arguments), null, null) ?: throw ResponseProcessingException("no response returned by tool ${toolRequest.name}")
+        val toolResponse =
+            try {
+                mcpToolExecutor.executeTool(toolDefinition, mapper.writeValueAsString(toolRequest.arguments), null, null) ?: throw ResponseProcessingException("no response returned by tool ${toolRequest.name}")
+            } catch (ex: McpUnAuthorizedException) {
+                mcpToolRegistry.invalidateTool(toolDefinition as McpToolDefinition)
+                log.error("Received ${ex.javaClass}, while running ${toolDefinition.name}, error: ${ex.message}")
+                throw ex
+            }
+
         val callToolResponse: CallToolResponse = mapper.readValue(toolResponse)
         return if (callToolResponse.isError) throw ResponseProcessingException(callToolResponse.content) else toolResponse
     }

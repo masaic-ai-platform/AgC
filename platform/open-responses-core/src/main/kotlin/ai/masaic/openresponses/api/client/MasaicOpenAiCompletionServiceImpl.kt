@@ -191,14 +191,16 @@ class MasaicOpenAiCompletionServiceImpl(
                     streamResponse.stream().consumeAsFlow().collect { chunk ->
                         currentIterationCompletionChunks.add(chunk)
                         val jsonChunk = objectMapper.writeValueAsString(chunk)
-                        emit(
-                            ServerSentEvent
-                                .builder<String>()
-                                .id(chunk.id())
-                                .event("chunk")
-                                .data(jsonChunk)
-                                .build(),
-                        )
+                        if (!jsonChunk.contains("tool_calls")) {
+                            emit(
+                                ServerSentEvent
+                                    .builder<String>()
+                                    .id(chunk.id())
+//                                .event("chunk")
+                                    .data(jsonChunk)
+                                    .build(),
+                            )
+                        }
                     }
 
                     // Try to reconstruct the completion from this segment's chunks for tool call detection

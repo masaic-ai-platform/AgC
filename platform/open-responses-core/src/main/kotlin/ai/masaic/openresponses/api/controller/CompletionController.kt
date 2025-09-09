@@ -36,6 +36,7 @@ class CompletionController(
         @RequestHeader headers: MultiValueMap<String, String>,
         @RequestParam queryParams: MultiValueMap<String, String>,
     ): ResponseEntity<*> {
+        log.debug("Received request:\n${mapper.writeValueAsString(request)}\n")
         requestValidator.validateCompletionRequest(request)
         payloadFormatter.formatCompletionRequest(request)
         // Use our custom coroutine-aware MDC context
@@ -43,7 +44,7 @@ class CompletionController(
         log.debug("Request body: $requestBodyJson")
 
         // If streaming is requested, set the appropriate content type and return a flow
-        if (request.stream == true) {
+        if (request.stream) {
             return ResponseEntity
                 .ok()
                 .contentType(MediaType.TEXT_EVENT_STREAM)

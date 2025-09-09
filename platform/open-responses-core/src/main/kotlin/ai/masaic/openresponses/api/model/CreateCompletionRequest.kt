@@ -1,6 +1,7 @@
 package ai.masaic.openresponses.api.model
 
 import com.fasterxml.jackson.annotation.JsonAlias
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.models.chat.completions.ChatCompletionCreateParams
 import com.openai.models.chat.completions.ChatCompletionMessageParam
@@ -25,7 +26,7 @@ data class CreateCompletionRequest(
     var tools: List<Map<String, Any>>? = null,
     val tool_choice: Any? = null,
     val user: String? = null,
-    val store: Boolean = false,
+    val store: Boolean = true,
     val metadata: ChatCompletionCreateParams.Metadata? = null,
     val stream_options: Map<String, Any>? = null,
     @JsonAlias("extra_body")
@@ -34,5 +35,22 @@ data class CreateCompletionRequest(
     fun parseMessages(mapper: ObjectMapper): List<ChatCompletionMessageParam> {
         val typeReference = mapper.typeFactory.constructParametricType(List::class.java, ChatCompletionMessageParam::class.java)
         return mapper.convertValue(messages, typeReference)
+    }
+}
+
+data class CompletionFunction(
+    val type: String = "function",
+    @JsonProperty("function")
+    val functionTool: CompletionFunctionTool,
+)
+
+data class CompletionFunctionTool(
+    val description: String? = null,
+    val name: String? = null,
+    val parameters: MutableMap<String, Any> = mutableMapOf(),
+    val strict: Boolean = true,
+) {
+    init {
+        parameters["additionalProperties"] = false
     }
 }
