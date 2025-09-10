@@ -1,6 +1,7 @@
 plugins {
     id("java")
     id("application")
+    id("com.diffplug.spotless") version "6.25.0"
 }
 
 group = "ai.masaic"
@@ -26,4 +27,11 @@ application {
 
 tasks.test {
     useJUnitPlatform()
+}
+
+spotless {
+    java {
+        target("src/**/*.java")
+        googleJavaFormat("1.22.0")
+    }
 }

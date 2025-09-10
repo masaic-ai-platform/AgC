@@ -5,68 +5,67 @@ import com.openai.core.http.StreamResponse;
 import com.openai.models.chat.completions.ChatCompletionChunk;
 import com.openai.models.chat.completions.ChatCompletionCreateParams;
 import com.openai.models.chat.completions.ChatCompletionTool;
-
 import java.util.List;
 
 public class AgCLoopWithPyFunToolExample {
 
-    private static final String API_KEY = System.getenv("OPENAI_API_KEY");
-    private static final String BASE_URL = "http://localhost:6644/v1";
-    private static final String E2B_API_KEY = System.getenv("E2B_API_KEY");
-    private static final String MODEL = "openai@gpt-4.1-mini";
+  private static final String API_KEY = System.getenv("OPENAI_API_KEY");
+  private static final String BASE_URL = "http://localhost:6644/v1";
+  private static final String E2B_API_KEY = System.getenv("E2B_API_KEY");
+  private static final String MODEL = "openai@gpt-4.1-mini";
 
-    private final ObjectMapper objectMapper;
+  private final ObjectMapper objectMapper;
 
-    public AgCLoopWithPyFunToolExample() {
-        this.objectMapper = new ObjectMapper();
+  public AgCLoopWithPyFunToolExample() {
+    this.objectMapper = new ObjectMapper();
+  }
+
+  public static void main(String[] args) {
+    try {
+      System.out.println("Starting AgC Loop with MCP Example...");
+
+      // Initialize the OpenAI client with custom base URL for AgC
+      OpenAIClient client = OpenAIOkHttpClient.builder().apiKey(API_KEY).baseUrl(BASE_URL).build();
+
+      // Create the example
+      AgCLoopWithPyFunToolExample example = new AgCLoopWithPyFunToolExample();
+      example.runSDKStreaming(client);
+    } catch (Exception ex) {
+      ex.printStackTrace();
     }
+  }
 
-    public static void main(String[] args) {
-        try {
-            System.out.println("Starting AgC Loop with MCP Example...");
+  /** Demonstrates streaming using the OpenAI SDK (without tools for simplicity) */
+  public void runSDKStreaming(OpenAIClient client) throws Exception {
+    System.out.println("\n=== AgC SDK Streaming Chat Completion ===");
+    // Create chat completion parameters with streaming enabled
+    ChatCompletionCreateParams createParams =
+        ChatCompletionCreateParams.builder()
+            .addSystemMessage(
+                "Use the given compute function tool to perform calculations. Do not perform calculations yourself. If tool fails then just return sorry message with cause of sorry message.")
+            .addUserMessage("Give discount of 5% on $100.")
+            .model(MODEL)
+            .tools(
+                List.of(
+                    objectMapper.readValue(
+                        String.format(pyFunTool(), E2B_API_KEY), ChatCompletionTool.class)))
+            .build();
 
-            // Initialize the OpenAI client with custom base URL for AgC
-            OpenAIClient client = OpenAIOkHttpClient.builder()
-                    .apiKey(API_KEY)
-                    .baseUrl(BASE_URL)
-                    .build();
+    System.out.println("Sending streaming request to AgC API using OpenAI SDK...");
+    System.out.println("Model: " + MODEL);
+    System.out.println("Stream: true (via createStreaming method)");
+    System.out.println("\n--- SDK Streaming Response ---");
 
-            // Create the example
-            AgCLoopWithPyFunToolExample example = new AgCLoopWithPyFunToolExample();
-            example.runSDKStreaming(client);
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
+    // Execute streaming chat completion
+    try (StreamResponse<ChatCompletionChunk> streamResponse =
+        client.chat().completions().createStreaming(createParams)) {
+      streamResponse.stream().forEach(this::processSDKStreamChunk);
+      System.out.println("\n--- SDK Streaming Complete ---");
     }
+  }
 
-    /**
-     * Demonstrates streaming using the OpenAI SDK (without tools for simplicity)
-     */
-    public void runSDKStreaming(OpenAIClient client) throws Exception {
-        System.out.println("\n=== AgC SDK Streaming Chat Completion ===");
-        // Create chat completion parameters with streaming enabled
-        ChatCompletionCreateParams createParams = ChatCompletionCreateParams.builder()
-                .addSystemMessage("Use the given compute function tool to perform calculations. Do not perform calculations yourself. If tool fails then just return sorry message with cause of sorry message.")
-                .addUserMessage("Give discount of 5% on $100.")
-                .model(MODEL)
-                .tools(List.of(objectMapper.readValue(String.format(pyFunTool(), E2B_API_KEY), ChatCompletionTool.class)))
-                .build();
-
-        System.out.println("Sending streaming request to AgC API using OpenAI SDK...");
-        System.out.println("Model: " + MODEL);
-        System.out.println("Stream: true (via createStreaming method)");
-        System.out.println("\n--- SDK Streaming Response ---");
-
-        // Execute streaming chat completion
-        try (StreamResponse<ChatCompletionChunk> streamResponse = client.chat().completions().createStreaming(createParams)) {
-            streamResponse.stream().forEach(this::processSDKStreamChunk);
-            System.out.println("\n--- SDK Streaming Complete ---");
-        }
-
-    }
-
-    private String pyFunTool() {
-        return """
+  private String pyFunTool() {
+    return """
                         {
                                   "type": "function",
                                   "function": {
@@ -166,23 +165,21 @@ public class AgCLoopWithPyFunToolExample {
                                   }
                                 }
                 """;
-    }
+  }
 
-    /**
-     * Processes SDK stream chunks
-     */
-    private void processSDKStreamChunk(ChatCompletionChunk chunk) {
-        chunk.choices();
-        if (!chunk.choices().isEmpty()) {
-            var choice = chunk.choices().getFirst();
+  /** Processes SDK stream chunks */
+  private void processSDKStreamChunk(ChatCompletionChunk chunk) {
+    chunk.choices();
+    if (!chunk.choices().isEmpty()) {
+      var choice = chunk.choices().getFirst();
 
-            // Display content delta
-            if (choice.delta().content().isPresent()) {
-                var content = choice.delta().content();
-                if (content.isPresent() && !content.get().isEmpty()) {
-                    System.out.print(content.get());
-                }
-            }
+      // Display content delta
+      if (choice.delta().content().isPresent()) {
+        var content = choice.delta().content();
+        if (content.isPresent() && !content.get().isEmpty()) {
+          System.out.print(content.get());
         }
+      }
     }
+  }
 }
