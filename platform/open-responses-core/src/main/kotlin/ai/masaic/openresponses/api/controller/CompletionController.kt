@@ -69,7 +69,8 @@ class CompletionController(
         }
     }
 
-    @GetMapping("/chat/completions/{completionId}", produces = [MediaType.APPLICATION_JSON_VALUE])
+//    @GetMapping("/chat/completions/{completionId}", produces = [MediaType.APPLICATION_JSON_VALUE])
+
     suspend fun getCompletion(
         @PathVariable completionId: String,
         @RequestHeader headers: MultiValueMap<String, String>,
@@ -89,7 +90,29 @@ class CompletionController(
         }
     }
 
-    @DeleteMapping("/chat/completions/{completionId}")
+//    @GetMapping("/chat/completions/{completionId}/messages", produces = [MediaType.APPLICATION_JSON_VALUE])
+
+    suspend fun getMessages(
+        @PathVariable completionId: String,
+        @RequestHeader headers: MultiValueMap<String, String>,
+        @RequestParam queryParams: MultiValueMap<String, String>,
+        exchange: ServerWebExchange,
+    ): ResponseEntity<*> {
+        // Extract trace ID from exchange
+        val traceId = exchange.attributes["traceId"] as? String ?: headers["X-B3-TraceId"]?.firstOrNull() ?: "unknown"
+
+        // Use our custom coroutine-aware MDC context
+        return withContext(CoroutineMDCContext(mapOf("traceId" to traceId))) {
+            try {
+                ResponseEntity.ok(masaicCompletionService.getMessages(completionId))
+            } catch (e: CompletionNotFoundException) {
+                throw ResponseStatusException(HttpStatus.NOT_FOUND, e.message)
+            }
+        }
+    }
+
+//    @DeleteMapping("/chat/completions/{completionId}")
+
     suspend fun deleteCompletion(
         @PathVariable completionId: String,
     ): ResponseEntity<Map<String, Any>> {

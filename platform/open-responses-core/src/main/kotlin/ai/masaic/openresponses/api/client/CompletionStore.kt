@@ -33,7 +33,7 @@ interface CompletionStore {
      * @param completionId The ID of the chat completion
      * @return The list of messages or an empty list if none found
      */
-    suspend fun getMessages(completionId: String): List<ChatCompletionMessageParam>
+    suspend fun getMessages(completionId: String): List<ChatCompletionMessageParam>?
 
     /**
      * Deletes a chat completion.

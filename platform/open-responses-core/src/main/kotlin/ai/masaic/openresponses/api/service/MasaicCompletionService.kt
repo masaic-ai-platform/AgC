@@ -194,16 +194,10 @@ class MasaicCompletionService(
         val queryBuilder = createQueryParamsBuilder(queryParams)
         val client = createClient(headers, request.model)
         val messages = request.parseMessages(objectMapper)
+        val params = createChatCompletionParams(request, messages, headerBuilder, queryBuilder)
+        val metadata = instrumentationMetadataInput(headers, request)
 
-        try {
-            val params = createChatCompletionParams(request, messages, headerBuilder, queryBuilder)
-            val metadata = instrumentationMetadataInput(headers, request)
-            
-            return openAICompletionService.createCompletionStream(client, params, metadata)
-        } catch (e: Exception) {
-            logger.error { "Failed to create streaming completion" }
-            throw e
-        }
+        return openAICompletionService.createCompletionStream(client, params, metadata)
     }
 
     /**
@@ -216,6 +210,16 @@ class MasaicCompletionService(
     suspend fun getCompletion(completionId: String): ChatCompletion =
         try {
             completionStore.getCompletion(completionId) ?: throw CompletionNotFoundException("Completion not found with ID: $completionId")
+        } catch (e: Exception) {
+            when (e) {
+                is CompletionNotFoundException -> throw e
+                else -> throw CompletionProcessingException("Error retrieving completion: ${e.message}")
+            }
+        }
+
+    suspend fun getMessages(completionId: String): List<ChatCompletionMessageParam> =
+        try {
+            completionStore.getMessages(completionId) ?: throw CompletionNotFoundException("Completion not found with ID: $completionId")
         } catch (e: Exception) {
             when (e) {
                 is CompletionNotFoundException -> throw e

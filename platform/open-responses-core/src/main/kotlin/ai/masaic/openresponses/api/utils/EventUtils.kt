@@ -151,7 +151,6 @@ class EventUtils {
         fun doneEvent(): ServerSentEvent<String> =
             ServerSentEvent
                 .builder<String>()
-                .event("done")
                 .data("[DONE]")
                 .build()
     }

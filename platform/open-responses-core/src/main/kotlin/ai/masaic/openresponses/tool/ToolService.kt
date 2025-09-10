@@ -203,8 +203,10 @@ class ToolService(
         name: String,
     ): FunctionTool? {
         val toolDefinition = nativeToolRegistry.findByName(name) ?: mcpToolRegistry.findByName(name) ?: return null
-        return when {
-            toolDefinition is NativeToolDefinition -> NativeToolDefinition.toFunctionTool(toolDefinition)
+        return when (toolDefinition) {
+            is NativeToolDefinition -> NativeToolDefinition.toFunctionTool(toolDefinition)
+            is PyFunToolDefinition -> toolDefinition.toFunctionTool()
+            is FileSearchToolDefinition -> toolDefinition.toFunctionTool()
             else -> (toolDefinition as McpToolDefinition).toFunctionTool()
         }
     }
