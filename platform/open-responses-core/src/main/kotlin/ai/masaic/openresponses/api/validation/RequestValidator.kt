@@ -1,6 +1,7 @@
 package ai.masaic.openresponses.api.validation
 
 import ai.masaic.openresponses.api.client.ResponseStore
+import ai.masaic.openresponses.api.config.DeploymentSettings
 import ai.masaic.openresponses.api.exception.VectorStoreNotFoundException
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.search.VectorStoreService
@@ -17,13 +18,14 @@ import org.springframework.web.server.ResponseStatusException
 open class RequestValidator(
     private val vectorStoreService: VectorStoreService,
     private val responseStore: ResponseStore,
+    private val deploymentSettings: DeploymentSettings,
 ) {
     protected val modelPattern = Regex(".+@.+")
     protected val imageApiKey = System.getenv("OPEN_RESPONSES_IMAGE_GENERATION_API_KEY")
     protected val imageBaseUrl = System.getenv("OPEN_RESPONSES_IMAGE_GENERATION_BASE_URL")
 
     fun validateCompletionRequest(request: CreateCompletionRequest) {
-        if (!modelPattern.matches(request.model)) {
+        if (!modelPattern.matches(request.model) && deploymentSettings.openAiBaseUrl == null) {
             throw IllegalArgumentException("model must be in provider@model format")
         }
         if (request.messages.isEmpty()) {
@@ -35,7 +37,7 @@ open class RequestValidator(
     }
 
     suspend fun validateResponseRequest(request: CreateResponseRequest) {
-        if (!modelPattern.matches(request.model)) {
+        if (!modelPattern.matches(request.model) && deploymentSettings.openAiBaseUrl == null) {
             throw IllegalArgumentException("model must be in provider@model format")
         }
 

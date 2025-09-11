@@ -21,6 +21,7 @@ import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.ResponseErrorEvent
 import com.openai.models.responses.ResponseStreamEvent
+import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.StatusCode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.awaitClose
@@ -185,7 +186,7 @@ class MasaicResponseService(
         val headerBuilder = createHeadersBuilder(headers)
         val queryBuilder = createQueryParamsBuilder(queryParams)
         val client = createClient(headers, request)
-        val parentSpan = telemetryService.startOtelSpan("AgC loop", "", null)
+        val parentSpan = telemetryService.startOtelSpan("AgC loop", "", Span.current())
         var response: Response? = null
         val metadata = instrumentationMetadataInput(headers, request)
         var exception: Exception? = null
@@ -229,7 +230,7 @@ class MasaicResponseService(
                 parentSpan.recordException(exception)
                 parentSpan.setStatus(StatusCode.ERROR)
                 parentSpan.setAttribute(GenAIObsAttributes.ERROR_TYPE, "${exception.javaClass}")
-            }
+            } ?: parentSpan.setStatus(StatusCode.OK)
 
             response?.let {
                 telemetryService.stopOtelParentSpan(parentSpan, it, metadata)

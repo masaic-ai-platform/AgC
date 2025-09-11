@@ -1,6 +1,7 @@
 package ai.masaic.platform.api.config
 
 import ai.masaic.openresponses.api.client.ResponseStore
+import ai.masaic.openresponses.api.config.DeploymentSettings
 import ai.masaic.openresponses.api.config.QdrantVectorProperties
 import ai.masaic.openresponses.api.config.VectorSearchConfigProperties
 import ai.masaic.openresponses.api.controller.ResponseController
@@ -125,7 +126,8 @@ class PlatformCoreConfig {
         vectorStoreService: VectorStoreService,
         responseStore: ResponseStore,
         platformInfo: PlatformInfo,
-    ) = PlatformRequestValidator(vectorStoreService, responseStore, platformInfo)
+        deploymentSettings: DeploymentSettings,
+    ) = PlatformRequestValidator(vectorStoreService, responseStore, platformInfo, deploymentSettings)
 
     @Bean
     fun platformInfo(

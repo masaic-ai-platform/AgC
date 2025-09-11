@@ -163,7 +163,7 @@ open class TelemetryService(
                 eventData["content"] = content
             }
 
-            if (choice.finishReason().asString() == "tool_calls") {
+            if (choice.finishReason().asString().lowercase() == "tool_calls") {
                 val toolCalls =
                     choice.message().toolCalls().get().map { tool ->
                         val functionDetailsMap = mutableMapOf("name" to tool.function().name())
@@ -184,7 +184,6 @@ open class TelemetryService(
 
                 eventData.putAll(tooCallMap)
             }
-
             span.addEvent(GenAIObsAttributes.CHOICE, Attributes.builder().put(GenAIObsAttributes.CHOICE, mapper.writeValueAsString(eventData)).build())
         }
     }
@@ -422,7 +421,7 @@ open class TelemetryService(
         recordTokenUsage(metadata, response, params, "input")
         recordTokenUsage(metadata, response, params, "output")
         observation.stop()
-        stopOtelSpan(response, params, metadata)
+//        stopOtelSpan(response, params, metadata)
     }
 
     fun stopOtelSpan(
@@ -435,6 +434,7 @@ open class TelemetryService(
         setAllObservationAttributesForOtelSpan(span, response, params, metadata, "stop")
         recordTokenUsage(metadata, response, params, "input")
         recordTokenUsage(metadata, response, params, "output")
+        span.setStatus(StatusCode.OK)
         span.end()
     }
 
@@ -444,6 +444,15 @@ open class TelemetryService(
         metadata: InstrumentationMetadataInput,
     ) {
         emitModelOutputEventsForOtelSpan(span, response, metadata)
+        span.end()
+    }
+
+    fun stopOtelParentSpan(
+        span: Span,
+        response: ChatCompletion,
+        metadata: InstrumentationMetadataInput,
+    ) {
+        emitModelOutputEventsForOtel(span, response, metadata)
         span.end()
     }
 
@@ -525,15 +534,19 @@ open class TelemetryService(
             builder.setNoParent()
         }
 
+        var exception: Exception? = null
         val span = builder.startSpan()
         return try {
             block(span)
         } catch (e: Exception) {
-            span.recordException(e)
-            span.setStatus(StatusCode.ERROR)
-            span.setAttribute(GenAIObsAttributes.ERROR_TYPE, "${e.javaClass}")
+            exception = e
             throw e
         } finally {
+            exception?.let {
+                span.recordException(exception)
+                span.setStatus(StatusCode.ERROR)
+                span.setAttribute(GenAIObsAttributes.ERROR_TYPE, "${exception.javaClass}")
+            } ?: span.setStatus(StatusCode.OK)
             span.end()
         }
     }
@@ -1055,11 +1068,42 @@ open class TelemetryService(
         setOutputType(observation, params)
     }
 
+    fun setChatCompletionObservationAttributesForOtelSpan(
+        span: Span,
+        chatCompletion: ChatCompletion,
+        params: ChatCompletionCreateParams,
+        metadata: InstrumentationMetadataInput,
+    ) {
+        span.setAttribute(GenAIObsAttributes.OPERATION_NAME, "chat")
+        span.setAttribute(GenAIObsAttributes.SYSTEM, metadata.genAISystem)
+        span.setAttribute(GenAIObsAttributes.REQUEST_MODEL, params.model().toString())
+        span.setAttribute(GenAIObsAttributes.RESPONSE_MODEL, chatCompletion.model())
+        span.setAttribute(GenAIObsAttributes.SERVER_ADDRESS, metadata.modelProviderAddress)
+        span.setAttribute(GenAIObsAttributes.SERVER_PORT, metadata.modelProviderPort)
+        span.setAttribute(GenAIObsAttributes.RESPONSE_ID, chatCompletion.id())
+
+        params.temperature().ifPresent { span.setAttribute(GenAIObsAttributes.REQUEST_TEMPERATURE, it.toString()) }
+        params.maxCompletionTokens().ifPresent { span.setAttribute(GenAIObsAttributes.REQUEST_MAX_TOKENS, it.toString()) }
+        params.topP().ifPresent { span.setAttribute(GenAIObsAttributes.REQUEST_TOP_P, it.toString()) }
+
+        chatCompletion.usage().ifPresent { usage ->
+            span.setAttribute(GenAIObsAttributes.USAGE_INPUT_TOKENS, usage.promptTokens().toString())
+            span.setAttribute(GenAIObsAttributes.USAGE_OUTPUT_TOKENS, usage.completionTokens().toString())
+        }
+
+        setFinishReasons(span, chatCompletion)
+        span.setAttribute(GenAIObsAttributes.OUTPUT_TYPE, extractOutput(params) ?: "not_available")
+    }
+
     private fun setOutputType(
         observation: Observation,
         params: ChatCompletionCreateParams,
     ) {
-        if (params.responseFormat().isPresent &&
+        observation.lowCardinalityKeyValue(GenAIObsAttributes.OUTPUT_TYPE, extractOutput(params) ?: "not_available")
+    }
+
+    private fun extractOutput(params: ChatCompletionCreateParams): String? {
+        return if (params.responseFormat().isPresent &&
             params
                 .responseFormat()
                 .isPresent
@@ -1068,21 +1112,21 @@ open class TelemetryService(
                 params
                     .responseFormat()
                     .get()
-            val format =
-                if (responseFormatConfig.isText()) {
-                    responseFormatConfig
-                        .asText()
-                        ._type()
-                        .toString()
-                } else if (responseFormatConfig.isJsonObject()) {
-                    responseFormatConfig
-                        .asJsonObject()
-                        ._type()
-                        .toString()
-                } else {
-                    responseFormatConfig.asJsonSchema()._type().toString()
-                }
-            observation.lowCardinalityKeyValue(GenAIObsAttributes.OUTPUT_TYPE, format)
+            return if (responseFormatConfig.isText()) {
+                responseFormatConfig
+                    .asText()
+                    ._type()
+                    .toString()
+            } else if (responseFormatConfig.isJsonObject()) {
+                responseFormatConfig
+                    .asJsonObject()
+                    ._type()
+                    .toString()
+            } else {
+                responseFormatConfig.asJsonSchema()._type().toString()
+            }
+        } else {
+            null
         }
     }
 

@@ -19,6 +19,7 @@ import com.openai.models.chat.completions.ChatCompletionMessageParam
 import com.openai.models.chat.completions.ChatCompletionToolMessageParam
 import com.openai.models.responses.*
 import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
 import mu.KotlinLogging
 import org.springframework.http.codec.ServerSentEvent
 import org.springframework.stereotype.Component
@@ -128,6 +129,7 @@ class MasaicToolHandler(
         chatCompletion: ChatCompletion,
         params: ChatCompletionCreateParams,
         openAIClient: OpenAIClient,
+        parentSpan: Span?,
     ): CompletionToolCallOutcome {
         logger.debug { "Processing tool calls from ChatCompletion: ${chatCompletion.id()}" }
 
@@ -266,7 +268,7 @@ class MasaicToolHandler(
                 } else {
                     // Regular native tool
                     val toolResult =
-                        executeToolWithObservationForCompletion(
+                        executeToolWithSpanForCompletion(
                             toolName = toolName,
                             toolDescription = toolService.getAvailableTool(toolName)?.description ?: "not_available",
                             arguments = function.arguments(),
@@ -275,6 +277,7 @@ class MasaicToolHandler(
                             params = params,
                             openAIClient = openAIClient,
                             context = context,
+                            parentSpan = parentSpan,
                         )
 
                     val toolOutputMessage =
@@ -304,21 +307,7 @@ class MasaicToolHandler(
         )
     }
 
-    /**
-     * Executes a tool using the telemetry observation API specifically for the Completion flow.
-     * Does not involve SSE emitters.
-     *
-     * @param toolName The name of the tool to execute
-     * @param arguments The arguments to pass to the tool
-     * @param toolId The ID of the tool call
-     * @param toolMetadata Additional metadata for the tool execution.
-     * @param parentObservation Optional parent observation for telemetry.
-     * @param params The original request parameters for the chat completion.
-     * @param openAIClient The OpenAI client instance.
-     * @param context The context for tool execution, containing alias maps and original params.
-     * @return The string result of the tool execution, or null if execution fails or returns null.
-     */
-    private suspend fun executeToolWithObservationForCompletion(
+    private suspend fun executeToolWithSpanForCompletion(
         toolName: String,
         toolDescription: String,
         arguments: String,
@@ -327,16 +316,19 @@ class MasaicToolHandler(
         params: ChatCompletionCreateParams,
         openAIClient: OpenAIClient,
         context: CompletionToolRequestContext,
+        parentSpan: Span?,
     ): String? =
-        telemetryService.withClientObservation("execute_tool") { observation ->
-            observation.lowCardinalityKeyValue(GenAIObsAttributes.OPERATION_NAME, "execute_tool")
-            observation.lowCardinalityKeyValue(GenAIObsAttributes.TOOL_NAME, toolName)
-            observation.highCardinalityKeyValue(GenAIObsAttributes.TOOL_DESCRIPTION, toolDescription)
-            observation.highCardinalityKeyValue(GenAIObsAttributes.TOOL_CALL_ID, toolId)
+        telemetryService.withClientSpan("execute_tool", parentSpan) { span ->
+            span.setAttribute(GenAIObsAttributes.OPERATION_NAME, "execute_tool")
+            span.setAttribute(GenAIObsAttributes.TOOL_NAME, toolName)
+            span.setAttribute(GenAIObsAttributes.TOOL_DESCRIPTION, toolDescription)
+            span.setAttribute(GenAIObsAttributes.TOOL_CALL_ID, toolId)
             try {
                 toolService.executeTool(toolName, arguments, params, openAIClient, {}, toolMetadata, context)
             } catch (e: Exception) {
-                observation.lowCardinalityKeyValue(GenAIObsAttributes.ERROR_TYPE, "${e.javaClass}")
+                span.setAttribute(GenAIObsAttributes.ERROR_TYPE, "${e.javaClass}")
+                span.setStatus(StatusCode.ERROR)
+                span.recordException(e)
                 logger.error(e) { "Error executing tool $toolName for completion: ${e.message}" }
                 throw e
             }
