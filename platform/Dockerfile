@@ -8,7 +8,7 @@ WORKDIR /app
 
 # Copy the built JAR and configuration file into the image
 COPY open-responses-server/build/libs/openresponses-0.5.2.jar /app/openresponses-0.5.2.jar
-COPY open-responses-server/src/main/resources/mcp-servers-config.json /app/mcp-servers-config.json
+COPY open-responses-core/src/main/resources/mcp-servers-config.json /app/mcp-servers-config.json
 
 EXPOSE 6644
 # Start the Java application directly
