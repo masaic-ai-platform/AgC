@@ -72,7 +72,7 @@ open class AgentBootstrapService(
 
         val agents: List<PlatformAgent> = mapper.readValue(resource.inputStream.bufferedReader().use { it.readText() })
         log.info("Loaded ${agents.size} agent definitions from $agentDefFileName")
-        return agents
+        return agents.reversed()
     }
 
     /**

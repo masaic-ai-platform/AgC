@@ -1,6 +1,7 @@
 package ai.masaic.platform.api.validation
 
 import ai.masaic.openresponses.api.client.ResponseStore
+import ai.masaic.openresponses.api.config.DeploymentSettings
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.search.VectorStoreService
 import ai.masaic.openresponses.api.validation.RequestValidator
@@ -11,7 +12,8 @@ class PlatformRequestValidator(
     private val vectorStoreService: VectorStoreService,
     private val responseStore: ResponseStore,
     private val platformInfo: PlatformInfo,
-) : RequestValidator(vectorStoreService, responseStore) {
+    private val deploymentSettings: DeploymentSettings,
+) : RequestValidator(vectorStoreService, responseStore, deploymentSettings) {
     override suspend fun validateTool(tool: Tool) {
         when (tool) {
             is ImageGenerationTool -> {

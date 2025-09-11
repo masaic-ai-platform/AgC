@@ -10,13 +10,12 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Profile
 
 @Configuration
+@Profile("!platform")
 class McpClientConfig {
     @Bean
-    @Profile("!platform")
     fun mcpClientFactory(): McpClientFactory = SimpleMcpClientFactory()
 
     @Bean
-    @Profile("!platform")
     fun nativeToolRegistry(
         objectMapper: ObjectMapper,
         responseStore: ResponseStore,

@@ -5,6 +5,8 @@ import ai.masaic.openresponses.api.client.MasaicOpenAiCompletionServiceImpl
 import ai.masaic.openresponses.api.extensions.isImageContent
 import ai.masaic.openresponses.api.model.CreateCompletionRequest
 import ai.masaic.openresponses.api.model.InstrumentationMetadataInput
+import ai.masaic.openresponses.api.support.service.GenAIObsAttributes
+import ai.masaic.openresponses.api.support.service.TelemetryService
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.client.okhttp.OpenAIOkHttpClient
@@ -26,8 +28,10 @@ import com.openai.models.chat.completions.ChatCompletionStreamOptions
 import com.openai.models.chat.completions.ChatCompletionTool
 import com.openai.models.chat.completions.ChatCompletionToolChoiceOption
 import com.openai.models.chat.completions.ChatCompletionToolMessageParam
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Value
@@ -48,6 +52,7 @@ class MasaicCompletionService(
     private val openAICompletionService: MasaicOpenAiCompletionServiceImpl,
     private val completionStore: CompletionStore,
     private val objectMapper: ObjectMapper,
+    private val telemetryService: TelemetryService,
 ) {
     companion object {
         const val OPENAI_BASE_URL = "OPENAI_BASE_URL"
@@ -149,29 +154,48 @@ class MasaicCompletionService(
     ): ChatCompletion {
         logger.info { "Creating completion with, model: ${request.model}" }
 
+        val parentSpan = telemetryService.startOtelSpan("AgC loop", "", Span.current())
         val headerBuilder = createHeadersBuilder(headers)
         val queryBuilder = createQueryParamsBuilder(queryParams)
         val client = createClient(headers, request.model)
         val messages = request.parseMessages(objectMapper)
-
-        return try {
+        var response: ChatCompletion? = null
+        var exception: Exception? = null
+        val metadata = instrumentationMetadataInput(headers, request)
+        try {
             val timeoutMillis = Duration.ofSeconds(requestTimeoutSeconds).toMillis()
-            withTimeout(timeoutMillis) {
-                val params = createChatCompletionParams(request, messages, headerBuilder, queryBuilder)
-                val metadata = instrumentationMetadataInput(headers, request)
-                
-                val completion = openAICompletionService.create(client, params, metadata)
-                completion
-            }
+            response =
+                withTimeout(timeoutMillis) {
+                    val params = createChatCompletionParams(request, messages, headerBuilder, queryBuilder)
+                    telemetryService.emitModelInputEventsForOtelSpan(parentSpan, params, metadata)
+                    val completion = openAICompletionService.create(client, params, metadata, parentSpan)
+                    completion
+                }
+            return response
         } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
+            exception = e
             logger.error { "Request timed out after $requestTimeoutSeconds seconds" }
             throw CompletionTimeoutException("Request timed out after $requestTimeoutSeconds seconds")
         } catch (e: TimeoutException) {
+            exception = e
             logger.error { "Request timed out after $requestTimeoutSeconds seconds" }
             throw CompletionTimeoutException("Request timed out after $requestTimeoutSeconds seconds")
         } catch (e: CancellationException) {
+            exception = e
             logger.warn { "Request was cancelled" }
             throw e // Let cancellation exceptions propagate
+        } finally {
+            exception?.let {
+                parentSpan.recordException(exception)
+                parentSpan.setStatus(StatusCode.ERROR)
+                parentSpan.setAttribute(GenAIObsAttributes.ERROR_TYPE, "${exception.javaClass}")
+            } ?: parentSpan.setStatus(StatusCode.OK)
+
+            response?.let {
+                telemetryService.stopOtelParentSpan(parentSpan, it, metadata)
+            } ?: run {
+                parentSpan.end()
+            }
         }
     }
 
@@ -188,16 +212,39 @@ class MasaicCompletionService(
         headers: MultiValueMap<String, String>,
         queryParams: MultiValueMap<String, String>,
     ): Flow<ServerSentEvent<String>> {
-        logger.info { "Creating streaming completion with, model: ${request.model}" }
-
-        val headerBuilder = createHeadersBuilder(headers)
-        val queryBuilder = createQueryParamsBuilder(queryParams)
-        val client = createClient(headers, request.model)
-        val messages = request.parseMessages(objectMapper)
-        val params = createChatCompletionParams(request, messages, headerBuilder, queryBuilder)
+        val parentSpan = telemetryService.startOtelSpan("AgC loop", "", Span.current())
+        var finalResponse: ChatCompletion? = null
         val metadata = instrumentationMetadataInput(headers, request)
+        return flow<ServerSentEvent<String>> {
+            logger.info { "Creating streaming completion with, model: ${request.model}" }
+            val headerBuilder = createHeadersBuilder(headers)
+            val queryBuilder = createQueryParamsBuilder(queryParams)
+            val client = createClient(headers, request.model)
+            val messages = request.parseMessages(objectMapper)
 
-        return openAICompletionService.createCompletionStream(client, params, metadata)
+            val params = createChatCompletionParams(request, messages, headerBuilder, queryBuilder)
+            telemetryService.emitModelInputEventsForOtelSpan(parentSpan, params, metadata)
+            emitAll(
+                openAICompletionService.createCompletionStream(
+                    client,
+                    params,
+                    metadata,
+                    parentSpan,
+                ) { finalRes -> finalResponse = finalRes },
+            )
+        }.onCompletion { error ->
+            error?.let {
+                parentSpan.recordException(it)
+                parentSpan.setStatus(StatusCode.ERROR)
+                parentSpan.setAttribute(GenAIObsAttributes.ERROR_TYPE, "${it.javaClass}")
+            } ?: parentSpan.setStatus(StatusCode.OK)
+
+            finalResponse?.let {
+                telemetryService.stopOtelParentSpan(parentSpan, it, metadata)
+            } ?: run {
+                parentSpan.end()
+            }
+        }
     }
 
     /**

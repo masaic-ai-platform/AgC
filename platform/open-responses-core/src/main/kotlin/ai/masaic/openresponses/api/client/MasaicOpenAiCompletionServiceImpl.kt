@@ -1,6 +1,7 @@
 package ai.masaic.openresponses.api.client
 
 import ai.masaic.openresponses.api.model.InstrumentationMetadataInput
+import ai.masaic.openresponses.api.support.service.GenAIObsAttributes
 import ai.masaic.openresponses.api.support.service.TelemetryService
 import ai.masaic.openresponses.api.utils.EventUtils
 import ai.masaic.openresponses.tool.CompletionToolRequestContext
@@ -8,6 +9,8 @@ import ai.masaic.openresponses.tool.ToolService
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.models.chat.completions.*
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
@@ -48,13 +51,14 @@ class MasaicOpenAiCompletionServiceImpl(
         client: OpenAIClient,
         params: ChatCompletionCreateParams,
         metadata: InstrumentationMetadataInput = InstrumentationMetadataInput(),
+        parentSpan: Span?,
     ): ChatCompletion {
         logger.debug { "Creating chat completion with model: ${params.model()}" }
 
         var initialChatCompletion =
-            telemetryService.withClientObservation("chat", metadata.modelName) { observation ->
+            telemetryService.withClientSpan("chat", metadata.modelName, parentSpan) { span ->
                 var completion = telemetryService.withChatCompletionTimer(params, metadata) { client.chat().completions().create(params) }
-                telemetryService.emitModelInputEvents(observation, params, metadata)
+                telemetryService.emitModelInputEventsForOtelSpan(span, params, metadata)
 
                 // Generate ID if missing
                 if (completion._id().isMissing()) {
@@ -62,8 +66,8 @@ class MasaicOpenAiCompletionServiceImpl(
                 }
 
                 logger.debug { "Received chat completion with ID: ${completion.id()}" }
-                telemetryService.emitModelOutputEvents(observation, completion, metadata)
-                telemetryService.setChatCompletionObservationAttributes(observation, completion, params, metadata)
+                telemetryService.emitModelOutputEventsForOtel(span, completion, metadata)
+                telemetryService.setChatCompletionObservationAttributesForOtelSpan(span, completion, params, metadata)
 
                 if (completion.usage().isPresent) {
                     telemetryService.recordChatCompletionTokenUsage(metadata, completion, params, "input", completion.usage().get().promptTokens())
@@ -76,7 +80,7 @@ class MasaicOpenAiCompletionServiceImpl(
         if (hasToolCalls(initialChatCompletion)) {
             logger.info { "Tool calls detected in completion ${initialChatCompletion.id()}, initiating tool handling flow." }
             // Call handleToolCalls which will recursively call create if needed, or return a terminal completion
-            return handleToolCalls(initialChatCompletion, params, client, metadata)
+            return handleToolCalls(initialChatCompletion, params, client, metadata, parentSpan)
         }
 
         // No tool calls, store and return the original completion
@@ -98,10 +102,11 @@ class MasaicOpenAiCompletionServiceImpl(
         originalParams: ChatCompletionCreateParams, // Original params from the client for this cycle
         client: OpenAIClient,
         metadata: InstrumentationMetadataInput,
+        parentSpan: Span?,
     ): ChatCompletion {
         logger.info { "Handling tool calls for completion ID: ${chatCompletion.id()}" }
 
-        when (val toolCallOutcome = toolHandler.handleCompletionToolCall(chatCompletion, originalParams, client)) {
+        when (val toolCallOutcome = toolHandler.handleCompletionToolCall(chatCompletion, originalParams, client, parentSpan)) {
             is CompletionToolCallOutcome.Terminate -> {
                 logger.info { "Terminal tool executed (e.g. image_generation). Completion ID: ${toolCallOutcome.finalChatCompletion.id()}" }
                 if (originalParams.store().getOrDefault(false)) {
@@ -134,7 +139,7 @@ class MasaicOpenAiCompletionServiceImpl(
 
                 val nextParams = originalParams.toBuilder().messages(updatedMessages).build()
                 logger.debug { "Prepared updated parameters with ${updatedMessages.size} messages for recursive call." }
-                return create(client, nextParams, metadata) // Recursive call
+                return create(client, nextParams, metadata, parentSpan) // Recursive call
             }
         }
     }
@@ -169,14 +174,16 @@ class MasaicOpenAiCompletionServiceImpl(
         client: OpenAIClient,
         params: ChatCompletionCreateParams,
         metadata: InstrumentationMetadataInput,
+        parentSpan: Span?,
+        onFinalResponse: (ChatCompletion) -> Unit,
     ): Flow<ServerSentEvent<String>> {
         logger.debug { "Creating streaming chat completion with model: ${params.model()}" }
 
-        val observation = telemetryService.startObservation("chat", metadata.modelName)
+        val span = telemetryService.startOtelSpan("chat", metadata.modelName, parentSpan)
         var finalCompletionForTelemetry: ChatCompletion? = null // To hold the very final completion for telemetry
 
         try {
-            telemetryService.emitModelInputEvents(observation, params, metadata)
+            telemetryService.emitModelInputEventsForOtelSpan(span, params, metadata)
 
             return flow {
                 var currentParams = params
@@ -263,6 +270,7 @@ class MasaicOpenAiCompletionServiceImpl(
                                 currentParams, // Pass current params of this iteration
                                 client,
                                 metadata,
+                                parentSpan,
                             )
 
                         when {
@@ -313,6 +321,7 @@ class MasaicOpenAiCompletionServiceImpl(
                             }
                             toolHandlingResult.hasUnresolvedClientTools -> {
                                 logger.info { "Non-native tool calls detected for completion ${reconstructedCompletionFromStream.id()}, client to handle." }
+                                onFinalResponse(reconstructedCompletionFromStream) // Call here for client-handled tools
                                 // Chunks already emitted. Loop will stop.
                                 continueLoop = false
                             }
@@ -323,12 +332,14 @@ class MasaicOpenAiCompletionServiceImpl(
                             }
                             else -> { // No updated params, no client tools, not terminal -> effectively complete normally.
                                 logger.info { "Stream segment processed, no further tool actions or recursion needed for ${reconstructedCompletionFromStream.id()}." }
+                                onFinalResponse(reconstructedCompletionFromStream) // Call here for completed processing
                                 continueLoop = false
                             }
                         }
                     } else {
                         // No tool calls in this segment, current loop ends.
                         logger.info { "No tool calls in current stream segment for ${reconstructedCompletionFromStream.id()}." }
+                        onFinalResponse(reconstructedCompletionFromStream) // Call here for normal completions
                         continueLoop = false
                     }
 
@@ -351,11 +362,12 @@ class MasaicOpenAiCompletionServiceImpl(
                 finalCompletionForTelemetry?.let { completionToLog ->
                     if (error == null) {
                         logger.info { "Stream completed. Processing final telemetry for completion ID: ${completionToLog.id()}." }
+                        span.setStatus(StatusCode.OK)
                     } else {
                         logger.warn(error) { "Stream completed with error. Processing final telemetry for completion ID: ${completionToLog.id()}." }
                     }
-                    telemetryService.emitModelOutputEvents(observation, completionToLog, metadata)
-                    telemetryService.setChatCompletionObservationAttributes(observation, completionToLog, params, metadata)
+                    telemetryService.emitModelOutputEventsForOtel(span, completionToLog, metadata)
+                    telemetryService.setChatCompletionObservationAttributesForOtelSpan(span, completionToLog, params, metadata)
                     if (completionToLog.usage().isPresent) {
                         telemetryService.recordChatCompletionTokenUsage(metadata, completionToLog, params, "input", completionToLog.usage().get().promptTokens())
                         telemetryService.recordChatCompletionTokenUsage(metadata, completionToLog, params, "output", completionToLog.usage().get().completionTokens())
@@ -363,13 +375,13 @@ class MasaicOpenAiCompletionServiceImpl(
                 } ?: run {
                     logger.warn { "Final completion for telemetry was null." }
                 }
-                observation.stop()
-                logger.debug { "Stopped observation ${observation.context.name} for streaming chat completion." }
+                span.end()
             }
         } catch (t: Throwable) {
             logger.error(t) { "Outer error in createCompletionStream setup." }
-            observation.error(t)
-            observation.stop()
+            span.recordException(t)
+            span.setStatus(StatusCode.ERROR)
+            span.setAttribute(GenAIObsAttributes.ERROR_TYPE, "${t.javaClass}")
             throw t
         }
     }
@@ -382,10 +394,11 @@ class MasaicOpenAiCompletionServiceImpl(
         currentIterationParams: ChatCompletionCreateParams,
         client: OpenAIClient,
         metadata: InstrumentationMetadataInput,
+        parentSpan: Span?,
     ): ToolHandlingStreamResult {
         logger.info { "Handling tool calls for streamed completion ID: ${chatCompletion.id()}" }
 
-        return when (val toolCallOutcome = toolHandler.handleCompletionToolCall(chatCompletion, currentIterationParams, client)) {
+        return when (val toolCallOutcome = toolHandler.handleCompletionToolCall(chatCompletion, currentIterationParams, client, parentSpan)) {
             is CompletionToolCallOutcome.Terminate -> {
                 logger.info { "Terminal tool executed in stream. ChatCompletion ID: ${toolCallOutcome.finalChatCompletion.id()}" }
                 ToolHandlingStreamResult(
