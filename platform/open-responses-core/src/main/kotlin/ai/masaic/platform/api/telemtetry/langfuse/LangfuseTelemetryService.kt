@@ -1,6 +1,7 @@
 package ai.masaic.platform.api.telemtetry.langfuse
 
 import ai.masaic.openresponses.api.model.InstrumentationMetadataInput
+import ai.masaic.openresponses.api.utils.ResponsesUtils
 import ai.masaic.platform.api.telemtetry.PlatformTelemetryService
 import ai.masaic.platform.api.user.CurrentUserProvider
 import com.openai.models.chat.completions.ChatCompletionCreateParams
@@ -55,7 +56,7 @@ class LangfuseTelemetryService(
         metadata: InstrumentationMetadataInput,
     ) {
         val context = TelemetryContext(metadata, captureMessageContent)
-        val normalizedOutputs = response.toNormalizedOutput()
+        val normalizedOutputs = ResponsesUtils.toNormalizedOutput(response)
         val events = extractOutputEvents(normalizedOutputs, context)
 
         events.forEachIndexed { index, event ->

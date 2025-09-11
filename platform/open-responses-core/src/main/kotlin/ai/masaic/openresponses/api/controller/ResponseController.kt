@@ -3,13 +3,8 @@ package ai.masaic.openresponses.api.controller
 import ai.masaic.openresponses.api.client.ResponseStore
 import ai.masaic.openresponses.api.model.CreateResponseRequest
 import ai.masaic.openresponses.api.model.ResponseInputItemList
-import ai.masaic.openresponses.api.service.MasaicResponseService
-import ai.masaic.openresponses.api.service.ResponseNotFoundException
-import ai.masaic.openresponses.api.service.ResponseStoreService
-import ai.masaic.openresponses.api.utils.PayloadFormatter
-import ai.masaic.openresponses.api.validation.RequestValidator
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.openai.models.responses.ResponseCreateParams
+import ai.masaic.openresponses.api.service.*
+import kotlinx.coroutines.flow.Flow
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -23,14 +18,11 @@ import org.springframework.web.server.ServerWebExchange
 @RequestMapping("/v1")
 @CrossOrigin("*")
 class ResponseController(
-    private val masaicResponseService: MasaicResponseService,
-    private val payloadFormatter: PayloadFormatter,
+    private val responseFacadeService: ResponseFacadeService,
     private val responseStore: ResponseStore,
-    private val requestValidator: RequestValidator,
     private val responseStoreService: ResponseStoreService,
 ) {
     private val log = LoggerFactory.getLogger(ResponseController::class.java)
-    val mapper = jacksonObjectMapper()
 
     @PostMapping("/responses", produces = [MediaType.APPLICATION_JSON_VALUE, MediaType.TEXT_EVENT_STREAM_VALUE])
     suspend fun createResponse(
@@ -38,41 +30,22 @@ class ResponseController(
         @RequestHeader headers: MultiValueMap<String, String>,
         @RequestParam queryParams: MultiValueMap<String, String>,
     ): ResponseEntity<*> {
-        requestValidator.validateResponseRequest(request)
-        payloadFormatter.formatResponseRequest(request)
-        request.parseInput(mapper)
-        val requestBodyJson = mapper.writeValueAsString(request)
-        log.debug("Request body: $requestBodyJson")
+        log.debug("Received response request for model: ${request.model}, streaming: ${request.stream}")
 
-        // If streaming is requested, set the appropriate content type and return a flow
-        if (request.stream) {
-            return ResponseEntity
-                .ok()
-                .contentType(MediaType.TEXT_EVENT_STREAM)
-                .body(
-                    masaicResponseService.createStreamingResponse(
-                        mapper.readValue(
-                            requestBodyJson,
-                            ResponseCreateParams.Body::class.java,
-                        ),
-                        headers,
-                        queryParams,
-                    ),
-                )
-        } else {
-            // For non-streaming, return a regular response
-            val responseObj =
-                masaicResponseService.createResponse(
-                    mapper.readValue(
-                        requestBodyJson,
-                        ResponseCreateParams.Body::class.java,
-                    ),
-                    headers,
-                    queryParams,
-                )
-
-            log.debug("Response Body: $responseObj")
-            return ResponseEntity.ok(payloadFormatter.formatResponse(responseObj))
+        // Use the facade service to handle validation, formatting, and routing
+        val result = responseFacadeService.processResponseForController(request, headers, queryParams)
+        return when (result) {
+            is Flow<*> -> {
+                log.debug("Returning streaming response")
+                ResponseEntity
+                    .ok()
+                    .contentType(MediaType.TEXT_EVENT_STREAM)
+                    .body(result)
+            }
+            else -> {
+                log.debug("Returning non-streaming response")
+                ResponseEntity.ok(result)
+            }
         }
     }
 

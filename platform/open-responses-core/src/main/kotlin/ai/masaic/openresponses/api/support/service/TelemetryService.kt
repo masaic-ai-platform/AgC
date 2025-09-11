@@ -1,6 +1,10 @@
 package ai.masaic.openresponses.api.support.service
 
 import ai.masaic.openresponses.api.model.InstrumentationMetadataInput
+import ai.masaic.openresponses.api.utils.ModelOutput
+import ai.masaic.openresponses.api.utils.NormalizedMessage
+import ai.masaic.openresponses.api.utils.NormalizedToolCall
+import ai.masaic.openresponses.api.utils.ResponsesUtils
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.core.jsonMapper
 import com.openai.models.chat.completions.ChatCompletion
@@ -79,7 +83,7 @@ open class TelemetryService(
         metadata: InstrumentationMetadataInput,
     ) {
         val context = TelemetryContext(metadata, captureMessageContent)
-        val normalizedOutputs = response.toNormalizedOutput()
+        val normalizedOutputs = ResponsesUtils.toNormalizedOutput(response)
         val events = extractOutputEvents(normalizedOutputs, context)
         events.forEach { event ->
             span.addEvent(event.name, Attributes.builder().put(event.name, mapper.writeValueAsString(event.payload)).build())
@@ -907,34 +911,6 @@ open class TelemetryService(
         }
     }
 
-    // ------------------------------------------------------------------------
-    // New Normalized Models and Pipeline Infrastructure
-    // ------------------------------------------------------------------------
-
-    data class NormalizedMessage(
-        val role: String,
-        val content: String?,
-        val toolCalls: List<NormalizedToolCall> = emptyList(),
-    )
-
-    data class NormalizedToolCall(
-        val id: String,
-        val name: String,
-        val arguments: String?,
-    )
-
-    data class ModelOutput(
-        val messages: List<NormalizedMessage>,
-        val finishReason: String?,
-        val usage: Usage?,
-        val index: Int = 0,
-    )
-
-    data class Usage(
-        val inputTokens: Long?,
-        val outputTokens: Long?,
-    )
-
     // Concrete payload types instead of generic Map<String, Any?>
     sealed class TelemetryPayload {
         data class MessagePayload(
@@ -1116,50 +1092,6 @@ open class TelemetryService(
                     else -> NormalizedMessage("unknown", null)
                 }
             }.filter { it.role != "unknown" }
-
-    fun Response.toNormalizedOutput(): List<ModelOutput> =
-        output().mapIndexed { index, output ->
-            when {
-                output.isMessage() -> {
-                    val content =
-                        if (captureMessageContent) {
-                            output.asMessage().content().joinToString("\n") { if (it.isOutputText()) it.asOutputText().text() else "output text not found" }
-                        } else {
-                            null
-                        }
-                    ModelOutput(
-                        messages = listOf(NormalizedMessage("assistant", content)),
-                        finishReason = "stop",
-                        usage = null,
-                        index = index,
-                    )
-                }
-                output.isFunctionCall() -> {
-                    val toolCall = output.asFunctionCall()
-                    val toolCalls =
-                        listOf(
-                            NormalizedToolCall(
-                                id = toolCall.id().get(),
-                                name = toolCall.name(),
-                                arguments = messageContent(toolCall.arguments()),
-                            ),
-                        )
-                    ModelOutput(
-                        messages = listOf(NormalizedMessage("assistant", null, toolCalls)),
-                        finishReason = "tool_calls",
-                        usage = null,
-                        index = index,
-                    )
-                }
-                else ->
-                    ModelOutput(
-                        messages = emptyList(),
-                        finishReason = null,
-                        usage = null,
-                        index = index,
-                    )
-            }
-        }
 
     // ------------------------------------------------------------------------
     // Extractors for generating telemetry events

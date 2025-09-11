@@ -4,11 +4,11 @@ import ai.masaic.openresponses.api.client.ResponseStore
 import ai.masaic.openresponses.api.config.DeploymentSettings
 import ai.masaic.openresponses.api.config.QdrantVectorProperties
 import ai.masaic.openresponses.api.config.VectorSearchConfigProperties
-import ai.masaic.openresponses.api.controller.ResponseController
 import ai.masaic.openresponses.api.model.MCPTool
 import ai.masaic.openresponses.api.model.ModelInfo
 import ai.masaic.openresponses.api.model.PyInterpreterServer
 import ai.masaic.openresponses.api.repository.VectorStoreRepository
+import ai.masaic.openresponses.api.service.ResponseFacadeService
 import ai.masaic.openresponses.api.service.VectorStoreFileManager
 import ai.masaic.openresponses.api.service.embedding.EmbeddingService
 import ai.masaic.openresponses.api.service.embedding.OpenAIProxyEmbeddingService
@@ -193,9 +193,16 @@ class PlatformCoreConfig {
 
     @Bean
     fun agentBuilderChatService(
-        responseController: ResponseController,
+        responseFacadeService: ResponseFacadeService,
         agentService: AgentService,
-    ) = AgentBuilderChatService(responseController, agentService)
+    ) = AgentBuilderChatService(responseFacadeService, agentService)
+
+    @Bean
+    fun askAgentService(
+        agentService: AgentService,
+        responseFacadeService: ResponseFacadeService,
+        modelSettings: ModelSettings,
+    ) = AskAgentService(agentService, responseFacadeService, modelSettings)
 
     @Bean
     @ConditionalOnMissingBean(TelemetryService::class)

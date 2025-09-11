@@ -4,20 +4,16 @@ import ai.masaic.openresponses.api.client.ResponseStore
 import ai.masaic.openresponses.api.model.CreateResponseRequest
 import ai.masaic.openresponses.api.model.InputMessageItem
 import ai.masaic.openresponses.api.model.ResponseInputItemList
-import ai.masaic.openresponses.api.service.MasaicResponseService
+import ai.masaic.openresponses.api.service.ResponseFacadeService
 import ai.masaic.openresponses.api.service.ResponseNotFoundException
+import ai.masaic.openresponses.api.service.ResponseProcessingResult
 import ai.masaic.openresponses.api.service.ResponseStoreService
-import ai.masaic.openresponses.api.utils.PayloadFormatter
-import ai.masaic.openresponses.api.validation.RequestValidator
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseFunctionToolCall
 import com.openai.models.responses.ResponseInputItem
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Test
@@ -30,28 +26,15 @@ import org.springframework.test.web.reactive.server.WebTestClient
 @ExtendWith(SpringExtension::class)
 @Import(TestConfiguration::class)
 class ResponseControllerTest {
-    private val responseService = mockk<MasaicResponseService>()
+    private val responseFacadeService = mockk<ResponseFacadeService>()
     private var webTestClient: WebTestClient
-    private var payloadFormatter: PayloadFormatter
-    private lateinit var requestValidator: RequestValidator
     val objectMapper = jacksonObjectMapper()
     private val responseStoreService: ResponseStoreService
 
     init {
         val responseStore = mockk<ResponseStore>()
-        requestValidator = mockk<RequestValidator>()
-        payloadFormatter =
-            mockk {
-                every { formatResponse(any()) } answers {
-                    objectMapper.valueToTree<JsonNode>(firstArg()) as ObjectNode
-                }
-                every { runBlocking { formatResponseRequest(any()) } } answers {
-                    objectMapper.valueToTree<JsonNode>(firstArg()) as ObjectNode
-                }
-            }
-        coEvery { requestValidator.validateResponseRequest(any()) } returns Unit
         responseStoreService = mockk<ResponseStoreService>()
-        val controller = ResponseController(responseService, payloadFormatter, responseStore, requestValidator, responseStoreService)
+        val controller = ResponseController(responseFacadeService, responseStore, responseStoreService)
         webTestClient = WebTestClient.bindToController(controller).build()
     }
 
@@ -68,12 +51,12 @@ class ResponseControllerTest {
             val mockResponse = mockk<Response>(relaxed = true)
 
             coEvery {
-                responseService.createResponse(
+                responseFacadeService.processResponse(
                     any(),
                     any(),
                     any(),
                 )
-            } returns mockResponse
+            } returns ResponseProcessingResult.NonStreaming(mockResponse)
 
             // When/Then
             webTestClient
@@ -88,7 +71,7 @@ class ResponseControllerTest {
                 .isOk
 
             coVerify {
-                responseService.createResponse(
+                responseFacadeService.processResponse(
                     any(),
                     any(),
                     any(),
