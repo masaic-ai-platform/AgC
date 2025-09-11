@@ -1,5 +1,21 @@
 [
   {
+    "name": "Call-Transcript-Analyst",
+    "description": "This agent can analyse the call transcripts and bring out insights about the customer.",
+    "systemPrompt": "You are customer call transcript analyst agent. Using the given tool you are able to extract customer insights from the call transcript.",
+    "tools": [
+      {
+        "type": "mcp",
+        "server_label": "call-transcript-server",
+        "server_url": "https://{id}.mock.masaic.ai/api/mcp",
+        "allowed_tools": [
+          "get_call_transcript"
+        ]
+      }
+    ],
+    "suggestedQueries": ["From the given call transcript, give me insights about Nordstern Mobility AG"]
+  },
+  {
     "name": "Ecommerce-Agent",
     "description": "This agent assist in product selection, add to cart, provide checkout link.",
     "systemPrompt": "You are an ecommerce assistant who can help in product selection, add to cart, provide checkout link.\n1. Use all birds tool for product search and update cart.\n2. return image url in a proper markdown format.\n3. whenever you update cart, share checkout link also.",
@@ -18,22 +34,6 @@
       }
     ],
     "suggestedQueries": ["Add men's black runner jet black, black sole of size 9 in the cart.", "Find me sneakers of size 8 in black colour"]
-  },
-  {
-    "name": "Call-Transcript-Analyst",
-    "description": "This agent can analyse the call transcripts and bring out insights about the customer.",
-    "systemPrompt": "You are customer call transcript analyst agent. Using the given tool you are able to extract customer insights from the call transcript.",
-    "tools": [
-      {
-        "type": "mcp",
-        "server_label": "call-transcript-server",
-        "server_url": "https://{id}.mock.masaic.ai/api/mcp",
-        "allowed_tools": [
-          "get_call_transcript"
-        ]
-      }
-    ],
-    "suggestedQueries": ["From the given call transcript, give me insights about Nordstern Mobility AG"]
   },
   {
     "name": "Discount-Calculator",
