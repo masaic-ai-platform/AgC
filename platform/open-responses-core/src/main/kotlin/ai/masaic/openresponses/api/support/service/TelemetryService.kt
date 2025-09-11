@@ -73,22 +73,6 @@ open class TelemetryService(
         }
     }
 
-    fun emitModelOutputEvents(
-        observation: Observation,
-        response: Response,
-        metadata: InstrumentationMetadataInput,
-    ) {
-        val context = TelemetryContext(metadata, captureMessageContent)
-        val normalizedOutputs = response.toNormalizedOutput()
-        val events = extractOutputEvents(normalizedOutputs, context)
-
-        events.forEach { event ->
-            observation.event(
-                Observation.Event.of(event.name, mapper.writeValueAsString(event)),
-            )
-        }
-    }
-
     fun emitModelOutputEventsForOtelSpan(
         span: Span,
         response: Response,
@@ -99,51 +83,6 @@ open class TelemetryService(
         val events = extractOutputEvents(normalizedOutputs, context)
         events.forEach { event ->
             span.addEvent(event.name, Attributes.builder().put(event.name, mapper.writeValueAsString(event.payload)).build())
-        }
-    }
-
-    fun emitModelOutputEvents(
-        observation: Observation,
-        chatCompletion: ChatCompletion,
-        metadata: InstrumentationMetadataInput,
-    ) {
-        val mapper = jsonMapper()
-        chatCompletion.choices().forEach { choice ->
-            val eventData: MutableMap<String, Any?> =
-                mutableMapOf(
-                    "gen_ai.system" to metadata.genAISystem,
-                    "role" to "assistant",
-                )
-            val content = messageContent(choice.message().content().getOrDefault(""))
-            if (content.isNotEmpty()) {
-                eventData["content"] = content
-            }
-
-            if (choice.finishReason().asString() == "tool_calls") {
-                val toolCalls =
-                    choice.message().toolCalls().get().map { tool ->
-                        val functionDetailsMap = mutableMapOf("name" to tool.function().name())
-                        putIfNotEmpty(functionDetailsMap, "arguments", messageContent(tool.function().arguments()))
-                        mapOf(
-                            "id" to tool.id(),
-                            "type" to "function",
-                            "function" to functionDetailsMap,
-                        )
-                    }
-                val tooCallMap =
-                    mapOf(
-                        "gen_ai.system" to metadata.genAISystem,
-                        "finish_reason" to choice.finishReason().asString(),
-                        "index" to choice.index().toString(),
-                        "tool_calls" to toolCalls,
-                    )
-
-                eventData.putAll(tooCallMap)
-            }
-
-            observation.event(
-                Observation.Event.of(GenAIObsAttributes.CHOICE, mapper.writeValueAsString(eventData)),
-            )
         }
     }
 
@@ -188,33 +127,6 @@ open class TelemetryService(
         }
     }
 
-    fun setAllObservationAttributes(
-        observation: Observation,
-        response: Response,
-        params: ResponseCreateParams,
-        metadata: InstrumentationMetadataInput,
-        finishReason: String,
-    ) {
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.OPERATION_NAME, "chat")
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.SYSTEM, metadata.genAISystem)
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.REQUEST_MODEL, params.model().asString())
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.RESPONSE_MODEL, response.model().asString())
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.SERVER_ADDRESS, metadata.modelProviderAddress)
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.SERVER_PORT, metadata.modelProviderPort)
-        observation.highCardinalityKeyValue(GenAIObsAttributes.RESPONSE_ID, response.id())
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.RESPONSE_FINISH_REASONS, finishReason)
-
-        params.temperature().ifPresent { observation.highCardinalityKeyValue(GenAIObsAttributes.REQUEST_TEMPERATURE, it.toString()) }
-        params.maxOutputTokens().ifPresent { observation.highCardinalityKeyValue(GenAIObsAttributes.REQUEST_MAX_TOKENS, it.toString()) }
-        params.topP().ifPresent { observation.highCardinalityKeyValue(GenAIObsAttributes.REQUEST_TOP_P, it.toString()) }
-
-        response.usage().ifPresent { usage ->
-            observation.highCardinalityKeyValue(GenAIObsAttributes.USAGE_INPUT_TOKENS, usage.inputTokens().toString())
-            observation.highCardinalityKeyValue(GenAIObsAttributes.USAGE_OUTPUT_TOKENS, usage.outputTokens().toString())
-        }
-        setOutputType(observation, params)
-    }
-
     fun setAllObservationAttributesForOtelSpan(
         span: Span,
         response: Response,
@@ -242,33 +154,6 @@ open class TelemetryService(
         setOutputType(span, params)
     }
 
-    fun setAllObservationAttributes(
-        observation: Observation,
-        chatCompletion: ChatCompletion,
-        params: ResponseCreateParams,
-        metadata: InstrumentationMetadataInput,
-    ) {
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.OPERATION_NAME, "chat")
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.SYSTEM, metadata.genAISystem)
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.REQUEST_MODEL, params.model().toString())
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.RESPONSE_MODEL, chatCompletion.model())
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.SERVER_ADDRESS, metadata.modelProviderAddress)
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.SERVER_PORT, metadata.modelProviderPort)
-        observation.highCardinalityKeyValue(GenAIObsAttributes.RESPONSE_ID, chatCompletion.id())
-
-        params.temperature().ifPresent { observation.highCardinalityKeyValue(GenAIObsAttributes.REQUEST_TEMPERATURE, it.toString()) }
-        params.maxOutputTokens().ifPresent { observation.highCardinalityKeyValue(GenAIObsAttributes.REQUEST_MAX_TOKENS, it.toString()) }
-        params.topP().ifPresent { observation.highCardinalityKeyValue(GenAIObsAttributes.REQUEST_TOP_P, it.toString()) }
-
-        chatCompletion.usage().ifPresent { usage ->
-            observation.highCardinalityKeyValue(GenAIObsAttributes.USAGE_INPUT_TOKENS, usage.promptTokens().toString())
-            observation.highCardinalityKeyValue(GenAIObsAttributes.USAGE_OUTPUT_TOKENS, usage.completionTokens().toString())
-        }
-
-        setFinishReasons(observation, chatCompletion)
-        setOutputType(observation, params)
-    }
-
     fun setAllObservationAttributesForOtelSpan(
         span: Span,
         chatCompletion: ChatCompletion,
@@ -294,13 +179,6 @@ open class TelemetryService(
 
         setFinishReasons(span, chatCompletion)
         setOutputType(span, params)
-    }
-
-    private fun setOutputType(
-        observation: Observation,
-        params: ResponseCreateParams,
-    ) {
-        extractOutputFormat(params)?.let { observation.lowCardinalityKeyValue(GenAIObsAttributes.OUTPUT_TYPE, it) }
     }
 
     private fun setOutputType(
@@ -340,25 +218,6 @@ open class TelemetryService(
         } else {
             null
         }
-
-    fun setFinishReasons(
-        observation: Observation,
-        chatCompletion: ChatCompletion,
-    ) {
-        val finishReasons =
-            chatCompletion
-                .choices()
-                .mapNotNull {
-                    it
-                        .finishReason()
-                        .value()
-                        ?.name
-                        ?.lowercase()
-                }.distinct()
-        if (finishReasons.isNotEmpty()) {
-            observation.lowCardinalityKeyValue(GenAIObsAttributes.RESPONSE_FINISH_REASONS, finishReasons.joinToString(","))
-        }
-    }
 
     fun setFinishReasons(
         span: Span,
@@ -410,20 +269,6 @@ open class TelemetryService(
         return span
     }
 
-    fun stopObservation(
-        observation: Observation,
-        response: Response,
-        params: ResponseCreateParams,
-        metadata: InstrumentationMetadataInput,
-    ) {
-        emitModelOutputEvents(observation, response, metadata)
-        setAllObservationAttributes(observation, response, params, metadata, "stop")
-        recordTokenUsage(metadata, response, params, "input")
-        recordTokenUsage(metadata, response, params, "output")
-        observation.stop()
-//        stopOtelSpan(response, params, metadata)
-    }
-
     fun stopOtelSpan(
         span: Span,
         response: Response,
@@ -467,55 +312,12 @@ open class TelemetryService(
         }
     }
 
-    suspend fun <T> withClientObservation(
-        operationName: String,
-        modelName: String,
-        block: suspend (Observation) -> T,
-    ): T = withClientObservation("$operationName $modelName", null, block)
-
-    suspend fun <T> withClientObservation(
-        obsName: String,
-        block: suspend (Observation) -> T,
-    ): T = withClientObservation(obsName, null, block)
-
-    /**
-     * Creates an observation named "$operationName $modelName" as a child of [parentObservation], if provided.
-     */
-    suspend fun <T> withClientObservation(
-        operationName: String,
-        modelName: String,
-        parentObservation: Observation?,
-        block: suspend (Observation) -> T,
-    ): T = withClientObservation("$operationName $modelName", parentObservation, block)
-
     suspend fun <T> withClientSpan(
         operationName: String,
         modelName: String,
         parentSpan: Span?,
         block: suspend (Span) -> T,
     ): T = withClientSpan("$operationName $modelName", parentSpan, block)
-
-    /**
-     * Creates an observation named [obsName] as a child of [parentObservation], if provided.
-     */
-    suspend fun <T> withClientObservation(
-        obsName: String,
-        parentObservation: Observation?,
-        block: suspend (Observation) -> T,
-    ): T {
-        val observation = Observation.createNotStarted(obsName, observationRegistry)
-        parentObservation?.let { observation.parentObservation(it) }
-        observation.start()
-        return try {
-            block(observation)
-        } catch (e: Exception) {
-            observation.error(e)
-            observation.lowCardinalityKeyValue(GenAIObsAttributes.ERROR_TYPE, "${e.javaClass}")
-            throw e
-        } finally {
-            observation.stop()
-        }
-    }
 
     suspend fun <T> withClientSpan(
         obsName: String,
@@ -1038,36 +840,6 @@ open class TelemetryService(
         }
     }
 
-    /**
-     * Sets all observation attributes for a chat completion.
-     */
-    fun setChatCompletionObservationAttributes(
-        observation: Observation,
-        chatCompletion: ChatCompletion,
-        params: ChatCompletionCreateParams,
-        metadata: InstrumentationMetadataInput,
-    ) {
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.OPERATION_NAME, "chat")
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.SYSTEM, metadata.genAISystem)
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.REQUEST_MODEL, params.model().toString())
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.RESPONSE_MODEL, chatCompletion.model())
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.SERVER_ADDRESS, metadata.modelProviderAddress)
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.SERVER_PORT, metadata.modelProviderPort)
-        observation.highCardinalityKeyValue(GenAIObsAttributes.RESPONSE_ID, chatCompletion.id())
-
-        params.temperature().ifPresent { observation.highCardinalityKeyValue(GenAIObsAttributes.REQUEST_TEMPERATURE, it.toString()) }
-        params.maxCompletionTokens().ifPresent { observation.highCardinalityKeyValue(GenAIObsAttributes.REQUEST_MAX_TOKENS, it.toString()) }
-        params.topP().ifPresent { observation.highCardinalityKeyValue(GenAIObsAttributes.REQUEST_TOP_P, it.toString()) }
-
-        chatCompletion.usage().ifPresent { usage ->
-            observation.highCardinalityKeyValue(GenAIObsAttributes.USAGE_INPUT_TOKENS, usage.promptTokens().toString())
-            observation.highCardinalityKeyValue(GenAIObsAttributes.USAGE_OUTPUT_TOKENS, usage.completionTokens().toString())
-        }
-
-        setChatCompletionFinishReasons(observation, chatCompletion)
-        setOutputType(observation, params)
-    }
-
     fun setChatCompletionObservationAttributesForOtelSpan(
         span: Span,
         chatCompletion: ChatCompletion,
@@ -1095,13 +867,6 @@ open class TelemetryService(
         span.setAttribute(GenAIObsAttributes.OUTPUT_TYPE, extractOutput(params) ?: "not_available")
     }
 
-    private fun setOutputType(
-        observation: Observation,
-        params: ChatCompletionCreateParams,
-    ) {
-        observation.lowCardinalityKeyValue(GenAIObsAttributes.OUTPUT_TYPE, extractOutput(params) ?: "not_available")
-    }
-
     private fun extractOutput(params: ChatCompletionCreateParams): String? {
         return if (params.responseFormat().isPresent &&
             params
@@ -1127,28 +892,6 @@ open class TelemetryService(
             }
         } else {
             null
-        }
-    }
-
-    /**
-     * Sets finish reasons for a chat completion observation.
-     */
-    private fun setChatCompletionFinishReasons(
-        observation: Observation,
-        chatCompletion: ChatCompletion,
-    ) {
-        val finishReasons =
-            chatCompletion
-                .choices()
-                .mapNotNull {
-                    it
-                        .finishReason()
-                        .value()
-                        ?.name
-                        ?.lowercase()
-                }.distinct()
-        if (finishReasons.isNotEmpty()) {
-            observation.lowCardinalityKeyValue(GenAIObsAttributes.RESPONSE_FINISH_REASONS, finishReasons.joinToString(","))
         }
     }
 
