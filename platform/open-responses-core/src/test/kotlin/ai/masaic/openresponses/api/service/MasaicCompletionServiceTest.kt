@@ -4,12 +4,16 @@ import ai.masaic.openresponses.api.client.CompletionStore
 import ai.masaic.openresponses.api.client.MasaicOpenAiCompletionServiceImpl
 import ai.masaic.openresponses.api.model.CreateCompletionRequest
 import ai.masaic.openresponses.api.model.InstrumentationMetadataInput
+import ai.masaic.openresponses.api.support.service.TelemetryService
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.models.chat.completions.ChatCompletion
 import com.openai.models.chat.completions.ChatCompletionCreateParams
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
+import io.micrometer.observation.ObservationRegistry
 import io.mockk.*
+import io.opentelemetry.api.OpenTelemetry
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
@@ -31,6 +35,7 @@ class MasaicCompletionServiceTest {
     private lateinit var completionStore: CompletionStore
     private lateinit var objectMapper: ObjectMapper
     private lateinit var masaicCompletionService: MasaicCompletionService
+    private val telemetryService = TelemetryService(ObservationRegistry.NOOP, OpenTelemetry.noop(), SimpleMeterRegistry())
 
     // Default values for testing
     private val defaultModel = "gpt-4o"
@@ -52,6 +57,7 @@ class MasaicCompletionServiceTest {
                 openAICompletionService,
                 completionStore,
                 objectMapper,
+                telemetryService,
             )
 
         // Relaxed mock for ChatCompletion
@@ -98,6 +104,7 @@ class MasaicCompletionServiceTest {
                         any<OpenAIClient>(),
                         any<ChatCompletionCreateParams>(),
                         expectedMetadata,
+                        any(),
                     )
                 } returns expectedCompletion
 
@@ -120,6 +127,7 @@ class MasaicCompletionServiceTest {
                             // Add more parameter checks if needed
                         },
                         expectedMetadata,
+                        any(),
                     )
                 }
                 // Verify storeCompletion is NOT called as it's commented out in the service
@@ -140,6 +148,7 @@ class MasaicCompletionServiceTest {
                         any<OpenAIClient>(),
                         any<ChatCompletionCreateParams>(),
                         expectedMetadata,
+                        any(),
                     )
                 } throws RuntimeException("Timeout")
 
@@ -163,6 +172,7 @@ class MasaicCompletionServiceTest {
                         any<OpenAIClient>(),
                         any<ChatCompletionCreateParams>(),
                         expectedMetadata,
+                        any(),
                     )
                 } throws TimeoutException("Timeout")
 
@@ -187,6 +197,7 @@ class MasaicCompletionServiceTest {
                         any<OpenAIClient>(),
                         any<ChatCompletionCreateParams>(),
                         expectedMetadata,
+                        any(),
                     )
                 } throws exception
 
@@ -229,7 +240,7 @@ class MasaicCompletionServiceTest {
                 val expectedCompletion = mockk<ChatCompletion>(relaxed = true)
 
                 coEvery {
-                    openAICompletionService.create(any(), any(), any())
+                    openAICompletionService.create(any(), any(), any(), any())
                 } returns expectedCompletion
 
                 // When
@@ -238,7 +249,7 @@ class MasaicCompletionServiceTest {
                 // Then
                 assertSame(expectedCompletion, result)
                 coVerify(exactly = 1) {
-                    openAICompletionService.create(any(), any(), any())
+                    openAICompletionService.create(any(), any(), any(), any())
                 }
             }
 
@@ -255,7 +266,7 @@ class MasaicCompletionServiceTest {
                 val expectedMetadata = InstrumentationMetadataInput("groq", "llama3-8b-8192", "api.groq.com", "-1") // Base URL derived from provider
 
                 coEvery {
-                    openAICompletionService.create(any(), any(), expectedMetadata)
+                    openAICompletionService.create(any(), any(), expectedMetadata, any())
                 } returns expectedCompletion
 
                 // When
@@ -267,6 +278,7 @@ class MasaicCompletionServiceTest {
                         any<OpenAIClient>(),
                         match { params -> params.model().toString() == expectedModelName },
                         expectedMetadata,
+                        any(),
                     )
                 }
             }
@@ -284,7 +296,7 @@ class MasaicCompletionServiceTest {
                 val expectedMetadata = InstrumentationMetadataInput("UNKNOWN", expectedModelName, "localhost", "11434")
 
                 coEvery {
-                    openAICompletionService.create(any(), any(), expectedMetadata)
+                    openAICompletionService.create(any(), any(), expectedMetadata, any())
                 } returns expectedCompletion
 
                 // When
@@ -296,6 +308,7 @@ class MasaicCompletionServiceTest {
                         any<OpenAIClient>(),
                         match { params -> params.model().toString() == expectedModelName },
                         expectedMetadata,
+                        any(),
                     )
                 }
             }
@@ -310,14 +323,21 @@ class MasaicCompletionServiceTest {
                 val request = createDefaultRequest().copy(stream = true)
                 val headers = createDefaultHeaders()
                 val queryParams = LinkedMultiValueMap<String, String>()
-                val expectedFlow = flowOf(ServerSentEvent.builder("data").build())
                 val expectedMetadata = InstrumentationMetadataInput("UNKNOWN", "gpt-4o", "api.groq.com", "-1")
+                
+                // Create mock streaming events
+                val streamEvent1 = ServerSentEvent.builder("data: {\"id\":\"chatcmpl-123\",\"object\":\"chat.completion.chunk\",\"created\":1677652288,\"model\":\"gpt-4o\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"}}]}").build()
+                val streamEvent2 = ServerSentEvent.builder("data: {\"id\":\"chatcmpl-123\",\"object\":\"chat.completion.chunk\",\"created\":1677652288,\"model\":\"gpt-4o\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" World\"}}]}").build()
+                val streamEvent3 = ServerSentEvent.builder("data: [DONE]").build()
+                val expectedFlow = flowOf(streamEvent1, streamEvent2, streamEvent3)
 
                 coEvery {
                     openAICompletionService.createCompletionStream(
                         any<OpenAIClient>(),
                         any<ChatCompletionCreateParams>(),
                         expectedMetadata,
+                        any(),
+                        any(),
                     )
                 } returns expectedFlow
 
@@ -325,7 +345,16 @@ class MasaicCompletionServiceTest {
                 val resultFlow = masaicCompletionService.createStreamingCompletion(request, headers, queryParams)
 
                 // Then
-                assertEquals(expectedFlow, resultFlow)
+                val collectedEvents = mutableListOf<ServerSentEvent<String>>()
+                resultFlow.collect { event ->
+                    collectedEvents.add(event)
+                }
+                
+                assertEquals(3, collectedEvents.size)
+                assertEquals(streamEvent1.data(), collectedEvents[0].data())
+                assertEquals(streamEvent2.data(), collectedEvents[1].data())
+                assertEquals(streamEvent3.data(), collectedEvents[2].data())
+                
                 coVerify(exactly = 1) {
                     openAICompletionService.createCompletionStream(
                         any<OpenAIClient>(),
@@ -337,9 +366,55 @@ class MasaicCompletionServiceTest {
                                     .asUser()
                                     .content()
                                     .asText() == "Hello"
-                            // Add more parameter checks if needed
                         },
                         expectedMetadata,
+                        any(),
+                        any(),
+                    )
+                }
+            }
+
+        @Test
+        fun `should handle streaming completion with final response callback`() =
+            runTest {
+                // Given
+                val request = createDefaultRequest().copy(stream = true)
+                val headers = createDefaultHeaders()
+                val queryParams = LinkedMultiValueMap<String, String>()
+                val expectedMetadata = InstrumentationMetadataInput("UNKNOWN", "gpt-4o", "api.groq.com", "-1")
+                val mockFinalCompletion = mockk<ChatCompletion>(relaxed = true)
+                
+                val streamEvent = ServerSentEvent.builder("data: {\"id\":\"chatcmpl-123\",\"object\":\"chat.completion.chunk\"}").build()
+                val expectedFlow = flowOf(streamEvent)
+                
+                val callbackSlot = slot<(ChatCompletion) -> Unit>()
+                
+                coEvery {
+                    openAICompletionService.createCompletionStream(
+                        any<OpenAIClient>(),
+                        any<ChatCompletionCreateParams>(),
+                        expectedMetadata,
+                        any(),
+                        capture(callbackSlot),
+                    )
+                } answers {
+                    // Simulate the callback being invoked
+                    callbackSlot.captured.invoke(mockFinalCompletion)
+                    expectedFlow
+                }
+
+                // When
+                val resultFlow = masaicCompletionService.createStreamingCompletion(request, headers, queryParams)
+                resultFlow.collect { } // Consume the flow
+
+                // Then
+                coVerify(exactly = 1) {
+                    openAICompletionService.createCompletionStream(
+                        any<OpenAIClient>(),
+                        any<ChatCompletionCreateParams>(),
+                        expectedMetadata,
+                        any(),
+                        any(),
                     )
                 }
             }
@@ -359,13 +434,15 @@ class MasaicCompletionServiceTest {
                         any<OpenAIClient>(),
                         any<ChatCompletionCreateParams>(),
                         expectedMetadata,
+                        any(),
+                        any(),
                     )
                 } throws exception
 
                 // When & Then
                 val thrown =
                     assertThrows<RuntimeException> {
-                        masaicCompletionService.createStreamingCompletion(request, headers, queryParams)
+                        masaicCompletionService.createStreamingCompletion(request, headers, queryParams).collect {}
                     }
                 assertEquals(exception.message, thrown.message)
                 assertEquals(exception, thrown)
@@ -382,7 +459,8 @@ class MasaicCompletionServiceTest {
                 // When & Then
                 val thrown =
                     assertThrows<IllegalArgumentException> {
-                        masaicCompletionService.createStreamingCompletion(request, headers, queryParams)
+                        val flow = masaicCompletionService.createStreamingCompletion(request, headers, queryParams)
+                        flow.collect { } // Need to consume the flow to trigger the validation
                     }
                 assertEquals("api-key is missing.", thrown.message)
             }
@@ -396,22 +474,37 @@ class MasaicCompletionServiceTest {
                 val request = createDefaultRequest(model = modelWithProvider).copy(stream = true)
                 val headers = createDefaultHeaders()
                 val queryParams = LinkedMultiValueMap<String, String>()
-                val expectedFlow = flowOf(ServerSentEvent.builder("data").build())
-                val expectedMetadata = InstrumentationMetadataInput("groq", expectedModelName, "api.groq.com", "-1") // Base URL derived from provider
+                val expectedMetadata = InstrumentationMetadataInput("groq", expectedModelName, "api.groq.com", "-1")
+                
+                val streamEvent = ServerSentEvent.builder("data: {\"choices\":[{\"delta\":{\"content\":\"test\"}}]}").build()
+                val expectedFlow = flowOf(streamEvent)
 
                 coEvery {
-                    openAICompletionService.createCompletionStream(any(), any(), expectedMetadata)
+                    openAICompletionService.createCompletionStream(
+                        any<OpenAIClient>(),
+                        any<ChatCompletionCreateParams>(),
+                        expectedMetadata,
+                        any(),
+                        any(),
+                    )
                 } returns expectedFlow
 
                 // When
-                masaicCompletionService.createStreamingCompletion(request, headers, queryParams)
+                val resultFlow = masaicCompletionService.createStreamingCompletion(request, headers, queryParams)
+                val events = mutableListOf<ServerSentEvent<String>>()
+                resultFlow.collect { events.add(it) }
 
                 // Then
+                assertEquals(1, events.size)
+                assertEquals(streamEvent.data(), events[0].data())
+                
                 coVerify(exactly = 1) {
                     openAICompletionService.createCompletionStream(
                         any<OpenAIClient>(),
                         match { params -> params.model().toString() == expectedModelName },
                         expectedMetadata,
+                        any(),
+                        any(),
                     )
                 }
             }
@@ -425,22 +518,76 @@ class MasaicCompletionServiceTest {
                 val request = createDefaultRequest(model = modelWithUrl).copy(stream = true)
                 val headers = createDefaultHeaders()
                 val queryParams = LinkedMultiValueMap<String, String>()
-                val expectedFlow = flowOf(ServerSentEvent.builder("data").build())
-                val expectedMetadata = InstrumentationMetadataInput("UNKNOWN", "local-model", "localhost", "11434") // Base URL derived from URL
+                val expectedMetadata = InstrumentationMetadataInput("UNKNOWN", "local-model", "localhost", "11434")
+                
+                val streamEvent = ServerSentEvent.builder("data: {\"choices\":[{\"delta\":{\"content\":\"local response\"}}]}").build()
+                val expectedFlow = flowOf(streamEvent)
 
                 coEvery {
-                    openAICompletionService.createCompletionStream(any(), any(), expectedMetadata)
+                    openAICompletionService.createCompletionStream(
+                        any<OpenAIClient>(),
+                        any<ChatCompletionCreateParams>(),
+                        expectedMetadata,
+                        any(),
+                        any(),
+                    )
                 } returns expectedFlow
 
                 // When
-                masaicCompletionService.createStreamingCompletion(request, headers, queryParams)
+                val resultFlow = masaicCompletionService.createStreamingCompletion(request, headers, queryParams)
+                val events = mutableListOf<ServerSentEvent<String>>()
+                resultFlow.collect { events.add(it) }
 
                 // Then
+                assertEquals(1, events.size)
+                assertEquals(streamEvent.data(), events[0].data())
+                
                 coVerify(exactly = 1) {
                     openAICompletionService.createCompletionStream(
                         any<OpenAIClient>(),
                         match { params -> params.model().toString() == expectedModelName },
                         expectedMetadata,
+                        any(),
+                        any(),
+                    )
+                }
+            }
+
+        @Test
+        fun `should handle empty stream gracefully`() =
+            runTest {
+                // Given
+                val request = createDefaultRequest().copy(stream = true)
+                val headers = createDefaultHeaders()
+                val queryParams = LinkedMultiValueMap<String, String>()
+                val expectedMetadata = InstrumentationMetadataInput("UNKNOWN", "gpt-4o", "api.groq.com", "-1")
+                val emptyFlow = flowOf<ServerSentEvent<String>>()
+
+                coEvery {
+                    openAICompletionService.createCompletionStream(
+                        any<OpenAIClient>(),
+                        any<ChatCompletionCreateParams>(),
+                        expectedMetadata,
+                        any(),
+                        any(),
+                    )
+                } returns emptyFlow
+
+                // When
+                val resultFlow = masaicCompletionService.createStreamingCompletion(request, headers, queryParams)
+                val events = mutableListOf<ServerSentEvent<String>>()
+                resultFlow.collect { events.add(it) }
+
+                // Then
+                assertEquals(0, events.size)
+                
+                coVerify(exactly = 1) {
+                    openAICompletionService.createCompletionStream(
+                        any<OpenAIClient>(),
+                        any<ChatCompletionCreateParams>(),
+                        expectedMetadata,
+                        any(),
+                        any(),
                     )
                 }
             }

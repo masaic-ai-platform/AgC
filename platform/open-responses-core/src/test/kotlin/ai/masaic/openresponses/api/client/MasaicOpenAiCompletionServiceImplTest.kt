@@ -12,9 +12,7 @@ import com.openai.models.chat.completions.ChatCompletionChunk
 import com.openai.models.chat.completions.ChatCompletionCreateParams
 import com.openai.models.chat.completions.ChatCompletionMessage
 import com.openai.models.chat.completions.ChatCompletionMessageToolCall
-import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.micrometer.observation.Observation
-import io.micrometer.observation.ObservationRegistry
 import io.mockk.clearAllMocks
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -23,14 +21,13 @@ import io.mockk.junit5.MockKExtension
 import io.mockk.mockk
 import io.mockk.spyk
 import io.mockk.verify
-import io.opentelemetry.api.OpenTelemetry
+import io.opentelemetry.api.trace.Span
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
-import org.springframework.http.codec.ServerSentEvent
 import java.util.stream.Stream
 import kotlin.test.assertEquals
 
@@ -46,28 +43,36 @@ class MasaicOpenAiCompletionServiceImplTest {
     private lateinit var toolService: ToolService
     private lateinit var service: MasaicOpenAiCompletionServiceImpl
 
-    // Dummy observation for telemetry blocks
+    // Mock spans and observations for telemetry
     private val mockObservation: Observation = mockk(relaxed = true)
+    private val mockSpan: Span = mockk(relaxed = true)
+    private val mockParentSpan: Span = mockk(relaxed = true)
 
     @BeforeEach
     fun setUp() {
         client = mockk(relaxed = true)
         toolHandler = mockk(relaxed = true)
         completionStore = mockk(relaxed = true)
+        telemetryService = mockk(relaxed = true)
         toolService = mockk(relaxed = true)
+        
         // Default alias map empty
         every { toolService.buildAliasMap(any()) } returns emptyMap()
 
-        // Spy real telemetry service, stub its withClientObservation
-        val observationRegistry = ObservationRegistry.create()
-        val meterRegistry = SimpleMeterRegistry()
-        telemetryService = spyk(TelemetryService(observationRegistry, OpenTelemetry.noop(), meterRegistry))
-        every {
-            runBlocking { telemetryService.withClientObservation<ChatCompletion>(any(), any(), any(), any()) }
-        } answers {
-            val block = thirdArg<(Observation) -> ChatCompletion>()
-            block(mockObservation)
+        // Setup default telemetry service behavior
+        coEvery { telemetryService.withClientSpan(any(), any(), any(), any<suspend (Span) -> ChatCompletion>()) } coAnswers {
+            val block = arg<suspend (Span) -> ChatCompletion>(3)
+            block(mockSpan)
         }
+        every { telemetryService.withChatCompletionTimer(any(), any(), any<() -> ChatCompletion>()) } answers {
+            val block = arg<() -> ChatCompletion>(2)
+            block()
+        }
+        coEvery { telemetryService.emitModelInputEventsForOtelSpan(any(), any(), any()) } returns Unit
+        every { telemetryService.emitModelOutputEventsForOtel(any(), any(), any()) } returns Unit
+        every { telemetryService.setChatCompletionObservationAttributesForOtelSpan(any(), any(), any(), any()) } returns Unit
+        every { telemetryService.recordChatCompletionTokenUsage(any(), any(), any(), any(), any()) } returns Unit
+        coEvery { telemetryService.startOtelSpan(any(), any(), any()) } returns mockSpan
 
         // Construct service under test
         service =
@@ -115,7 +120,9 @@ class MasaicOpenAiCompletionServiceImplTest {
                     .model("gpt-model")
                     .choices(listOf(choice))
                     .build()
-            every { telemetryService.withChatCompletionTimer(any(), any(), any<() -> ChatCompletion>()) } returns chatCompletion
+            
+            // Mock client call to return the chat completion
+            every { client.chat().completions().create(any<ChatCompletionCreateParams>()) } returns chatCompletion
 
             val params =
                 ChatCompletionCreateParams
@@ -126,13 +133,14 @@ class MasaicOpenAiCompletionServiceImplTest {
             val metadata = InstrumentationMetadataInput()
 
             // When
-            val result = service.create(client, params, metadata)
+            val result = service.create(client, params, metadata, mockParentSpan)
 
             // Then: returns the same completion and no storage
             assertEquals(chatCompletion, result)
-            verify(exactly = 1) { runBlocking { telemetryService.emitModelInputEvents(any(), params, metadata) } }
-            verify(exactly = 1) { telemetryService.emitModelOutputEvents(any(), chatCompletion, metadata) }
-            verify(exactly = 1) { telemetryService.setChatCompletionObservationAttributes(any(), chatCompletion, params, metadata) }
+            coVerify(exactly = 1) { telemetryService.withClientSpan(any(), any(), mockParentSpan, any<suspend (Span) -> ChatCompletion>()) }
+            coVerify(exactly = 1) { telemetryService.emitModelInputEventsForOtelSpan(any(), params, metadata) }
+            verify(exactly = 1) { telemetryService.emitModelOutputEventsForOtel(any(), chatCompletion, metadata) }
+            verify(exactly = 1) { telemetryService.setChatCompletionObservationAttributesForOtelSpan(any(), chatCompletion, params, metadata) }
             coVerify(exactly = 0) { completionStore.storeCompletion(any(), any(), any()) }
         }
 
@@ -163,7 +171,9 @@ class MasaicOpenAiCompletionServiceImplTest {
                     .model("gpt-model")
                     .choices(listOf(choice))
                     .build()
-            every { telemetryService.withChatCompletionTimer(any(), any(), any<() -> ChatCompletion>()) } returns chatCompletion
+            
+            // Mock client call to return the chat completion
+            every { client.chat().completions().create(any<ChatCompletionCreateParams>()) } returns chatCompletion
 
             val params =
                 ChatCompletionCreateParams
@@ -183,13 +193,14 @@ class MasaicOpenAiCompletionServiceImplTest {
             } returns chatCompletion
 
             // When
-            val result = service.create(client, params, metadata)
+            val result = service.create(client, params, metadata, mockParentSpan)
 
             // Then: returns and stores once
             assertEquals(chatCompletion, result)
-            verify(exactly = 1) { runBlocking { telemetryService.emitModelInputEvents(any(), params, metadata) } }
-            verify(exactly = 1) { telemetryService.emitModelOutputEvents(any(), chatCompletion, metadata) }
-            verify(exactly = 1) { telemetryService.setChatCompletionObservationAttributes(any(), chatCompletion, params, metadata) }
+            coVerify(exactly = 1) { telemetryService.withClientSpan(any(), any(), mockParentSpan, any<suspend (Span) -> ChatCompletion>()) }
+            coVerify(exactly = 1) { telemetryService.emitModelInputEventsForOtelSpan(any(), params, metadata) }
+            verify(exactly = 1) { telemetryService.emitModelOutputEventsForOtel(any(), chatCompletion, metadata) }
+            verify(exactly = 1) { telemetryService.setChatCompletionObservationAttributesForOtelSpan(any(), chatCompletion, params, metadata) }
             coVerify(exactly = 1) {
                 completionStore.storeCompletion(
                     chatCompletion,
@@ -240,16 +251,17 @@ class MasaicOpenAiCompletionServiceImplTest {
                     .choices(listOf(choice))
                     .build()
 
-            every { telemetryService.withChatCompletionTimer(any(), any(), any<() -> ChatCompletion>()) } returns chatCompletion
+            // Mock client call to return the chat completion
+            every { client.chat().completions().create(any<ChatCompletionCreateParams>()) } returns chatCompletion
+            
             // Stub handler to indicate unresolved client tools
-            every {
-                runBlocking {
-                    toolHandler.handleCompletionToolCall(
-                        chatCompletion,
-                        any(),
-                        client,
-                    )
-                }
+            coEvery {
+                toolHandler.handleCompletionToolCall(
+                    chatCompletion,
+                    any(),
+                    client,
+                    mockParentSpan,
+                )
             } returns
                 CompletionToolCallOutcome.Continue(
                     updatedMessages = emptyList(),
@@ -265,10 +277,11 @@ class MasaicOpenAiCompletionServiceImplTest {
             val metadata = InstrumentationMetadataInput()
 
             // When
-            val result = service.create(client, params, metadata)
+            val result = service.create(client, params, metadata, mockParentSpan)
 
             // Then: original completion returned, no store
             assertEquals(chatCompletion, result)
+            coVerify(exactly = 1) { telemetryService.withClientSpan(any(), any(), mockParentSpan, any<suspend (Span) -> ChatCompletion>()) }
             coVerify(exactly = 0) { completionStore.storeCompletion(any(), any(), any()) }
         }
 
@@ -311,9 +324,12 @@ class MasaicOpenAiCompletionServiceImplTest {
                     .model("gpt-model")
                     .choices(listOf(choice))
                     .build()
-            every { telemetryService.withChatCompletionTimer(any(), any(), any<() -> ChatCompletion>()) } returns chatCompletion
-            every {
-                runBlocking { toolHandler.handleCompletionToolCall(chatCompletion, any(), client) }
+            
+            // Mock client call to return the chat completion
+            every { client.chat().completions().create(any<ChatCompletionCreateParams>()) } returns chatCompletion
+            
+            coEvery {
+                toolHandler.handleCompletionToolCall(chatCompletion, any(), client, mockParentSpan)
             } returns
                 CompletionToolCallOutcome.Continue(
                     updatedMessages = emptyList(),
@@ -333,32 +349,19 @@ class MasaicOpenAiCompletionServiceImplTest {
             val metadata = InstrumentationMetadataInput()
 
             // When
-            val result = service.create(client, params, metadata)
+            val result = service.create(client, params, metadata, mockParentSpan)
 
             // Then: original returned and stored once
             assertEquals(chatCompletion, result)
+            coVerify(exactly = 1) { telemetryService.withClientSpan(any(), any(), mockParentSpan, any<suspend (Span) -> ChatCompletion>()) }
             coVerify(atLeast = 1) {
                 completionStore.storeCompletion(chatCompletion, any(), ofType(CompletionToolRequestContext::class))
             }
         }
 
     @Test
-    fun `createCompletionStream should invoke telemetry observation and return empty flow`() =
+    fun `createCompletionStream should invoke telemetry and return empty flow`() =
         runBlocking {
-            // Stub streaming observation
-            every {
-                runBlocking {
-                    telemetryService.withClientObservation<kotlinx.coroutines.flow.Flow<ServerSentEvent<String>>>(
-                        "openai.chat.completions.stream",
-                        any(),
-                        any(),
-                        any(),
-                    )
-                }
-            } answers {
-                val block = thirdArg<(Observation) -> kotlinx.coroutines.flow.Flow<ServerSentEvent<String>>>()
-                block(mockObservation)
-            }
             // Stub streaming call to return no chunks
             val fakeStream =
                 object : com.openai.core.http.StreamResponse<ChatCompletionChunk> {
@@ -375,10 +378,15 @@ class MasaicOpenAiCompletionServiceImplTest {
                     .model(ChatModel.GPT_3_5_TURBO)
                     .build()
             val metadata = InstrumentationMetadataInput()
+            var finalResponseCalled = false
+            val onFinalResponse: (ChatCompletion) -> Unit = { finalResponseCalled = true }
 
             // When
-            val events = service.createCompletionStream(client, params, metadata).toList()
+            val events = service.createCompletionStream(client, params, metadata, mockParentSpan, onFinalResponse).toList()
 
+            // Then
             assertEquals(0, events.size)
+            coVerify(exactly = 1) { telemetryService.startOtelSpan(any(), any(), mockParentSpan) }
+            coVerify(exactly = 1) { telemetryService.emitModelInputEventsForOtelSpan(any(), params, metadata) }
         }
 }
