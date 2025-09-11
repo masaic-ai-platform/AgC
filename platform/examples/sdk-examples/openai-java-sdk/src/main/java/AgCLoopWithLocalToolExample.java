@@ -13,16 +13,16 @@ import com.openai.models.chat.completions.ChatCompletionToolMessageParam;
 import com.openai.models.chat.completions.ChatCompletionUserMessageParam;
 import java.util.List;
 
-public class AgCLoopsWithLocalToolExample {
+public class AgCLoopWithLocalToolExample {
 
   private static final String API_KEY = System.getenv("OPENAI_API_KEY");
   private static final String E2B_API_KEY = System.getenv("E2B_API_KEY");
   private static final String BASE_URL = "http://localhost:6644/v1";
-  private static final String MODEL = "openai@gpt-4.1-mini";
+  private static final String MODEL = "claude@claude-3-7-sonnet-20250219";
 
   private final ObjectMapper objectMapper;
 
-  public AgCLoopsWithLocalToolExample() {
+  public AgCLoopWithLocalToolExample() {
     this.objectMapper = new ObjectMapper();
   }
 
@@ -34,7 +34,7 @@ public class AgCLoopsWithLocalToolExample {
       OpenAIClient client = OpenAIOkHttpClient.builder().apiKey(API_KEY).baseUrl(BASE_URL).build();
 
       // Create the example
-      AgCLoopsWithLocalToolExample example = new AgCLoopsWithLocalToolExample();
+      AgCLoopWithLocalToolExample example = new AgCLoopWithLocalToolExample();
       example.runSDKStreaming(client);
     } catch (Exception ex) {
       ex.printStackTrace();

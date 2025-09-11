@@ -5,12 +5,12 @@ from typing import Dict, List, Any
 from openai import OpenAI
 
 
-class AgCLoopsWithLocalToolExample:
+class AgCLoopWithLocalToolExample:
 
     API_KEY = os.getenv("OPENAI_API_KEY")
     E2B_API_KEY = os.getenv("E2B_API_KEY")
     BASE_URL = "http://localhost:6644/v1"
-    MODEL = "openai@gpt-4.1-mini"
+    MODEL = "claude@claude-3-7-sonnet-20250219"
 
     def __init__(self):
         pass
@@ -26,7 +26,7 @@ class AgCLoopsWithLocalToolExample:
             )
 
             # Create the example
-            example = AgCLoopsWithLocalToolExample()
+            example = AgCLoopWithLocalToolExample()
             example.runSDKStreaming(client)
         except Exception as ex:
             ex.print_exc()
@@ -272,5 +272,5 @@ class AgCLoopsWithLocalToolExample:
 
 
 if __name__ == "__main__":
-    example = AgCLoopsWithLocalToolExample()
+    example = AgCLoopWithLocalToolExample()
     example.main()
