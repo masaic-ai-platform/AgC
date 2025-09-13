@@ -6,7 +6,6 @@ import ai.masaic.openresponses.api.model.InputMessageItem
 import ai.masaic.openresponses.api.model.ResponseInputItemList
 import ai.masaic.openresponses.api.service.ResponseFacadeService
 import ai.masaic.openresponses.api.service.ResponseNotFoundException
-import ai.masaic.openresponses.api.service.ResponseProcessingResult
 import ai.masaic.openresponses.api.service.ResponseStoreService
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.models.responses.Response
@@ -51,12 +50,8 @@ class ResponseControllerTest {
             val mockResponse = mockk<Response>(relaxed = true)
 
             coEvery {
-                responseFacadeService.processResponse(
-                    any(),
-                    any(),
-                    any(),
-                )
-            } returns ResponseProcessingResult.NonStreaming(mockResponse)
+                responseFacadeService.processResponseForController(any(), any(), any())
+            } returns mockResponse
 
             // When/Then
             webTestClient
@@ -71,11 +66,7 @@ class ResponseControllerTest {
                 .isOk
 
             coVerify {
-                responseFacadeService.processResponse(
-                    any(),
-                    any(),
-                    any(),
-                )
+                responseFacadeService.processResponseForController(any(), any(), any())
             }
         }
 

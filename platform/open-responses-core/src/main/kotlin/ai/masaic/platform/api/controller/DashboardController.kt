@@ -8,6 +8,7 @@ import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.*
 import ai.masaic.platform.api.config.ModelSettings
+import ai.masaic.platform.api.config.PlatformCoreConfig
 import ai.masaic.platform.api.config.PlatformInfo
 import ai.masaic.platform.api.interpreter.CodeExecResult
 import ai.masaic.platform.api.interpreter.CodeExecuteReq
@@ -23,7 +24,6 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import mu.KotlinLogging
 import org.springframework.context.annotation.Profile
-import org.springframework.core.io.ClassPathResource
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -46,15 +46,8 @@ class DashboardController(
     private val functionRegistryService: FunctionRegistryService,
 ) {
     private val mapper = jacksonObjectMapper()
-    private lateinit var modelProviders: Set<ModelProvider>
+    private val modelProviders: Set<ModelProvider> = PlatformCoreConfig.loadProviders()
     private val log = KotlinLogging.logger { }
-
-    init {
-        val resource = ClassPathResource("model-providers.json")
-        val jsonContent = resource.inputStream.bufferedReader().use { it.readText() }
-        val providersList: List<ModelProvider> = mapper.readValue(jsonContent)
-        modelProviders = providersList.toSet()
-    }
 
     @GetMapping("/models", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun getModelProviders(): ResponseEntity<Set<ModelProvider>> = ResponseEntity.ok(modelProviders)

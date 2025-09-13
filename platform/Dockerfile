@@ -7,7 +7,7 @@ USER app
 WORKDIR /app
 
 # Copy the built JAR and configuration file into the image
-COPY open-responses-server/build/libs/openresponses-0.5.2.jar /app/openresponses-0.5.2.jar
+COPY open-responses-server/build/libs/openresponses-0.5.3-dev.jar /app/openresponses-0.5.3-dev.jar
 COPY open-responses-core/src/main/resources/mcp-servers-config.json /app/mcp-servers-config.json
 
 EXPOSE 6644

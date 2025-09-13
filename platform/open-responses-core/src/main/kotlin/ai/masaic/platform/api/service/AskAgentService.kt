@@ -1,14 +1,18 @@
 package ai.masaic.platform.api.service
 
-import ai.masaic.openresponses.api.model.CreateResponseRequest
+import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.ResponseFacadeService
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.api.service.ResponseProcessingInput
 import ai.masaic.openresponses.api.service.ResponseProcessingResult
 import ai.masaic.openresponses.api.utils.ResponsesUtils
 import ai.masaic.platform.api.config.ModelSettings
+import ai.masaic.platform.api.config.PlatformCoreConfig
+import ai.masaic.platform.api.config.PyInterpreterSettings
 import ai.masaic.platform.api.config.SystemSettingsType
+import ai.masaic.platform.api.model.ModelProvider
 import ai.masaic.platform.api.model.PlatformAgent
+import com.fasterxml.jackson.annotation.JsonProperty
 import com.openai.models.responses.Response
 import kotlinx.coroutines.flow.Flow
 import mu.KotlinLogging
@@ -18,8 +22,10 @@ class AskAgentService(
     private val agentService: AgentService,
     private val responseFacadeService: ResponseFacadeService,
     private val modelSettings: ModelSettings,
+    private val pyInterpreterSettings: PyInterpreterSettings,
 ) {
     private val log = KotlinLogging.logger { }
+    private val modelProviders: Set<ModelProvider> = PlatformCoreConfig.loadProviders()
 
     /**
      * Asks an agent a question and returns the response synchronously (non-streaming).
@@ -40,15 +46,17 @@ class AskAgentService(
         log.debug { "Found agent: ${agent.name}, creating response request" }
         
         // Create the response request using the agent's configuration
-        val modelSettings = resolveModelSettings(agent)
+        val modelSettings = resolveModelSettings(agent.model)
+        val updateTools = updateToolsWithApplicableCredentials(agent)
         val responseRequest =
             CreateResponseRequest(
                 model = modelSettings.qualifiedModelName,
                 input = buildAgentMessages(request),
                 instructions = agent.systemPrompt,
-                tools = agent.tools,
+                tools = updateTools,
                 temperature = agent.temperature,
-                stream = false, // Non-streaming request
+                stream = false,
+                previousResponseId = request.previousResponseId,
             )
         
         // Use the facade service to process the request
@@ -65,7 +73,7 @@ class AskAgentService(
             is ResponseProcessingResult.NonStreaming -> {
                 val content = extractContentFromResult(result.response)
                 log.debug { "Successfully processed ask agent request, response length: ${content.length}" }
-                AskAgentResponse(content = content)
+                AskAgentResponse(content = content, responseId = result.response.id())
             }
             is ResponseProcessingResult.Streaming -> {
                 // This should never happen since we set stream = false
@@ -122,20 +130,70 @@ class AskAgentService(
         } ?: throw AgentRunException("No output from agent.")
     }
 
-    private fun resolveModelSettings(agent: PlatformAgent): ModelSettings {
+    private fun resolveModelSettings(model: String?): ModelSettings {
+        val provider =
+            model?.let {
+                ModelSettings.findProvider(model)
+                    ?: modelProviders
+                        .find { provider ->
+                            provider.supportedModels?.firstOrNull { it.name == model } != null
+                        }?.name
+            }
+
+        val finalSettings =
+            provider?.let { modelSettings.providerApiKeys[provider]?.apiKey }?.let {
+                val qualifiedModelName = if (model.contains("@")) model else "$provider@$model"
+                ModelSettings(modelApiKey = it, model = qualifiedModelName)
+            }
+        if (finalSettings != null) {
+            return finalSettings
+        }
+
         if (modelSettings.settingsType == SystemSettingsType.RUNTIME) throw AgentRunException("Model and api key not available to run agent.")
         return modelSettings
+    }
+
+    private fun resolveInterpreterServer(): PyInterpreterServer {
+        if (pyInterpreterSettings.systemSettingsType == SystemSettingsType.RUNTIME) throw AgentRunException("Missing E2B server URL and api key")
+        return pyInterpreterSettings.pyInterpreterServer ?: throw AgentRunException("Missing E2B server URL and api key")
+    }
+
+    private fun updateToolsWithApplicableCredentials(agent: PlatformAgent): List<Tool> {
+        val updatedTools =
+            agent.tools.map { tool ->
+                when (tool) {
+                    is FileSearchTool -> {
+                        val modelSettings = resolveModelSettings(tool.modelInfo?.model)
+                        tool.copy(modelInfo = ModelInfo(bearerToken = modelSettings.bearerToken, model = modelSettings.qualifiedModelName))
+                    }
+                    is AgenticSeachTool -> {
+                        val modelSettings = resolveModelSettings(tool.modelInfo?.model)
+                        tool.copy(modelInfo = ModelInfo(bearerToken = modelSettings.bearerToken, model = modelSettings.qualifiedModelName))
+                    }
+                    is PyFunTool -> {
+                        val interpreterServer = resolveInterpreterServer()
+                        tool.copy(interpreterServer = PyInterpreterServer(serverLabel = interpreterServer.serverLabel, url = interpreterServer.url, apiKey = interpreterServer.apiKey))
+                    }
+                    else -> tool
+                }
+            }
+        return updatedTools
     }
 }
 
 data class AskAgentRequest(
+    @JsonProperty("agent_name")
     val agentName: String = "",
     val query: String,
     val context: String? = null,
+    @JsonProperty("previous_response_id")
+    val previousResponseId: String? = null,
 )
 
 data class AskAgentResponse(
     val content: String,
+    @JsonProperty("response_id")
+    val responseId: String,
 )
 
 class AgentRunException(
