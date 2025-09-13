@@ -174,6 +174,26 @@ SPRING_PROFILES_ACTIVE=platform
 ```
 ---
 
+### Connect AgC MCP Server In Claude Desktop
+1. Open Settings >> Developer >> Edit Config
+2. This will open file claude_desktop_config.json
+3. Add the following MCP server:
+```json
+{
+  "mcpServers": {
+    "AgC": {
+      "command": "npx",
+      "args": ["mcp-remote", "http://localhost:6644/mcp", "--allow-http", "--header", "Authorization: Bearer ${MCP_API_KEY}"],
+      "env": {
+        "APP_MODE": "http",
+        "MCP_API_KEY": "agc_kjasdjskde2e5443445ferdwde32e2e"
+      }
+    }
+  }
+}
+```
+4. Save config and restart claude. You would see AgC in MCP servers.
+
 <p align="center">
   Made with ❤️ by the Masaic AI Team
 </p>

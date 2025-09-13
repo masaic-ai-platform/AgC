@@ -1,10 +1,12 @@
 package ai.masaic.platform.api.service
 
-import ai.masaic.openresponses.api.controller.ResponseController
 import ai.masaic.openresponses.api.model.CompletedEventData
 import ai.masaic.openresponses.api.model.CreateResponseRequest
 import ai.masaic.openresponses.api.model.EventData
+import ai.masaic.openresponses.api.service.ResponseFacadeService
 import ai.masaic.openresponses.api.service.ResponseProcessingException
+import ai.masaic.openresponses.api.service.ResponseProcessingInput
+import ai.masaic.openresponses.api.service.ResponseProcessingResult
 import ai.masaic.platform.api.model.PlatformAgent
 import ai.masaic.platform.api.tools.PlatformToolsNames
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -15,17 +17,19 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import mu.KotlinLogging
 import org.springframework.http.codec.ServerSentEvent
-import org.springframework.util.MultiValueMap
 import java.util.UUID
 
-@Suppress("UNCHECKED_CAST")
 class AgentBuilderChatService(
-    private val responseController: ResponseController,
+    private val responseFacadeService: ResponseFacadeService,
     private val agentService: AgentService,
 ) {
     private val mapper = jacksonObjectMapper()
     private val log = KotlinLogging.logger { }
 
+    /**
+     * Handles agent builder chat requests.
+     * This method always returns a streaming response since agent conversations require real-time interaction.
+     */
     suspend fun chat(
         request: AgentBuilderChatRequest,
         authHeader: String,
@@ -36,9 +40,28 @@ class AgentBuilderChatService(
             updatedRequest = addUserMessage(request.modifiedAgentName, request.responsesRequest)
         }
 
-        val response = responseController.createResponse(updatedRequest, MultiValueMap.fromMultiValue(mapOf("Authorization" to listOf(authHeader))), MultiValueMap.fromMultiValue(mapOf("empty" to listOf(""))))
+        // Ensure the request is set to streaming since AgentBuilderChatService always returns a stream
+        val streamingRequest = updatedRequest.copy(stream = true)
+        
+        // Use the simplified facade service wrapper
+        val result =
+            responseFacadeService.processResponse(
+                ResponseProcessingInput(
+                    request = streamingRequest,
+                    headers = mapOf("Authorization" to authHeader),
+                ),
+            )
 
-        val upStream = response.body as Flow<ServerSentEvent<*>>
+        // Extract the streaming flow (AgentBuilderChatService always works with streams)
+        val upStream =
+            when (result) {
+                is ResponseProcessingResult.Streaming -> result.flow
+                is ResponseProcessingResult.NonStreaming -> {
+                    // This should never happen since we explicitly set stream = true
+                    log.error { "Unexpected non-streaming result from facade service when stream=true was requested" }
+                    throw ResponseProcessingException("Expected streaming response but received non-streaming result")
+                }
+            }
         var saveAgentResponse: SaveAgentResponse? = null
         return flow {
             upStream.collect { event ->

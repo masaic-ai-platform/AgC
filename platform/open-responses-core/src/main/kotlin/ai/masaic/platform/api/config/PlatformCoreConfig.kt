@@ -4,11 +4,11 @@ import ai.masaic.openresponses.api.client.ResponseStore
 import ai.masaic.openresponses.api.config.DeploymentSettings
 import ai.masaic.openresponses.api.config.QdrantVectorProperties
 import ai.masaic.openresponses.api.config.VectorSearchConfigProperties
-import ai.masaic.openresponses.api.controller.ResponseController
 import ai.masaic.openresponses.api.model.MCPTool
 import ai.masaic.openresponses.api.model.ModelInfo
 import ai.masaic.openresponses.api.model.PyInterpreterServer
 import ai.masaic.openresponses.api.repository.VectorStoreRepository
+import ai.masaic.openresponses.api.service.ResponseFacadeService
 import ai.masaic.openresponses.api.service.VectorStoreFileManager
 import ai.masaic.openresponses.api.service.embedding.EmbeddingService
 import ai.masaic.openresponses.api.service.embedding.OpenAIProxyEmbeddingService
@@ -19,6 +19,7 @@ import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.platform.api.interpreter.CodeRunnerService
 import ai.masaic.platform.api.interpreter.PythonCodeRunnerService
+import ai.masaic.platform.api.model.ModelProvider
 import ai.masaic.platform.api.registry.functions.FunctionRegistryRepository
 import ai.masaic.platform.api.registry.functions.FunctionRegistryService
 import ai.masaic.platform.api.registry.functions.FunctionRegistryValidator
@@ -32,6 +33,8 @@ import ai.masaic.platform.api.user.AuthConfigProperties
 import ai.masaic.platform.api.utils.PlatformPayloadFormatter
 import ai.masaic.platform.api.validation.PlatformRequestValidator
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.observation.ObservationRegistry
 import io.opentelemetry.api.OpenTelemetry
@@ -43,11 +46,14 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.*
+import org.springframework.core.env.Environment
+import org.springframework.core.io.ClassPathResource
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
 import java.time.Instant
 
 @Profile("platform")
 @Configuration
+@EnableConfigurationProperties(ProviderApiKeysProperties::class)
 class PlatformCoreConfig {
     @Value("\${platform.deployment.apiKey:na}")
     private val modelApiKey = ""
@@ -55,8 +61,24 @@ class PlatformCoreConfig {
     @Value("\${platform.deployment.model:openai@gpt-4.1-mini}")
     private val model = "openai@gpt-4.1-mini"
 
+    companion object {
+        fun loadProviders(): Set<ModelProvider> {
+            val resource = ClassPathResource("model-providers.json")
+            val jsonContent = resource.inputStream.bufferedReader().use { it.readText() }
+            val providersList: List<ModelProvider> = jacksonObjectMapper().readValue(jsonContent)
+            return providersList.toSet()
+        }
+    }
+
     @Bean
-    fun systemSettings(): ModelSettings = if (modelApiKey == "na") ModelSettings() else ModelSettings(SystemSettingsType.DEPLOYMENT_TIME, modelApiKey, model)
+    fun modelSettings(
+        providerApiKeysProperties: ProviderApiKeysProperties,
+    ): ModelSettings =
+        if (modelApiKey == "na") {
+            ModelSettings(providerApiKeysProperties.providers)
+        } else {
+            ModelSettings(SystemSettingsType.DEPLOYMENT_TIME, modelApiKey, model, providerApiKeysProperties.providers)
+        }
 
     @Bean
     fun funDefGeneratorTool(
@@ -193,9 +215,17 @@ class PlatformCoreConfig {
 
     @Bean
     fun agentBuilderChatService(
-        responseController: ResponseController,
+        responseFacadeService: ResponseFacadeService,
         agentService: AgentService,
-    ) = AgentBuilderChatService(responseController, agentService)
+    ) = AgentBuilderChatService(responseFacadeService, agentService)
+
+    @Bean
+    fun askAgentService(
+        agentService: AgentService,
+        responseFacadeService: ResponseFacadeService,
+        modelSettings: ModelSettings,
+        pyInterpreterSettings: PyInterpreterSettings,
+    ) = AskAgentService(agentService, responseFacadeService, modelSettings, pyInterpreterSettings)
 
     @Bean
     @ConditionalOnMissingBean(TelemetryService::class)
@@ -449,6 +479,7 @@ data class ModelSettings(
     val settingsType: SystemSettingsType,
     var apiKey: String,
     var model: String,
+    val providerApiKeys: Map<String, ProviderConfig> = emptyMap(),
 ) {
     var bearerToken: String
     var qualifiedModelName: String = model
@@ -460,8 +491,9 @@ data class ModelSettings(
         bearerToken = "Bearer $apiKey"
     }
 
-    constructor() : this(SystemSettingsType.RUNTIME, "", "")
-    constructor(modelApiKey: String, model: String) : this(SystemSettingsType.RUNTIME, modelApiKey, model)
+    constructor() : this(SystemSettingsType.RUNTIME, "", "", emptyMap())
+    constructor(modelApiKey: String, model: String) : this(SystemSettingsType.RUNTIME, modelApiKey, model, emptyMap())
+    constructor(providerApiKeys: Map<String, ProviderConfig>) : this(SystemSettingsType.RUNTIME, "", "", providerApiKeys)
 
     fun resolveSystemSettings(modelInfo: ModelInfo?): ModelSettings =
         if (this.settingsType == SystemSettingsType.DEPLOYMENT_TIME) {
@@ -482,6 +514,10 @@ data class ModelSettings(
             requireNotNull(modelSettings.model) { "model required, can't be null or blank" }
             ModelSettings(modelSettings.apiKey, modelSettings.model)
         }
+
+    companion object {
+        fun findProvider(qualifiedModel: String): String? = if (qualifiedModel.contains("@")) qualifiedModel.split("@")[0] else null
+    }
 }
 
 enum class SystemSettingsType {
@@ -493,6 +529,18 @@ enum class SystemSettingsType {
 data class CodeInterpreterServerProperties(
     val name: String? = null,
     val url: String? = null,
+    val apiKey: String? = null,
+)
+
+
+@ConfigurationProperties("platform.deployment")
+data class ProviderApiKeysProperties(
+    val providers: Map<String, ProviderConfig> = emptyMap(),
+) {
+    fun getApiKey(providerName: String): String? = providers[providerName]?.apiKey ?: providers[providerName.lowercase()]?.apiKey
+}
+
+data class ProviderConfig(
     val apiKey: String? = null,
 )
 

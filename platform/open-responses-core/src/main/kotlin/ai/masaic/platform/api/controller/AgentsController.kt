@@ -2,9 +2,7 @@ package ai.masaic.platform.api.controller
 
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.platform.api.model.PlatformAgent
-import ai.masaic.platform.api.service.AgentBuilderChatRequest
-import ai.masaic.platform.api.service.AgentBuilderChatService
-import ai.masaic.platform.api.service.AgentService
+import ai.masaic.platform.api.service.*
 import kotlinx.coroutines.flow.Flow
 import org.springframework.context.annotation.Profile
 import org.springframework.http.MediaType
@@ -20,6 +18,7 @@ import java.net.URI
 class AgentsController(
     private val agentService: AgentService,
     private val agentBuilderChatService: AgentBuilderChatService,
+    private val askAgentService: AskAgentService,
 ) {
     @GetMapping("/agents/{agentName}", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun getAgent(
@@ -75,5 +74,16 @@ class AgentsController(
             .body(
                 agentBuilderChatService
                     .chat(agentBuilderChatRequest, authBearerToken),
+            )
+
+    @PostMapping("/agents/{agentName}/ask", produces = [MediaType.APPLICATION_JSON_VALUE])
+    suspend fun askAgent(
+        @PathVariable agentName: String,
+        @RequestBody request: AskAgentRequest,
+    ): ResponseEntity<AskAgentResponse> =
+        ResponseEntity
+            .ok()
+            .body(
+                askAgentService.askAgent(request = request.copy(agentName = agentName)),
             )
 }

@@ -23,7 +23,15 @@ class Converter {
                     if (tool.has("description")) {
                         builder.description(tool["description"].asText())
                     }
-                    builder.parameters(ToolSpecificationHelper.jsonNodeToJsonSchemaElement(tool["inputSchema"]) as JsonObjectSchema)
+                    if (tool.has("inputSchema")) {
+                        builder.parameters(ToolSpecificationHelper.jsonNodeToJsonSchemaElement(tool["inputSchema"]) as JsonObjectSchema)
+                    } else {
+                        builder.parameters(
+                            JsonObjectSchema
+                                .builder() // no fields
+                                .build(),
+                        )
+                    }
                     result.add(builder.build())
                 } catch (ex: Exception) {
                     log.warn { "Error occurred while parsing ${tool["name"].asText()}, error: ${ex.printStackTrace()}" }
