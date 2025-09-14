@@ -12,4 +12,4 @@ COPY open-responses-core/src/main/resources/mcp-servers-config.json /app/mcp-ser
 
 EXPOSE 6644
 # Start the Java application directly
-ENTRYPOINT ["java", "-jar", "/app/openresponses-0.5.2.jar"]
+ENTRYPOINT ["java", "-jar", "/app/openresponses-0.5.3-dev.jar"]

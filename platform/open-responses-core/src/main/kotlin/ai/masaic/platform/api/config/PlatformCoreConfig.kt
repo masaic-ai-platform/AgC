@@ -532,7 +532,6 @@ data class CodeInterpreterServerProperties(
     val apiKey: String? = null,
 )
 
-
 @ConfigurationProperties("platform.deployment")
 data class ProviderApiKeysProperties(
     val providers: Map<String, ProviderConfig> = emptyMap(),

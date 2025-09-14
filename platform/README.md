@@ -183,10 +183,10 @@ SPRING_PROFILES_ACTIVE=platform
   "mcpServers": {
     "AgC": {
       "command": "npx",
-      "args": ["mcp-remote", "http://localhost:6644/mcp", "--allow-http", "--header", "Authorization: Bearer ${MCP_API_KEY}"],
+      "args": ["mcp-remote", "https://api.platform.dev.masaic.xyz/mcp", "--allow-http", "--header", "Authorization: Bearer ${MCP_API_KEY}"],
       "env": {
         "APP_MODE": "http",
-        "MCP_API_KEY": "agc_kjasdjskde2e5443445ferdwde32e2e"
+        "MCP_API_KEY": "AgC_MCP_API_KEY"
       }
     }
   }
