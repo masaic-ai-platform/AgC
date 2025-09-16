@@ -156,6 +156,22 @@ class GlobalExceptionHandler(
         return ResponseEntity.status(status).body(errorResponse)
     }
 
+    @ExceptionHandler(HttpStatusCodeException::class)
+    fun handleHttpStatusCodeException(ex: HttpStatusCodeException): ResponseEntity<ErrorResponse> {
+        val status = HttpStatus.valueOf(ex.httpStatusCode)
+        logError(status, ex, "Error processing response: ${ex.message}")
+
+        val errorResponse =
+            ErrorResponse(
+                type = "${status}_error",
+                message = ex.message ?: "Error processing response",
+                param = null,
+                code = status.value().toString(),
+                timestamp = System.currentTimeMillis(),
+            )
+        return ResponseEntity.status(status).body(errorResponse)
+    }
+
     @ExceptionHandler(ResponseStreamingException::class)
     fun handleResponseStreamingException(ex: ResponseStreamingException): ResponseEntity<ErrorResponse> {
         if (ex.cause is OpenAIException) {

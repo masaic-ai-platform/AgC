@@ -95,3 +95,8 @@ class VectorIndexingException(
     message: String,
     cause: Throwable? = null,
 ) : VectorStoreException(message, cause)
+
+abstract class HttpStatusCodeException(
+    val httpStatusCode: String,
+    message: String,
+) : RuntimeException(message)

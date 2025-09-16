@@ -619,11 +619,9 @@ data class CallToolResponse(
 )
 
 class McpUnAuthorizedException(
-    message: String,
-    cause: Throwable? = null,
-) : RuntimeException(message, cause)
+    message: String
+) : RuntimeException(message)
 
 class McpToolNotFoundException(
     message: String,
-    cause: Throwable? = null,
-) : RuntimeException(message, cause)
+) : RuntimeException(message)
