@@ -2,6 +2,7 @@ package ai.masaic.platform.api.service
 
 import ai.masaic.openresponses.api.model.CompletedEventData
 import ai.masaic.openresponses.api.model.CreateResponseRequest
+import ai.masaic.openresponses.api.model.ErrorEventData
 import ai.masaic.openresponses.api.model.EventData
 import ai.masaic.openresponses.api.service.ResponseFacadeService
 import ai.masaic.openresponses.api.service.ResponseProcessingException
@@ -12,6 +13,7 @@ import ai.masaic.platform.api.tools.PlatformToolsNames
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.openai.models.responses.ResponseIncompleteEvent
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
@@ -66,7 +68,38 @@ class AgentBuilderChatService(
         return flow {
             upStream.collect { event ->
                 val receivedEventName = event.event()?.trim() ?: ""
-                emit(event)
+
+                if (receivedEventName == "response.incomplete") {
+                    log.debug { "incomplete response event data: ${event.data()}" }
+                    val parsedEvent = parseEvent<ResponseIncompleteEvent>(event.data())
+                    log.debug { "incompleteEvent: $parsedEvent" }
+                    val error =
+                        when {
+                            parsedEvent?.response()?.incompleteDetails()?.isPresent == true -> {
+                                val reason =
+                                    parsedEvent
+                                        .response()
+                                        .incompleteDetails()
+                                        .get()
+                                        .reason()
+                                if (reason.isPresent) {
+                                    reason.get().asString()
+                                } else {
+                                    "incomplete response but reason is unknown"
+                                }
+                            }
+                            parsedEvent?.response()?.error()?.isPresent == true -> {
+                                mapper.writeValueAsString(parsedEvent.response().error().get())
+                            }
+                            else -> "unknown error."
+                        }
+                    log.error { "Response incomplete, ending stream, error: $error" }
+                    emit(event("response.agent.creation.paused"))
+                    emit(event("error", eventData = ErrorEventData(itemId = UUID.randomUUID().toString(), outputIndex = "0", type = "error", error = "Error in streaming response: $error")))
+                } else {
+                    emit(event)
+                }
+
                 if (!request.modifyAgent && receivedEventName.startsWith("response.created")) {
                     emit(event("response.agent.creation.in_progress"))
                 }
@@ -87,17 +120,19 @@ class AgentBuilderChatService(
                         emit(event("response.agent.updated", eventData = SaveAgentEventData(itemId = UUID.randomUUID().toString(), outputIndex = "0", type = "response.agent.updated", agentName = saveAgentResponse?.agentName ?: "not available")))
                     }
                 }
-
-                if (receivedEventName == "response.incomplete") {
-                    log.error { "Response incomplete, ending stream, reason: ${event.data()}" }
-                    emit(event("error"))
-                }
             }
         }.catch { error ->
             log.error { "Exception while streaming, $error" }
-            emit(event("error"))
+            emit(event("error", eventData = ErrorEventData(itemId = UUID.randomUUID().toString(), outputIndex = "0", type = "error", error = error.message ?: "unknown error")))
         }
     }
+
+    private inline fun <reified T> parseEvent(eventData: String?): T? =
+        try {
+            eventData?.let { mapper.readValue<T>(eventData) }
+        } catch (ex: Exception) {
+            null
+        }
 
     private suspend fun addUserMessage(
         agentName: String,
