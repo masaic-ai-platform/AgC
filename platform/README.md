@@ -91,17 +91,6 @@ curl --location 'http://localhost:6644/v1/responses' \
 | **Self-Hosted Architecture** | Full control of deployment infrastructure | Maintain complete data sovereignty |
 | **OpenAI-Compatible Interface** | Drop-in replacement for existing OpenAI implementations | Minimal code changes for migration |
 
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-Before submitting a Pull Request, please ensure all regression tests pass by running:
-
-```bash
-./regression/regression_common.sh
-./regression/regression_vector.sh
-```
-
 ## API Reference
 
 The API implements the following OpenAI-compatible endpoints:
@@ -164,6 +153,19 @@ The API implements the following OpenAI-compatible endpoints:
 | `GET /v1/evals/{evalId}/runs` | List evaluation runs for a specific evaluation |
 | `DELETE /v1/evals/{evalId}/runs/{runId}` | Delete an evaluation run |
 
+### Setting Up the OpenTelemetry Collector
+
+1. To enable the OpenTelemetry collector integration, start the [service](open-responses-server) with:
+   ```
+   OTEL_SDK_DISABLED=false
+   ```
+
+2. The OpenTelemetry collector collects data from the service using OTLP (OpenTelemetry Protocol).
+
+3. Configuration of the collector is done via its config file, typically located in the deployment environment.
+
+4. All opentelemetry [sdk-environment-variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) are supported.
+
 ### Platform Configuration For Local Development
 ```bash
 OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_API_KEY=
@@ -171,6 +173,17 @@ OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_HOST=
 OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_USE_TLS=true/false
 OPENAI_API_KEY=
 SPRING_PROFILES_ACTIVE=platform
+```
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+Before submitting a Pull Request, please ensure all regression tests pass by running:
+
+```bash
+./regression/regression_common.sh
+./regression/regression_vector.sh
 ```
 ---
 
