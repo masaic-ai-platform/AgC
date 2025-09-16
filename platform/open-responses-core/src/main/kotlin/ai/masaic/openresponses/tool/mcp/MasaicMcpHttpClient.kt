@@ -619,7 +619,7 @@ data class CallToolResponse(
 )
 
 class McpUnAuthorizedException(
-    message: String
+    message: String,
 ) : RuntimeException(message)
 
 class McpToolNotFoundException(

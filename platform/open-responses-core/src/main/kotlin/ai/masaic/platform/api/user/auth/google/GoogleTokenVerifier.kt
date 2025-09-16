@@ -17,9 +17,9 @@ import java.util.concurrent.CompletableFuture
  */
 class GoogleTokenVerifier(
     private val googleAuthConfig: GoogleAuthConfig,
-    private val whitelistedUsers: Set<String> ?= null
+    private val whitelistedUsers: Set<String>? = null,
 ) {
-    private val log = KotlinLogging.logger {  }
+    private val log = KotlinLogging.logger { }
     private val verifier =
         GoogleIdTokenVerifier
             .Builder(NetHttpTransport(), GsonFactory())
@@ -36,12 +36,13 @@ class GoogleTokenVerifier(
                             ?: throw BadCredentialsException("Invalid Google token")
 
                     val payload = idToken.payload
-                    val userInfo = UserInfo(
-                        userId = payload.email,
-                    )
+                    val userInfo =
+                        UserInfo(
+                            userId = payload.email,
+                        )
 
                     whitelistedUsers?.let {
-                        if(!(whitelistedUsers.isNotEmpty() && whitelistedUsers.contains(userInfo.userId))) {
+                        if (!(whitelistedUsers.isNotEmpty() && whitelistedUsers.contains(userInfo.userId))) {
                             val error = "$userInfo is not whitelisted for platform access. Contact admin for access."
                             log.error { error }
                             throw PlatformAccessForbiddenException(error)

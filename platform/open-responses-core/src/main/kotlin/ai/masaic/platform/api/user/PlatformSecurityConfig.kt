@@ -144,7 +144,7 @@ class PlatformSecurityConfig {
 data class AuthConfigProperties(
     val enabled: Boolean = false,
     val google: GoogleAuthConfig = GoogleAuthConfig(),
-    val whitelistedUsers: Set<String> ?= null
+    val whitelistedUsers: Set<String>? = null,
 )
 
 data class GoogleAuthConfig(
@@ -157,4 +157,6 @@ data class AuthConfig(
     val enabled: Boolean,
 )
 
-class PlatformAccessForbiddenException(message: String,) : HttpStatusCodeException(httpStatusCode = "403", message = message)
+class PlatformAccessForbiddenException(
+    message: String,
+) : HttpStatusCodeException(httpStatusCode = "403", message = message)
