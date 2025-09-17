@@ -154,7 +154,7 @@ class MasaicCompletionService(
     ): ChatCompletion {
         logger.info { "Creating completion with, model: ${request.model}" }
 
-        val parentSpan = telemetryService.startOtelSpan("AgC loop", "", Span.current())
+        val parentSpan = telemetryService.startOtelSpan("AgC chat completions loop", "", Span.current())
         val headerBuilder = createHeadersBuilder(headers)
         val queryBuilder = createQueryParamsBuilder(queryParams)
         val client = createClient(headers, request.model)
@@ -212,7 +212,7 @@ class MasaicCompletionService(
         headers: MultiValueMap<String, String>,
         queryParams: MultiValueMap<String, String>,
     ): Flow<ServerSentEvent<String>> {
-        val parentSpan = telemetryService.startOtelSpan("AgC loop", "", Span.current())
+        val parentSpan = telemetryService.startOtelSpan("AgC chat completions loop", "", Span.current())
         var finalResponse: ChatCompletion? = null
         val metadata = instrumentationMetadataInput(headers, request)
         return flow<ServerSentEvent<String>> {

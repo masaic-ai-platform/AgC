@@ -895,13 +895,13 @@ open class TelemetryService(
                 responseFormatConfig.asJsonSchema()._type().toString()
             }
         } else {
-            null
+            "text"
         }
     }
 
-    private fun messageContent(content: String) = if (captureMessageContent) content else ""
+    protected fun messageContent(content: String) = if (captureMessageContent) content else ""
 
-    private fun putIfNotEmpty(
+    protected fun putIfNotEmpty(
         map: MutableMap<String, String>,
         key: String,
         value: String?,
