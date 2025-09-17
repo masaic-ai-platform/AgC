@@ -3,7 +3,7 @@ FROM node:18-alpine AS build
 WORKDIR /app
 
 # Set environment variables for build
-ENV VITE_APP_VERSION=0.5.3-dev
+ENV VITE_APP_VERSION=0.5.3
 
 # Install dependencies for build
 COPY package*.json ./
@@ -20,7 +20,7 @@ FROM gcr.io/distroless/nodejs18-debian12 AS production
 WORKDIR /app
 
 # Set environment variables for runtime
-ENV APP_VERSION=0.5.3-dev
+ENV APP_VERSION=0.5.3
 
 # Copy built frontend
 COPY --from=build /app/dist ./dist
