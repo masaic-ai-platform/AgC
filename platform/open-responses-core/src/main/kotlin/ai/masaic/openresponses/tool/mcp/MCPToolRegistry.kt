@@ -112,6 +112,11 @@ class MCPToolRegistry {
         toolRepository[tool.name] = tool
     }
 
+    fun invalidateTool(tool: McpToolDefinition) {
+        toolRepository.remove(tool.name)
+        serverRepository.remove(tool.serverInfo.serverIdentifier())
+    }
+
     fun addMcpServer(mcpServerInfo: MCPServerInfo) {
         serverRepository[mcpServerInfo.serverIdentifier()] = mcpServerInfo
     }

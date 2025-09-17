@@ -3,7 +3,7 @@ package ai.masaic.openresponses.api.service.search
 import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.beans.factory.annotation.Value
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 
@@ -15,9 +15,9 @@ import org.springframework.stereotype.Component
  * that no longer exist in storage.
  */
 @Component
+@ConditionalOnProperty(name = ["open-responses.store.vector.search.cleanup.enabled"], havingValue = "true", matchIfMissing = true)
 class VectorStoreCleanupScheduler(
     @Autowired private val vectorStoreService: VectorStoreService,
-    @Value("\${open-responses.store.vector.search.cleanup.enabled:true}") private val cleanupEnabled: Boolean,
 ) {
     private val log = LoggerFactory.getLogger(VectorStoreCleanupScheduler::class.java)
 
@@ -27,11 +27,6 @@ class VectorStoreCleanupScheduler(
      */
     @Scheduled(cron = "\${open-responses.store.vector.search.cleanup.cron:0 0 * * * ?}")
     fun cleanupVectorStores() {
-        if (!cleanupEnabled) {
-            log.debug("Vector store cleanup is disabled")
-            return
-        }
-
         log.debug("Starting scheduled vector store cleanup")
 
         runBlocking {

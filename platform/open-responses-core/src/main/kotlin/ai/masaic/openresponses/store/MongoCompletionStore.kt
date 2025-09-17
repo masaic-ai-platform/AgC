@@ -98,7 +98,7 @@ class MongoCompletionStore(
         return getDeserializedCompletion(completionId)
     }
 
-    override suspend fun getMessages(completionId: String): List<ChatCompletionMessageParam> {
+    override suspend fun getMessages(completionId: String): List<ChatCompletionMessageParam>? {
         logger.debug { "Retrieving messages for completion ID: $completionId from MongoDB." }
         return getDeserializedMessages(completionId)
     }

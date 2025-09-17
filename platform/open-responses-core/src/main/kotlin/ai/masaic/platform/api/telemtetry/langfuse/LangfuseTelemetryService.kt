@@ -1,14 +1,17 @@
 package ai.masaic.platform.api.telemtetry.langfuse
 
 import ai.masaic.openresponses.api.model.InstrumentationMetadataInput
+import ai.masaic.openresponses.api.utils.ResponsesUtils
 import ai.masaic.platform.api.telemtetry.PlatformTelemetryService
 import ai.masaic.platform.api.user.CurrentUserProvider
+import com.openai.models.chat.completions.ChatCompletion
 import com.openai.models.chat.completions.ChatCompletionCreateParams
 import com.openai.models.responses.Response
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.observation.ObservationRegistry
 import io.opentelemetry.api.OpenTelemetry
 import io.opentelemetry.api.trace.Span
+import kotlin.jvm.optionals.getOrDefault
 
 class LangfuseTelemetryService(
     private val observationRegistry: ObservationRegistry,
@@ -55,7 +58,7 @@ class LangfuseTelemetryService(
         metadata: InstrumentationMetadataInput,
     ) {
         val context = TelemetryContext(metadata, captureMessageContent)
-        val normalizedOutputs = response.toNormalizedOutput()
+        val normalizedOutputs = ResponsesUtils.toNormalizedOutput(response)
         val events = extractOutputEvents(normalizedOutputs, context)
 
         events.forEachIndexed { index, event ->
@@ -68,6 +71,42 @@ class LangfuseTelemetryService(
                     span.setAttribute("gen_ai.completion.$index.content", mapper.writeValueAsString(payload.toolCalls))
                 }
                 else -> throw IllegalStateException("Unexpected event payload type found.")
+            }
+        }
+    }
+
+    override fun emitModelOutputEventsForOtel(
+        span: Span,
+        chatCompletion: ChatCompletion,
+        metadata: InstrumentationMetadataInput,
+    ) {
+        chatCompletion.choices().forEachIndexed { index, choice ->
+            span.setAttribute("gen_ai.completion.$index.role", "assistant")
+            val content = messageContent(choice.message().content().getOrDefault(""))
+            if (content.isNotEmpty()) {
+                span.setAttribute("gen_ai.completion.$index.content", content)
+            }
+
+            if (choice.finishReason().asString().lowercase() == "tool_calls") {
+                val toolCalls =
+                    choice.message().toolCalls().get().map { tool ->
+                        val functionDetailsMap = mutableMapOf("name" to tool.function().name())
+                        putIfNotEmpty(functionDetailsMap, "arguments", messageContent(tool.function().arguments()))
+                        mapOf(
+                            "id" to tool.id(),
+                            "type" to "function",
+                            "function" to functionDetailsMap,
+                        )
+                    }
+                val tooCallMap =
+                    mapOf(
+                        "gen_ai.system" to metadata.genAISystem,
+                        "finish_reason" to choice.finishReason().asString(),
+                        "index" to choice.index().toString(),
+                        "tool_calls" to toolCalls,
+                    )
+
+                span.setAttribute("gen_ai.completion.$index.content", mapper.writeValueAsString(toolCalls))
             }
         }
     }

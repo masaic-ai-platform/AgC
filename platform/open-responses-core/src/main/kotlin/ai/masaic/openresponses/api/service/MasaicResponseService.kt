@@ -186,7 +186,7 @@ class MasaicResponseService(
         val headerBuilder = createHeadersBuilder(headers)
         val queryBuilder = createQueryParamsBuilder(queryParams)
         val client = createClient(headers, request)
-        val parentSpan = telemetryService.startOtelSpan("AgC loop", "", Span.current())
+        val parentSpan = telemetryService.startOtelSpan("AgC responses loop", "", Span.current())
         var response: Response? = null
         val metadata = instrumentationMetadataInput(headers, request)
         var exception: Exception? = null

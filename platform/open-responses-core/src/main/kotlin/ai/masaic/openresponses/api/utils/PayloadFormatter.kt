@@ -1,6 +1,7 @@
 package ai.masaic.openresponses.api.utils
 
 import ai.masaic.openresponses.api.model.*
+import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.ToolProtocol
 import ai.masaic.openresponses.tool.ToolService
 import com.fasterxml.jackson.core.type.TypeReference
@@ -9,7 +10,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.module.kotlin.readValue
-import com.openai.core.JsonValue
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseStreamEvent
 import org.springframework.context.annotation.Profile
@@ -89,50 +89,33 @@ open class PayloadFormatter(
         // Process each tool, producing 0..n Map<String,Any> entries per input
         val processed: List<Map<String, Any>> =
             tools.flatMap { tool ->
-                when (tool["type"]?.toString()) {
-                    "function" -> {
-                        // leave functions untouched
-                        listOf(tool)
+                val function = mapper.readValue<CompletionFunction>(mapper.writeValueAsString(tool))
+                val supportedTool =
+                    try {
+                        SupportedToolsFormatter.buildToolDef(function)
+                    } catch (ex: Exception) {
+                        null
                     }
-                    "mcp" -> {
-                        // read into your MCPTool, fetch remote tools, then map back to Map
-                        val mcpObj =
-                            mapper.readValue<MCPTool>(
-                                mapper.writeValueAsString(tool),
-                            )
-                        toolService
-                            .getRemoteMcpToolsForChatCompletion(mcpObj)
-                            .map { mapper.convertValue(it, object : TypeReference<Map<String, Any>>() {}) }
-                    }
-                    else -> {
-                        // non-function, non-MCP: either a known tool or fallback
-                        val type = tool["type"].toString()
-                        val available = toolService.getAvailableTool(type)
-                        if (available != null) {
-                            // build a ChatCompletionTool and convert it back to Map
-                            val ccTool =
-                                toolService.getChatCompletionTool(type)
-                                    ?: throw ResponseStatusException(
-                                        HttpStatus.BAD_REQUEST,
-                                        "Define tool $type properly",
-                                    )
-                            val built =
-                                ccTool
-                                    .toBuilder()
-                                    .putAllAdditionalProperties(tool.mapValues { JsonValue.from(it.value) })
-                                    .build()
-                            listOf(
-                                mapper.convertValue(built, object : TypeReference<Map<String, Any>>() {}),
-                            )
-                        } else {
-                            // unknown type: just pass the raw map through
-                            listOf(tool)
-                        }
-                    }
-                }
-            }
 
-        // Finally convert our List<Map<String,Any>> to the declared return type
+                supportedTool?.let { toolInstance ->
+                    when (toolInstance) {
+                        is MCPTool -> {
+                            toolService
+                                .getRemoteMcpToolsForChatCompletion(toolInstance)
+                                .map { mapper.convertValue(it, object : TypeReference<Map<String, Any>>() {}) }
+                        }
+                        is FileSearchTool -> {
+                            val fileSearchToolFun = toolService.getFileSearchToolForCompletion(toolInstance)
+                            listOf(mapper.convertValue(fileSearchToolFun, object : TypeReference<Map<String, Any>>() {}))
+                        }
+                        is PyFunTool -> {
+                            val completionPyFunTool = toolService.getPyFunToolForCompletion(toolInstance)
+                            listOf(mapper.convertValue(completionPyFunTool, object : TypeReference<Map<String, Any>>() {}))
+                        }
+                        else -> throw ResponseProcessingException("This is unknown tool, can't process request. Tool details: $toolInstance")
+                    }
+                } ?: listOf(tool)
+            }
         return mapper.convertValue(processed, listType)
     }
 

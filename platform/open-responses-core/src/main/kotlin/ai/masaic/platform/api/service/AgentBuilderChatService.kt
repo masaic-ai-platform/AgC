@@ -1,31 +1,37 @@
 package ai.masaic.platform.api.service
 
-import ai.masaic.openresponses.api.controller.ResponseController
 import ai.masaic.openresponses.api.model.CompletedEventData
 import ai.masaic.openresponses.api.model.CreateResponseRequest
+import ai.masaic.openresponses.api.model.ErrorEventData
 import ai.masaic.openresponses.api.model.EventData
+import ai.masaic.openresponses.api.service.ResponseFacadeService
 import ai.masaic.openresponses.api.service.ResponseProcessingException
+import ai.masaic.openresponses.api.service.ResponseProcessingInput
+import ai.masaic.openresponses.api.service.ResponseProcessingResult
 import ai.masaic.platform.api.model.PlatformAgent
 import ai.masaic.platform.api.tools.PlatformToolsNames
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import com.openai.models.responses.ResponseIncompleteEvent
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.flow
 import mu.KotlinLogging
 import org.springframework.http.codec.ServerSentEvent
-import org.springframework.util.MultiValueMap
 import java.util.UUID
 
-@Suppress("UNCHECKED_CAST")
 class AgentBuilderChatService(
-    private val responseController: ResponseController,
+    private val responseFacadeService: ResponseFacadeService,
     private val agentService: AgentService,
 ) {
     private val mapper = jacksonObjectMapper()
     private val log = KotlinLogging.logger { }
 
+    /**
+     * Handles agent builder chat requests.
+     * This method always returns a streaming response since agent conversations require real-time interaction.
+     */
     suspend fun chat(
         request: AgentBuilderChatRequest,
         authHeader: String,
@@ -36,14 +42,64 @@ class AgentBuilderChatService(
             updatedRequest = addUserMessage(request.modifiedAgentName, request.responsesRequest)
         }
 
-        val response = responseController.createResponse(updatedRequest, MultiValueMap.fromMultiValue(mapOf("Authorization" to listOf(authHeader))), MultiValueMap.fromMultiValue(mapOf("empty" to listOf(""))))
+        // Ensure the request is set to streaming since AgentBuilderChatService always returns a stream
+        val streamingRequest = updatedRequest.copy(stream = true)
+        
+        // Use the simplified facade service wrapper
+        val result =
+            responseFacadeService.processResponse(
+                ResponseProcessingInput(
+                    request = streamingRequest,
+                    headers = mapOf("Authorization" to authHeader),
+                ),
+            )
 
-        val upStream = response.body as Flow<ServerSentEvent<*>>
+        // Extract the streaming flow (AgentBuilderChatService always works with streams)
+        val upStream =
+            when (result) {
+                is ResponseProcessingResult.Streaming -> result.flow
+                is ResponseProcessingResult.NonStreaming -> {
+                    // This should never happen since we explicitly set stream = true
+                    log.error { "Unexpected non-streaming result from facade service when stream=true was requested" }
+                    throw ResponseProcessingException("Expected streaming response but received non-streaming result")
+                }
+            }
         var saveAgentResponse: SaveAgentResponse? = null
         return flow {
             upStream.collect { event ->
                 val receivedEventName = event.event()?.trim() ?: ""
-                emit(event)
+
+                if (receivedEventName == "response.incomplete") {
+                    log.debug { "incomplete response event data: ${event.data()}" }
+                    val parsedEvent = parseEvent<ResponseIncompleteEvent>(event.data())
+                    log.debug { "incompleteEvent: $parsedEvent" }
+                    val error =
+                        when {
+                            parsedEvent?.response()?.incompleteDetails()?.isPresent == true -> {
+                                val reason =
+                                    parsedEvent
+                                        .response()
+                                        .incompleteDetails()
+                                        .get()
+                                        .reason()
+                                if (reason.isPresent) {
+                                    reason.get().asString()
+                                } else {
+                                    "incomplete response but reason is unknown"
+                                }
+                            }
+                            parsedEvent?.response()?.error()?.isPresent == true -> {
+                                mapper.writeValueAsString(parsedEvent.response().error().get())
+                            }
+                            else -> "unknown error."
+                        }
+                    log.error { "Response incomplete, ending stream, error: $error" }
+                    emit(event("response.agent.creation.paused"))
+                    emit(event("error", eventData = ErrorEventData(itemId = UUID.randomUUID().toString(), outputIndex = "0", type = "error", error = "Error in streaming response: $error")))
+                } else {
+                    emit(event)
+                }
+
                 if (!request.modifyAgent && receivedEventName.startsWith("response.created")) {
                     emit(event("response.agent.creation.in_progress"))
                 }
@@ -64,17 +120,19 @@ class AgentBuilderChatService(
                         emit(event("response.agent.updated", eventData = SaveAgentEventData(itemId = UUID.randomUUID().toString(), outputIndex = "0", type = "response.agent.updated", agentName = saveAgentResponse?.agentName ?: "not available")))
                     }
                 }
-
-                if (receivedEventName == "response.incomplete") {
-                    log.error { "Response incomplete, ending stream, reason: ${event.data()}" }
-                    emit(event("error"))
-                }
             }
         }.catch { error ->
             log.error { "Exception while streaming, $error" }
-            emit(event("error"))
+            emit(event("error", eventData = ErrorEventData(itemId = UUID.randomUUID().toString(), outputIndex = "0", type = "error", error = error.message ?: "unknown error")))
         }
     }
+
+    private inline fun <reified T> parseEvent(eventData: String?): T? =
+        try {
+            eventData?.let { mapper.readValue<T>(eventData) }
+        } catch (ex: Exception) {
+            null
+        }
 
     private suspend fun addUserMessage(
         agentName: String,

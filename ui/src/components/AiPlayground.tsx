@@ -155,9 +155,6 @@ const AiPlayground: React.FC = () => {
     }
   });
 
-  // Agent Builder mode state
-  const [agentBuilderMode, setAgentBuilderMode] = useState(false);
-  const [agentBuilderData, setAgentBuilderData] = useState<null | { systemPrompt: string; greetingMessage: string; description: string; tools: any[] }>(null);
 
   // Suggested queries state
   const [suggestedQueries, setSuggestedQueries] = useState<string[]>([]);
@@ -827,7 +824,6 @@ const AiPlayground: React.FC = () => {
         setIsTestingModel(false);
         setShowSaveModel(false);
         setSaveModelState(null);
-        setAgentBuilderMode(false);
         setSuggestedQueries([]);
       };
 
@@ -896,86 +892,11 @@ const AiPlayground: React.FC = () => {
     }
   };
 
-  const handleCreateAgent = () => {
-    // Reset all other modes
-    const resetAllModes = () => {
-      setMockyMode(false);
-      setMockyAgentData(null);
-      setModelTestMode(false);
-      setModelTestAgentData(null);
-      setModelTestUrl('');
-      setModelTestName('');
-      setModelTestApiKey('');
-      setIsTestingModel(false);
-      setShowSaveModel(false);
-      setSaveModelState(null);
-      setAgentMode(false);
-      setAgentData(null);
-    };
-
-    resetAllModes();
-
-    // Set agent builder mode and fetch agent data
-    setAgentBuilderMode(true);
-    setActiveTab('agent-builder');
-    
-    // Reset conversation handled by new chat
-    setConversationId(null);
-    setPreviousResponseId(null);
-    
-    // Generate new sessionId for new agent creation
-    generateNewSessionId();
-
-    // Clear agent data from localStorage if in agent mode
-    try {
-      localStorage.removeItem('platform_agentMode');
-      localStorage.removeItem('platform_agentData');
-    } catch (error) {
-      console.error('Failed to clear agent data from localStorage:', error);
-    }
-
-    // Fetch Agent Builder agent and start conversation
-    fetchAgentBuilder();
-  };
 
   const handleNewAgentBuilder = () => {
     navigate('/agent-builder');
   };
 
-  const fetchAgentBuilder = async () => {
-    try {
-      const data = await apiClient.agentJsonRequest<any>('/v1/agents/agent-builder');
-      
-      if (data) {
-        setAgentBuilderData({
-          systemPrompt: data.systemPrompt || '',
-          greetingMessage: data.greetingMessage || '',
-          description: data.description || '',
-          tools: data.tools || []
-        });
-
-        // Reset conversation tracking ids
-        setConversationId(null);
-        setPreviousResponseId(null);
-
-        // Reset previous conversation handled by new chat
-        
-        // Generate new sessionId for new Agent Builder conversation
-        generateNewSessionId();
-
-        // Handle greeting message
-        if (newChatRef.current) {
-          // Use new chat's streaming greeting
-          newChatRef.current.streamGreetingMessage(data.greetingMessage || '');
-        }
-      } else {
-        toast.error('Failed to load Agent Builder');
-      }
-    } catch (error) {
-      console.error('Error fetching Agent Builder:', error);
-      toast.error('Failed to load Agent Builder');
-    }
-  };
 
   const handleTabChange = (tab: string) => {
     // First, always reset any active special modes
@@ -1041,28 +962,12 @@ const AiPlayground: React.FC = () => {
       }
     };
 
-    const resetAgentBuilderMode = () => {
-      if (agentBuilderMode) {
-        setAgentBuilderMode(false);
-        setAgentBuilderData(null);
-        
-        // Reset conversation
-        if (newChatRef.current) {
-          newChatRef.current.resetConversation();
-        }
-        
-        setConversationId(null);
-        setPreviousResponseId(null);
-        generateNewSessionId(); // Generate new sessionId for new conversation
-      }
-    };
 
     // Special handling for Masaic Mocky option
     if (tab === 'masaic-mocky') {
       // Reset other modes first if active
       resetModelTestMode();
       resetAgentMode();
-      resetAgentBuilderMode();
       
       setActiveTab(tab);
       
@@ -1105,56 +1010,12 @@ const AiPlayground: React.FC = () => {
       return;
     }
 
-    // Special handling for Agent Builder option
-    if (tab === 'agent-builder') {
-      // Reset other modes first if active
-      resetMockyMode();
-      resetModelTestMode();
-      resetAgentMode();
-      
-      setActiveTab(tab);
-      
-      // Fetch Agent Builder definition with proper async/await
-      (async () => {
-        try {
-          const data = await apiClient.agentJsonRequest<any>('/v1/agents/agent-builder');
-          
-          if (data) {
-            setAgentBuilderMode(true);
-            setAgentBuilderData({
-              systemPrompt: data.systemPrompt || '',
-              greetingMessage: data.greetingMessage || '',
-              description: data.description || '',
-              tools: data.tools || []
-            });
-
-            // reset conversation tracking ids
-            setConversationId(null);
-            setPreviousResponseId(null);
-
-            // Reset previous conversation handled by new chat
-            
-            // Stream greeting message using new chat
-            if (newChatRef.current) {
-              newChatRef.current.streamGreetingMessage(data.greetingMessage || '');
-            }
-          } else {
-            toast.error('Failed to load Agent Builder');
-          }
-        } catch (err) {
-          console.error(err);
-          toast.error('Failed to load Agent Builder');
-        }
-      })();
-      return;
-    }
 
     // Special handling for Add Model option
     if (tab === 'add-model') {
       // Reset other modes first if active
       resetMockyMode();
       resetAgentMode();
-      resetAgentBuilderMode();
       
       setActiveTab(tab);
       
@@ -1207,7 +1068,6 @@ const AiPlayground: React.FC = () => {
       resetMockyMode();
       resetModelTestMode();
       resetAgentMode();
-      resetAgentBuilderMode();
       
       setActiveTab('responses');
       setE2bModalOpen(true);
@@ -1218,7 +1078,6 @@ const AiPlayground: React.FC = () => {
     resetMockyMode();
     resetModelTestMode();
     resetAgentMode();
-    resetAgentBuilderMode();
 
     setActiveTab(tab);
     // Handle API Keys tab by opening the API keys modal
@@ -1473,7 +1332,6 @@ const AiPlayground: React.FC = () => {
         <PlaygroundSidebar 
           activeTab={activeTab}
           onTabChange={handleTabChange}
-          onCreateAgent={handleCreateAgent}
           onNewAgentBuilder={handleNewAgentBuilder}
           className="flex flex-col w-full"
         />
@@ -1527,7 +1385,6 @@ const AiPlayground: React.FC = () => {
           className="w-full"
           mockyMode={mockyMode}
           modelTestMode={modelTestMode}
-          agentBuilderMode={agentBuilderMode}
           modelTestUrl={modelTestUrl}
           setModelTestUrl={setModelTestUrl}
           modelTestName={modelTestName}
@@ -1550,7 +1407,6 @@ const AiPlayground: React.FC = () => {
         activeTab={activeTab}
         onTabChange={handleTabChange}
         onAgentSelect={handleAgentSelect}
-        onCreateAgent={handleCreateAgent}
         onNewAgentBuilder={handleNewAgentBuilder}
         className="hidden md:flex md:flex-col md:w-[10%] md:min-w-[160px]"
       />
@@ -1605,7 +1461,6 @@ const AiPlayground: React.FC = () => {
         className="hidden md:block md:w-[30%]"
         mockyMode={mockyMode}
         modelTestMode={modelTestMode}
-        agentBuilderMode={agentBuilderMode}
         modelTestUrl={modelTestUrl}
         setModelTestUrl={setModelTestUrl}
         modelTestName={modelTestName}
@@ -1630,11 +1485,6 @@ const AiPlayground: React.FC = () => {
               {agentMode && agentData && (
                 <span className="text-sm text-foreground font-medium px-2 py-1 bg-accent/50 rounded-md">
                   {agentData.name}
-                </span>
-              )}
-              {agentBuilderMode && (
-                <span className="text-sm text-foreground font-medium px-2 py-1 bg-accent/50 rounded-md">
-                  agent-builder
                 </span>
               )}
               <Button
@@ -1713,7 +1563,6 @@ const AiPlayground: React.FC = () => {
                 { provider: modelProvider, name: modelName },
               instructions: mockyMode && mockyAgentData ? mockyAgentData.systemPrompt 
                 : modelTestMode && modelTestAgentData ? modelTestAgentData.systemPrompt
-                : agentBuilderMode && agentBuilderData ? agentBuilderData.systemPrompt 
                 : instructions,
               textFormat,
               jsonSchema: textFormat === 'json_schema' ? { 
@@ -1728,7 +1577,6 @@ const AiPlayground: React.FC = () => {
               } : undefined,
               tools: mockyMode && mockyAgentData && Array.isArray(mockyAgentData.tools) ? mockyAgentData.tools
                 : modelTestMode && modelTestAgentData && Array.isArray(modelTestAgentData.tools) ? modelTestAgentData.tools
-                : agentBuilderMode && agentBuilderData && Array.isArray(agentBuilderData.tools) ? agentBuilderData.tools
                 : selectedTools.length > 0 ? buildToolsPayload(selectedTools, modelSettings ? { settingsType: modelSettings.settingsType as 'RUNTIME' | 'PLATFORM' } : undefined) : undefined,
               store: storeLogs,
               stream: true,

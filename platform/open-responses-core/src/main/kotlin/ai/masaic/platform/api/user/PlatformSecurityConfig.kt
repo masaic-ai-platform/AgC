@@ -1,5 +1,6 @@
 package ai.masaic.platform.api.user
 
+import ai.masaic.openresponses.api.exception.HttpStatusCodeException
 import ai.masaic.platform.api.user.auth.google.GoogleAuthentication
 import ai.masaic.platform.api.user.auth.google.GooglePreAuthToken
 import ai.masaic.platform.api.user.auth.google.GoogleTokenVerifier
@@ -85,7 +86,7 @@ class PlatformSecurityConfig {
         }
 
     @Bean
-    fun googleTokenVerifier(authConfigProperties: AuthConfigProperties) = GoogleTokenVerifier(authConfigProperties.google)
+    fun googleTokenVerifier(authConfigProperties: AuthConfigProperties) = GoogleTokenVerifier(authConfigProperties.google, authConfigProperties.whitelistedUsers)
 
     private fun googleAuthFilter(googleTokenVerifier: GoogleTokenVerifier): AuthenticationWebFilter {
         val manager =
@@ -143,6 +144,7 @@ class PlatformSecurityConfig {
 data class AuthConfigProperties(
     val enabled: Boolean = false,
     val google: GoogleAuthConfig = GoogleAuthConfig(),
+    val whitelistedUsers: Set<String>? = null,
 )
 
 data class GoogleAuthConfig(
@@ -154,3 +156,7 @@ data class GoogleAuthConfig(
 data class AuthConfig(
     val enabled: Boolean,
 )
+
+class PlatformAccessForbiddenException(
+    message: String,
+) : HttpStatusCodeException(httpStatusCode = "403", message = message)

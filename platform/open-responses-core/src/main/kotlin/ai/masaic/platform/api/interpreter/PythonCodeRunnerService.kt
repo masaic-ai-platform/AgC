@@ -6,6 +6,7 @@ import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.CallToolResponse
 import ai.masaic.openresponses.tool.mcp.MCPServerInfo
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
+import ai.masaic.openresponses.tool.mcp.McpUnAuthorizedException
 import ai.masaic.platform.api.config.PyInterpreterSettings
 import ai.masaic.platform.api.config.SystemSettingsType
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -84,8 +85,20 @@ class PythonCodeRunnerService(
         emitEvent(eventEmitter, "$eventPrefix.executing", code)
 
         val toolResult =
-            mcpToolExecutor.executeTool(codeRunnerToolDef, mapper.writeValueAsString(mapOf("code" to code)), null, null)
-                ?: "no response from $codeRunnerTool"
+            try {
+                mcpToolExecutor.executeTool(codeRunnerToolDef, mapper.writeValueAsString(mapOf("code" to code)), null, null)
+                    ?: "no response from $codeRunnerTool"
+            } catch (ex: McpUnAuthorizedException) {
+                toolService.invalidateMcpTool(codeRunnerToolDef)
+                log.error("Received ${ex.javaClass}, while running ${codeRunnerToolDef.name}, error: ${ex.message}")
+                throw ex
+            }
+
+        if (toolResult.contains("run_code: 401")) { // E2B returns 200 code but within error it reports 401 :-|, adding hack to handle the situation.
+            toolService.invalidateMcpTool(codeRunnerToolDef)
+            log.error("Received error, while running ${codeRunnerToolDef.name}, invalidating tool.")
+        }
+
         val codeExecResult = extractCodeRunResult(toolResult)
         return codeExecResult
     }

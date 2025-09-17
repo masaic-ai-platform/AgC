@@ -2,6 +2,7 @@ package ai.masaic.openresponses.tool
 
 import ai.masaic.openresponses.api.model.*
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.module.kotlin.convertValue
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.core.JsonString
 import com.openai.core.JsonValue
@@ -112,6 +113,54 @@ data class NativeToolDefinition(
     }
 }
 
+data class FileSearchToolDefinition(
+    override val id: String = UUID.randomUUID().toString(),
+    override val protocol: ToolProtocol = ToolProtocol.NATIVE,
+    override val hosting: ToolHosting = ToolHosting.MASAIC_MANAGED,
+    override val name: String,
+    override val description: String,
+    override val eventMeta: ToolProgressEventMeta? = null,
+    val vectorStoreIds: List<String>,
+    val maxNumResults: Int = 20,
+    val modelInfo: ModelInfo? = null,
+) : ToolDefinition(id, protocol, hosting, name, description, eventMeta) {
+    fun toFunctionTool(): FunctionTool =
+        FunctionTool(
+            description = this.description,
+            name = this.name,
+            strict = true,
+        )
+
+    fun toChatCompletionTool(objectMapper: ObjectMapper): ChatCompletionTool =
+        ChatCompletionTool
+            .builder()
+            .type(JsonValue.from("function"))
+            .function(
+                FunctionDefinition
+                    .builder()
+                    .name(name)
+                    .description(description)
+                    .parameters(
+                        objectMapper.convertValue(
+                            mutableMapOf(
+                                "type" to "object",
+                                "properties" to
+                                    mapOf(
+                                        "query" to
+                                            mapOf(
+                                                "type" to "string",
+                                                "description" to "The search query",
+                                            ),
+                                    ),
+                                "required" to listOf("query"),
+                                "additionalProperties" to false,
+                            ),
+                            FunctionParameters::class.java,
+                        ),
+                    ).build(),
+            ).build()
+}
+
 data class PyFunToolDefinition(
     override val id: String = UUID.randomUUID().toString(),
     override val protocol: ToolProtocol = ToolProtocol.PY_CODE,
@@ -131,6 +180,22 @@ data class PyFunToolDefinition(
             parameters = this.parameters,
             strict = true,
         )
+
+    fun toChatCompletionTool(objectMapper: ObjectMapper): ChatCompletionTool =
+        ChatCompletionTool
+            .builder()
+            .type(JsonValue.from("function"))
+            .function(
+                FunctionDefinition
+                    .builder()
+                    .name(name)
+                    .description(description)
+                    .apply {
+                        parameters(
+                            objectMapper.convertValue(parameters, FunctionParameters::class.java),
+                        )
+                    }.build(),
+            ).build()
 }
 
 /**

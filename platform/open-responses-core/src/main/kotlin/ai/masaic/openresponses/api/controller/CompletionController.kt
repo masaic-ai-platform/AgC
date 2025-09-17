@@ -36,6 +36,7 @@ class CompletionController(
         @RequestHeader headers: MultiValueMap<String, String>,
         @RequestParam queryParams: MultiValueMap<String, String>,
     ): ResponseEntity<*> {
+        log.debug("Received request:\n${mapper.writeValueAsString(request)}\n")
         requestValidator.validateCompletionRequest(request)
         payloadFormatter.formatCompletionRequest(request)
         // Use our custom coroutine-aware MDC context
@@ -43,7 +44,7 @@ class CompletionController(
         log.debug("Request body: $requestBodyJson")
 
         // If streaming is requested, set the appropriate content type and return a flow
-        if (request.stream == true) {
+        if (request.stream) {
             return ResponseEntity
                 .ok()
                 .contentType(MediaType.TEXT_EVENT_STREAM)
@@ -68,7 +69,8 @@ class CompletionController(
         }
     }
 
-    @GetMapping("/chat/completions/{completionId}", produces = [MediaType.APPLICATION_JSON_VALUE])
+//    @GetMapping("/chat/completions/{completionId}", produces = [MediaType.APPLICATION_JSON_VALUE])
+
     suspend fun getCompletion(
         @PathVariable completionId: String,
         @RequestHeader headers: MultiValueMap<String, String>,
@@ -88,7 +90,29 @@ class CompletionController(
         }
     }
 
-    @DeleteMapping("/chat/completions/{completionId}")
+//    @GetMapping("/chat/completions/{completionId}/messages", produces = [MediaType.APPLICATION_JSON_VALUE])
+
+    suspend fun getMessages(
+        @PathVariable completionId: String,
+        @RequestHeader headers: MultiValueMap<String, String>,
+        @RequestParam queryParams: MultiValueMap<String, String>,
+        exchange: ServerWebExchange,
+    ): ResponseEntity<*> {
+        // Extract trace ID from exchange
+        val traceId = exchange.attributes["traceId"] as? String ?: headers["X-B3-TraceId"]?.firstOrNull() ?: "unknown"
+
+        // Use our custom coroutine-aware MDC context
+        return withContext(CoroutineMDCContext(mapOf("traceId" to traceId))) {
+            try {
+                ResponseEntity.ok(masaicCompletionService.getMessages(completionId))
+            } catch (e: CompletionNotFoundException) {
+                throw ResponseStatusException(HttpStatus.NOT_FOUND, e.message)
+            }
+        }
+    }
+
+//    @DeleteMapping("/chat/completions/{completionId}")
+
     suspend fun deleteCompletion(
         @PathVariable completionId: String,
     ): ResponseEntity<Map<String, Any>> {

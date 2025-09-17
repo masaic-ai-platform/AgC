@@ -1,8 +1,10 @@
 package ai.masaic.openresponses.tool
 
+import ai.masaic.openresponses.api.model.FileSearchTool
 import ai.masaic.openresponses.api.model.FunctionTool
 import ai.masaic.openresponses.api.model.MCPTool
 import ai.masaic.openresponses.api.model.PyFunTool
+import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.mcp.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
@@ -183,8 +185,10 @@ class ToolService(
     ): FunctionTool? {
         val resolvedName = resolveToolName(name, context)
         val toolDefinition = nativeToolRegistry.findByName(resolvedName) ?: mcpToolRegistry.findByName(resolvedName) ?: return null
-        return when {
-            toolDefinition is NativeToolDefinition -> NativeToolDefinition.toFunctionTool(toolDefinition)
+        return when (toolDefinition) {
+            is NativeToolDefinition -> NativeToolDefinition.toFunctionTool(toolDefinition)
+            is PyFunToolDefinition -> toolDefinition.toFunctionTool()
+            is FileSearchToolDefinition -> toolDefinition.toFunctionTool()
             else -> (toolDefinition as McpToolDefinition).toFunctionTool()
         }
     }
@@ -199,13 +203,41 @@ class ToolService(
         name: String,
     ): FunctionTool? {
         val toolDefinition = nativeToolRegistry.findByName(name) ?: mcpToolRegistry.findByName(name) ?: return null
-        return when {
-            toolDefinition is NativeToolDefinition -> NativeToolDefinition.toFunctionTool(toolDefinition)
+        return when (toolDefinition) {
+            is NativeToolDefinition -> NativeToolDefinition.toFunctionTool(toolDefinition)
+            is PyFunToolDefinition -> toolDefinition.toFunctionTool()
+            is FileSearchToolDefinition -> toolDefinition.toFunctionTool()
             else -> (toolDefinition as McpToolDefinition).toFunctionTool()
         }
     }
 
+    suspend fun getFileSearchToolForCompletion(fileSearchTool: FileSearchTool): ChatCompletionTool {
+        require(!fileSearchTool.alias.isNullOrEmpty()) { "provide name for the file search tool." }
+        require(!fileSearchTool.description.isNullOrEmpty()) { "provide description for the file search tool." }
+        require(!fileSearchTool.vectorStoreIds.isNullOrEmpty()) { "provide at least one vectorStoreId." }
+        val fileSearchToolDef =
+            FileSearchToolDefinition(
+                protocol = ToolProtocol.NATIVE,
+                name = fileSearchTool.alias,
+                description = fileSearchTool.description,
+                vectorStoreIds = fileSearchTool.vectorStoreIds,
+                modelInfo = fileSearchTool.modelInfo,
+            )
+        nativeToolRegistry.add(fileSearchToolDef)
+        return fileSearchToolDef.toChatCompletionTool(objectMapper)
+    }
+
+    suspend fun getPyFunToolForCompletion(pyFunTool: PyFunTool): ChatCompletionTool {
+        val pyFunToolDefinition = deriveAndSavePyFunTool(pyFunTool)
+        return pyFunToolDefinition.toChatCompletionTool(objectMapper)
+    }
+
     suspend fun getPyFunTool(pyFunTool: PyFunTool): FunctionTool {
+        val pyFunToolDefinition = deriveAndSavePyFunTool(pyFunTool)
+        return pyFunToolDefinition.toFunctionTool()
+    }
+
+    suspend fun deriveAndSavePyFunTool(pyFunTool: PyFunTool): PyFunToolDefinition {
         val toolDef = pyFunTool.functionDetails
         val pyFunToolDefinition =
             PyFunToolDefinition(
@@ -217,7 +249,7 @@ class ToolService(
                 pyInterpreterServer = pyFunTool.interpreterServer,
             )
         nativeToolRegistry.add(pyFunToolDefinition)
-        return pyFunToolDefinition.toFunctionTool()
+        return pyFunToolDefinition
     }
 
     suspend fun getRemoteMcpTools(
@@ -258,30 +290,14 @@ class ToolService(
             val tools = mutableListOf<McpToolDefinition>()
             mcpServerInfo.tools.forEach {
                 if (allowedTools.isEmpty()) {
-                    val toolDef = mcpToolRegistry.findByName(it) ?: throw IllegalStateException("Unable to find mcp tool $it in the registry")
+                    val toolDef = mcpToolRegistry.findByName(it) ?: throw McpToolNotFoundException("Unable to find mcp tool $it in the registry")
                     tools.add((toolDef as McpToolDefinition))
                 } else if (allowedTools.contains(it)) {
-                    val toolDef = mcpToolRegistry.findByName(it) ?: throw IllegalStateException("Unable to find mcp tool $it in the registry")
+                    val toolDef = mcpToolRegistry.findByName(it) ?: throw McpToolNotFoundException("Unable to find mcp tool $it in the registry")
                     tools.add((toolDef as McpToolDefinition))
                 }
             }
             return tools
-        }
-    }
-
-    /**
-     * Retrieves a tool as a FunctionTool by name using the Completion context.
-     *
-     * @param name Name of the tool to retrieve
-     * @return FunctionTool representation if found, null otherwise
-     */
-    fun getChatCompletionTool(
-        name: String,
-    ): ChatCompletionTool? {
-        val toolDefinition = nativeToolRegistry.findByName(name) ?: mcpToolRegistry.findByName(name) ?: return null
-        return when {
-            toolDefinition is NativeToolDefinition -> NativeToolDefinition.toChatCompletionTool(toolDefinition, objectMapper)
-            else -> (toolDefinition as McpToolDefinition).toChatCompletionTool(objectMapper)
         }
     }
 
@@ -344,6 +360,8 @@ class ToolService(
      */
     fun findToolByName(name: String): ToolDefinition? = nativeToolRegistry.findByName(name) ?: mcpToolRegistry.findByName(name)
 
+    fun invalidateMcpTool(tool: ToolDefinition) = mcpToolRegistry.invalidateTool(tool as McpToolDefinition)
+
     /**
      * Executes a tool based on its protocol, using unified context/params.
      *
@@ -368,10 +386,21 @@ class ToolService(
         context: UnifiedToolContext,
     ): String? {
         val toolResult =
-            when (tool.protocol) {
-                ToolProtocol.NATIVE -> nativeToolRegistry.executeTool(resolvedName, arguments, paramsAccessor, openAIClient, eventEmitter, toolMetadata, context)
-                ToolProtocol.PY_CODE -> nativeToolRegistry.executeTool(resolvedName, arguments, paramsAccessor, openAIClient, eventEmitter, toolMetadata, context)
-                ToolProtocol.MCP -> mcpToolExecutor.executeTool(tool, arguments, paramsAccessor, openAIClient)
+            when (tool) {
+                is NativeToolDefinition,
+                is FileSearchToolDefinition,
+                is PyFunToolDefinition,
+                -> nativeToolRegistry.executeTool(resolvedName, arguments, paramsAccessor, openAIClient, eventEmitter, toolMetadata, context)
+                is McpToolDefinition -> {
+                    try {
+                        mcpToolExecutor.executeTool(tool, arguments, paramsAccessor, openAIClient)
+                    } catch (ex: McpUnAuthorizedException) {
+                        mcpToolRegistry.invalidateTool(tool as McpToolDefinition)
+                        log.error("Received ${ex.javaClass}, while running ${tool.name}, error: ${ex.message}")
+                        throw ex
+                    }
+                }
+                else -> throw ResponseProcessingException("Unknown type of tool signalled for execution. Can't execute, Tool=$tool")
             }
         log.debug("tool ${toolMetadata["originalName"]} (resolved: $resolvedName) executed with arguments: $arguments gave result: $toolResult")
         return toolResult

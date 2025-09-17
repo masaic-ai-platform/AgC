@@ -280,6 +280,10 @@ class HttpSseTransport(
                 return Pair(null, headers)
             }
 
+            if (code == 401 || code == 403) {
+                throw McpUnAuthorizedException("unable to connect to MCP $url, received code=$code and response=${resp.body!!.string()}")
+            }
+
             if (code in 400..503) { // TODO: doing minimal handling now.
                 throw ResponseProcessingException("mcp server request failed with code=$code and response returned is: ${resp.body!!.string()}")
             }
@@ -382,6 +386,10 @@ class HttpSseTransport(
                     log.error { "Failed to reconnect after 4 attempts. Giving up." }
                     throw ResponseProcessingException("mcp server request failed with code=$code after 4 retry attempts")
                 }
+            }
+
+            if (code == 401 || code == 403) {
+                throw McpUnAuthorizedException("unable to connect to MCP $url, received code=$code and response=${resp.body!!.string()}")
             }
 
             if (code in 400..503) { // TODO: doing minimal handling now.
@@ -609,3 +617,11 @@ data class CallToolResponse(
     val isError: Boolean = false,
     val content: String,
 )
+
+class McpUnAuthorizedException(
+    message: String,
+) : RuntimeException(message)
+
+class McpToolNotFoundException(
+    message: String,
+) : RuntimeException(message)

@@ -1,0 +1,2 @@
+# AgC OpenAI Python SDK Example Requirements
+openai>=1.0.0

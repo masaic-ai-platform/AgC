@@ -75,6 +75,10 @@ dependencies {
     implementation("org.apache.lucene:lucene-core:9.9.0")
     implementation("org.apache.lucene:lucene-analysis-common:9.9.0")
     implementation("org.apache.lucene:lucene-queryparser:9.9.0")
+
+    implementation(platform("io.modelcontextprotocol.sdk:mcp-bom:0.12.1"))
+    implementation("io.modelcontextprotocol.sdk:mcp-spring-webflux")
+
 }
 
 kotlin {

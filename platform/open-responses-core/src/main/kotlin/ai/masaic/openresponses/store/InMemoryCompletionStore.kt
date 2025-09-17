@@ -50,9 +50,9 @@ class InMemoryCompletionStore : CompletionStore {
         return store[completionId]?.completion
     }
 
-    override suspend fun getMessages(completionId: String): List<ChatCompletionMessageParam> {
+    override suspend fun getMessages(completionId: String): List<ChatCompletionMessageParam>? {
         logger.debug { "Retrieving messages for completion ID: $completionId from memory." }
-        return store[completionId]?.messages ?: emptyList()
+        return store[completionId]?.messages
     }
 
     override suspend fun deleteCompletion(completionId: String): Boolean {

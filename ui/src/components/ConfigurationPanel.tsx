@@ -153,8 +153,6 @@ interface ConfigurationPanelProps {
   mockyMode?: boolean;
   // When true, shows Model Test Agent specific UI
   modelTestMode?: boolean;
-  // When true, shows Agent Builder mode with hidden sections
-  agentBuilderMode?: boolean;
   modelTestUrl?: string;
   setModelTestUrl?: (url: string) => void;
   modelTestName?: string;
@@ -221,7 +219,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   setJsonSchemaName,
   mockyMode = false,
   modelTestMode = false,
-  agentBuilderMode = false,
   modelTestUrl = '',
   setModelTestUrl = () => {},
   modelTestName = '',
@@ -795,8 +792,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           )}
         </div>
 
-        {/* Tools Section (hidden in Masaic Mocky mode, Model Test mode, and Agent Builder mode) */}
-        {!mockyMode && !modelTestMode && !agentBuilderMode && (
+        {/* Tools Section (hidden in Masaic Mocky mode and Model Test mode) */}
+        {!mockyMode && !modelTestMode && (
         <div className="mt-6 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center flex-wrap gap-2">
@@ -1205,8 +1202,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           </div>
         )}
 
-        {/* System Message - hidden in Masaic Mocky mode, Model Test mode, and Agent Builder mode */}
-        {!mockyMode && !modelTestMode && !agentBuilderMode && (
+        {/* System Message - hidden in Masaic Mocky mode and Model Test mode */}
+        {!mockyMode && !modelTestMode && (
         <div className="mt-6 flex flex-col flex-grow min-h-0">
           <div className="flex items-center justify-between mb-3 flex-shrink-0">
             <div className="flex items-center space-x-3">
@@ -1268,12 +1265,6 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         </div>
         )}
 
-        {/* Agent List - shown in Agent Builder mode */}
-        {agentBuilderMode && (
-        <div className="mt-6 flex-grow min-h-0">
-          <AgentList className="h-full" onAgentSelect={onAgentSelect} />
-        </div>
-        )}
 
         {/* Remove or comment out the PromptMessagesInline component */}
         {/* <PromptMessagesInline

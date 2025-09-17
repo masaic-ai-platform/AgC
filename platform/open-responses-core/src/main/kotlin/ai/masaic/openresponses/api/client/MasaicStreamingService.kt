@@ -52,7 +52,7 @@ class MasaicStreamingService(
         initialParams: ResponseCreateParams,
         metadata: InstrumentationMetadataInput,
     ): Flow<ServerSentEvent<String>> {
-        val parentSpan = telemetryService.startOtelSpan("AgC loop", "", Span.current())
+        val parentSpan = telemetryService.startOtelSpan("AgC responses loop", "", Span.current())
         var lastFinalResponse: Response? = null
         return flow {
             var currentParams = initialParams
@@ -116,7 +116,7 @@ class MasaicStreamingService(
             if (error == null) parentSpan.setStatus(StatusCode.OK)
 
             lastFinalResponse?.let {
-                telemetryService.stopOtelSpan(parentSpan, it, initialParams, metadata)
+                telemetryService.stopOtelParentSpan(parentSpan, it, metadata)
             } ?: run {
                 parentSpan.end()
             }

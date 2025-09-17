@@ -84,8 +84,8 @@
     "inferenceBaseUrl": "https://api.groq.com/openai/v1",
     "supportedModels": [
       {
-        "name": "qwen-qwq-32b",
-        "modelSyntax": "groq@qwen-qwq-32b"
+        "name": "moonshotai/kimi-k2-instruct",
+        "modelSyntax": "groq@moonshotai/kimi-k2-instruct"
       }
     ]
   },

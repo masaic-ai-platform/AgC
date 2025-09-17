@@ -195,17 +195,46 @@ class MasaicOpenAiCompletionServiceImpl(
                     var reconstructedCompletionFromStream: ChatCompletion? = null
 
                     // Collect all chunks from the current stream segment
+                    var knownToolChunks = false
                     streamResponse.stream().consumeAsFlow().collect { chunk ->
                         currentIterationCompletionChunks.add(chunk)
                         val jsonChunk = objectMapper.writeValueAsString(chunk)
-                        emit(
-                            ServerSentEvent
-                                .builder<String>()
-                                .id(chunk.id())
-                                .event("chunk")
-                                .data(jsonChunk)
-                                .build(),
-                        )
+                        logger.debug { "chunk: $chunk" }
+
+                        val fnName =
+                            chunk
+                                .choices()
+                                .find { it.delta().toolCalls().isPresent }
+                                ?.delta()
+                                ?.toolCalls()
+                                ?.get()
+                                ?.find { it.function().isPresent }
+                                ?.let { if (it.function().isPresent) it.function().get() else null }
+                                ?.name()
+                                .let { if (it?.isPresent == true) it.get() else null }
+
+                        fnName?.let { if (toolService.getFunctionTool(fnName) != null) knownToolChunks = true }
+
+                        if (!knownToolChunks) {
+                            emit(
+                                ServerSentEvent
+                                    .builder<String>()
+                                    .id(chunk.id())
+                                    .data(jsonChunk)
+                                    .build(),
+                            )
+                        }
+
+                        val finishReason =
+                            chunk
+                                .choices()
+                                .firstOrNull { it.finishReason().isPresent }
+                                ?.finishReason()
+                                ?.get()
+                                ?.asString()
+                        if (knownToolChunks && finishReason == "tool_calls") {
+                            knownToolChunks = false
+                        }
                     }
 
                     // Try to reconstruct the completion from this segment's chunks for tool call detection

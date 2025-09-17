@@ -4,6 +4,7 @@ import ai.masaic.openresponses.api.client.ResponseStore
 import ai.masaic.openresponses.api.config.DeploymentSettings
 import ai.masaic.openresponses.api.exception.VectorStoreNotFoundException
 import ai.masaic.openresponses.api.model.*
+import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.api.service.search.VectorStoreService
 import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpStatus
@@ -33,6 +34,11 @@ open class RequestValidator(
         }
         if (request.metadata != null && !request.store) {
             throw IllegalArgumentException("metadata is only allowed when store=true")
+        }
+        request.tools?.forEach { tool ->
+            if (tool["type"]?.toString() != "function") {
+                throw ResponseProcessingException("The definition of tool=$tool is not correct. It must have attribute type=function")
+            }
         }
     }
 

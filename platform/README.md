@@ -166,14 +166,90 @@ The API implements the following OpenAI-compatible endpoints:
 
 4. All opentelemetry [sdk-environment-variables](https://opentelemetry.io/docs/specs/otel/configuration/sdk-environment-variables/) are supported.
 
-### Platform Configuration For Local Development
-```bash
-OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_API_KEY=
-OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_HOST=
-OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_USE_TLS=true/false
-OPENAI_API_KEY=
-SPRING_PROFILES_ACTIVE=platform
+### Platform Configuration
+
+The following environment variables can be configured to deploy a full-fledged AgC platform:
+
+| Environment Variable | Description | Default Value | Example Value |
+|---------------------|-------------|---------------|---------------|
+| `SPRING_PROFILES_ACTIVE` | Profile to activate when booting AgC as full-fledged platform | `default` | `platform` |
+| `OPEN_RESPONSES_STORE_VECTOR_SEARCH_PROVIDER` | Vector store provider to use | `file` | `qdrant` or `file` |
+| `OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_HOST` | Qdrant vector store host name | - | `your-qdrant-host.com` |
+| `OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_API_KEY` | API key for Qdrant vector store | - | `your-qdrant-api-key` |
+| `OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_USE_TLS` | Enable TLS for secure Qdrant connection | `false` | `true` or `false` |
+| `OPEN_RESPONSES_STORE_VECTOR_REPOSITORY_TYPE` | Repository type for vector operations | `file` | `mongodb` or `file` |
+| `OPEN_RESPONSES_STORE_TYPE` | Data store type for platform | `in-memory` | `mongodb` or `in-memory` |
+| `PLATFORM_DEPLOYMENT_AUTH_ENABLED` | Enable authentication for the platform | `false` | `true` or `false` |
+| `PLATFORM_DEPLOYMENT_AUTH_GOOGLE_AUDIENCE` | Google Auth audience when platform auth is enabled | - | `your-google-auth-audience` |
+
+## MCP Server Integration
+
+### Configuring AgC with MCP Server
+
+To enable MCP server functionality, add these additional environment variables to your platform configuration:
+
+| Environment Variable | Description | Example Value |
+|---------------------|-------------|---------------|
+| `PLATFORM_DEPLOYMENT_MCP-SERVER_ENABLED` | Enable/disable MCP server | `true` or `false` |
+| `PLATFORM_DEPLOYMENT_MCP-SERVER_VALIDAPIKEYS` | Comma-separated list of valid API keys for MCP client access | `key1,key2,key3` |
+| `PLATFORM_DEPLOYMENT_PROVIDERS_CLAUDE_APIKEY` | Claude API key for agents invoked through MCP askAgent tool | `sk-ant-your-claude-api-key` |
+
+**Note:** For multiple providers, use the convention `PLATFORM_DEPLOYMENT_PROVIDERS_{PROVIDER}_APIKEY` (e.g., `PLATFORM_DEPLOYMENT_PROVIDERS_OPENAI_APIKEY`).
+
+### Connecting to AgC MCP Server
+
+#### Option 1: Remote MCP Connection (Any MCP-compatible app)
+
+For any application that supports remote MCP server connections:
+
+- **MCP URL**: `https://{host_name}/mcp` (for production) or `https://localhost:6644/mcp` (for local deployment)
+- **API Key**: Use one of the keys specified in `PLATFORM_DEPLOYMENT_MCP-SERVER_VALIDAPIKEYS`
+
+#### Option 2: Claude Desktop (Local Connection)
+
+**Prerequisites:**
+- Node.js version ≥ 23.11.x
+- Install the `mcp-remote` module: `npm install -g mcp-remote`
+
+**Setup Steps:**
+1. Open Claude Desktop Settings → Developer → Edit Config
+2. This will open the `claude_desktop_config.json` file
+3. Add the following MCP server configuration:
+
+```json
+{
+  "mcpServers": {
+    "AgC": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://{host_name}/mcp", "--allow-http", "--header", "Authorization: Bearer ${MCP_API_KEY}"],
+      "env": {
+        "APP_MODE": "http",
+        "MCP_API_KEY": "your-valid-mcp-api-key"
+      }
+    }
+  }
+}
 ```
+
+**For local deployment, use:**
+```json
+{
+  "mcpServers": {
+    "AgC": {
+      "command": "npx",
+      "args": ["mcp-remote", "https://localhost:6644/mcp", "--allow-http", "--header", "Authorization: Bearer ${MCP_API_KEY}"],
+      "env": {
+        "APP_MODE": "http",
+        "MCP_API_KEY": "your-valid-mcp-api-key"
+      }
+    }
+  }
+}
+```
+
+4. Replace `your-valid-mcp-api-key` with one of the keys from your `PLATFORM_DEPLOYMENT_MCP-SERVER_VALIDAPIKEYS` configuration
+5. Save the config file and restart Claude Desktop
+6. You should now see "AgC" listed in your MCP servers
 
 ## 🤝 Contributing
 

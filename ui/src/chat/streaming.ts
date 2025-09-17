@@ -85,10 +85,10 @@ export async function* parseResponsesStream(
             }
 
             // Handle explicit error events from SSE stream  
-            if (lastEvent === 'error' || (data.type === 'error') || (data.code && data.message)) {
-              console.log('🚨 Error detected in stream!', { lastEvent, dataType: data.type, dataCode: data.code, dataMessage: data.message });
+            if (lastEvent === 'error' || (data.type === 'error') || (data.code && data.message) || data.error) {
+              console.log('🚨 Error detected in stream!', { lastEvent, dataType: data.type, dataCode: data.code, dataMessage: data.message, dataError: data.error });
               const errorCode = data.code || 'error';
-              const errorMsg = data.message || 'Unknown error';
+              const errorMsg = data.message || data.error || 'Unknown error';
               const errorContent = `Error: [${errorCode}] ${errorMsg}`;
 
               // Clear all active tool executions to stop loading spinners

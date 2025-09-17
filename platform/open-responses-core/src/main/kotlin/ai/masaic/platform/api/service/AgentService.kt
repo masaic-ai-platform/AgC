@@ -389,9 +389,9 @@ You are an expert AI agent builder for the AgC (Agentic Compute) platform. Your 
 Create functional agents efficiently by understanding user intent and making smart defaults, asking for clarification only when the request is genuinely ambiguous.
 
 ## Available Tools:
-- **system_prompt_generator**: Creates customized system prompts based on requirements
-- **tool_selector**: Intelligently selects relevant tools based on agent requirements  
-- **save_agent**: Saves the complete agent configuration
+- **${PlatformToolsNames.SYSTEM_PROMPT_GENERATOR_TOOL}**: Creates customized system prompts based on requirements
+- **${PlatformToolsNames.TOOL_SELECTOR_TOOL}**: Intelligently selects relevant tools based on agent requirements  
+- **${PlatformToolsNames.SAVE_AGENT_TOOL}**: Saves the complete agent configuration
 
 ## Smart Agent Creation Workflow:
 
@@ -420,8 +420,8 @@ Only ask for clarification when:
 
 **For Clear Requests** (most cases):
 1. Derive agent name and description immediately
-2. Generate system prompt using system_prompt_generator
-3. If tools might be useful, use tool_selector with inferred requirements
+2. Generate system prompt using ${PlatformToolsNames.SYSTEM_PROMPT_GENERATOR_TOOL}
+3. If tools might be useful, use ${PlatformToolsNames.TOOL_SELECTOR_TOOL} with inferred requirements
 4. Create and save the agent
 5. Provide summary and JSON
 
@@ -462,10 +462,10 @@ Look for message:
 1. **Get Current Agent**: Look for message - Modify the agent with name: agentName='{name of the agent}'
 2. **Analyze Changes**: Understand what specific modifications are requested
 3. **Apply Updates**: 
-   - For tool changes: Use tool_selector with new requirements
-   - For system prompt changes: Use system_prompt_generator with updated requirements
+   - For tool changes: Use ${PlatformToolsNames.TOOL_SELECTOR_TOOL} with new requirements
+   - For system prompt changes: Use ${PlatformToolsNames.SYSTEM_PROMPT_GENERATOR_TOOL} with updated requirements
    - For other changes: Modify the relevant fields directly
-4. **Save Updated Agent**: Use save_agent tool with isUpdate=true
+4. **Save Updated Agent**: Use ${PlatformToolsNames.SAVE_AGENT_TOOL} tool with isUpdate=true
 5. **Show Changes**: Clearly indicate what was modified
     
 ### Modification Examples:
@@ -505,8 +505,8 @@ Look for message:
 2. **Generate Components**:
    - Name: domain_based_name
    - Description: Clear purpose statement
-   - System Prompt: Use system_prompt_generator with inferred requirements
-   - Tools: Use tool_selector with domain-based requirements
+   - System Prompt: Use ${PlatformToolsNames.SYSTEM_PROMPT_GENERATOR_TOOL} with inferred requirements
+   - Tools: Use ${PlatformToolsNames.TOOL_SELECTOR_TOOL} with domain-based requirements
 3. **Create & Save**: Complete agent with all components
 4. **Deliver Results**: Summary + JSON
 
@@ -593,7 +593,7 @@ Remember: Your goal is to be helpful and productive. Most users want to see prog
         return PlatformAgent(
             name = "AgC0",
             description = "This agent helps in building agents",
-            greetingMessage = "Hi, this is AgC0 agent, I can help you in building agent that can run on Agentic Compute (AgC)",
+            greetingMessage = "Hey Arun, I’m your AgC. Tell me what you want to build.",
             systemPrompt = prompt,
             kind = AgentClass(AgentClass.SYSTEM),
             tools = listOf(MasaicManagedTool(PlatformToolsNames.SYSTEM_PROMPT_GENERATOR_TOOL), MasaicManagedTool(PlatformToolsNames.TOOL_SELECTOR_TOOL), MasaicManagedTool(PlatformToolsNames.SAVE_AGENT_TOOL)),
@@ -602,7 +602,7 @@ Remember: Your goal is to be helpful and productive. Most users want to see prog
 
     override fun provideToolDef(): NativeToolDefinition =
         nativeToolDefinition {
-            name("save_agent_tool")
+            name(PlatformToolsNames.SAVE_AGENT_TOOL)
             description("Save or update a platform agent with complete configuration including tools, model settings, and behavior parameters")
             eventMeta(ToolProgressEventMeta("agc"))
             parameters {
