@@ -9,7 +9,6 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.databind.node.ArrayNode
 import com.fasterxml.jackson.databind.node.ObjectNode
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseStreamEvent
@@ -118,48 +117,6 @@ open class PayloadFormatter(
                 } ?: listOf(tool)
             }
         return mapper.convertValue(processed, listType)
-    }
-
-    /**
-     * Parse an MCPTool from a JSON Schema definition.
-     * Will throw IllegalArgumentException if required values are missing.
-     */
-    fun schemaToMcpTool(schemaJson: String): MCPTool {
-        val mapper = jacksonObjectMapper()
-        val root: JsonNode = mapper.readTree(schemaJson)
-        val props = root.path("properties")
-
-        fun constOrFirstEnum(
-            node: JsonNode,
-            fieldName: String,
-        ): String {
-            val constNode = node.path("const")
-            if (!constNode.isMissingNode && !constNode.isNull) {
-                return constNode.asText()
-            }
-            val enumNode = node.path("enum")
-            if (enumNode.isArray && enumNode.size() > 0) {
-                return enumNode[0].asText()
-            }
-            throw IllegalArgumentException("No const/enum found for '$fieldName'")
-        }
-
-        val type = constOrFirstEnum(props.path("type"), "type")
-        val serverLabel = constOrFirstEnum(props.path("server_label"), "server_label")
-        val serverUrl = constOrFirstEnum(props.path("server_url"), "server_url")
-
-        val allowedEnum = props.path("allowed_tools").path("items").path("enum")
-        if (!allowedEnum.isArray || allowedEnum.size() == 0) {
-            throw IllegalArgumentException("No enum found for 'allowed_tools'")
-        }
-        val allowedTools = allowedEnum.map { it.asText() }
-
-        return MCPTool(
-            type = type,
-            serverLabel = serverLabel,
-            serverUrl = serverUrl,
-            allowedTools = allowedTools,
-        )
     }
 
     /**
