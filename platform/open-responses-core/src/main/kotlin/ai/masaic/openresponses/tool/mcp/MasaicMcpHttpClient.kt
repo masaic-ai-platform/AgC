@@ -622,6 +622,16 @@ class McpUnAuthorizedException(
     message: String,
 ) : RuntimeException(message)
 
+class McpException(
+    message: String,
+    cause: Throwable?
+) : RuntimeException(message, cause)
+
 class McpToolNotFoundException(
     message: String,
 ) : RuntimeException(message)
+
+class McpToolsInputSchemaParsingException(
+    message: String,
+    cause: Throwable?
+) : RuntimeException(message, cause)

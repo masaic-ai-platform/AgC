@@ -5,6 +5,7 @@ import ai.masaic.openresponses.api.service.ResponseNotFoundException
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.api.service.ResponseStreamingException
 import ai.masaic.openresponses.api.service.ResponseTimeoutException
+import ai.masaic.openresponses.tool.mcp.McpException
 import ai.masaic.openresponses.tool.mcp.McpUnAuthorizedException
 import ai.masaic.platform.api.service.AgentRunException
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
@@ -136,7 +137,7 @@ class GlobalExceptionHandler(
         return ResponseEntity.status(status).body(errorResponse)
     }
 
-    @ExceptionHandler(exception = [ResponseProcessingException::class, McpUnAuthorizedException::class, McpUnAuthorizedException::class, AgentRunException::class])
+    @ExceptionHandler(exception = [ResponseProcessingException::class, McpUnAuthorizedException::class, McpUnAuthorizedException::class, AgentRunException::class, McpException::class])
     fun handleResponseProcessingException(ex: Exception): ResponseEntity<ErrorResponse> {
         if (ex.cause is OpenAIException) {
             return handleOpenAIException(ex.cause as OpenAIException)

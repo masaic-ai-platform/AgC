@@ -127,7 +127,9 @@ open class PlatformMcpClientFactory(
     private val mocksRepository: MocksRepository,
     private val modelSettings: ModelSettings,
     private val modelService: ModelService,
-) : SimpleMcpClientFactory() {
+)
+    : McpWebFluxClientFactory() {
+//    : SimpleMcpClientFactory() {
     override suspend fun init(
         serverName: String,
         url: String,
@@ -137,7 +139,7 @@ open class PlatformMcpClientFactory(
         if (uri.host.endsWith("mock.masaic.ai")) {
             return MockMcpClient(mockServerRepository, mockFunRepository, mocksRepository, modelSettings, modelService)
         }
-        return SimpleMcpClient().init(serverName, url, headers)
+        return super.init(serverName, url, headers)//SimpleMcpClient().init(serverName, url, headers)
     }
 }
 

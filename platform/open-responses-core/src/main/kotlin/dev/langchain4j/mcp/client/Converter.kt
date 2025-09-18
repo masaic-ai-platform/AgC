@@ -1,10 +1,13 @@
 package dev.langchain4j.mcp.client
 
 import ai.masaic.openresponses.tool.mcp.CallToolResponse
+import ai.masaic.openresponses.tool.mcp.McpToolsInputSchemaParsingException
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.node.ArrayNode
 import dev.langchain4j.agent.tool.ToolSpecification
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema
+import io.modelcontextprotocol.spec.McpSchema
+import io.modelcontextprotocol.spec.McpSchema.TextContent
 import mu.KotlinLogging
 import java.util.stream.Collectors
 import java.util.stream.StreamSupport
@@ -39,6 +42,37 @@ class Converter {
                 }
             }
             return result
+        }
+
+        fun extractResult(result: McpSchema.CallToolResult): CallToolResponse {
+            return try {
+                // Extract content from the result
+                val content = if (result.content.isNotEmpty()) {
+                    result.content.joinToString("\n") { contentItem ->
+                        when(contentItem) {
+                            is TextContent -> contentItem.text
+                            else -> contentItem.toString()
+                        }
+                    }
+                } else {
+                    "No content returned returned by the tool."
+                }
+
+                // Check if this is an error result
+                val isError = result.isError ?: false
+
+                // Format error content if needed
+                val finalContent = if (isError) {
+                    "There was an error executing the tool. The tool returned: $content"
+                } else {
+                    content
+                }
+
+                CallToolResponse(isError, finalContent)
+            } catch (ex: Exception) {
+                log.warn("Error occurred while extracting CallToolResult: ${ex.message}", ex)
+                CallToolResponse(true, "There was an error processing the tool result")
+            }
         }
 
         fun extractResult(result: JsonNode): CallToolResponse {
@@ -93,6 +127,17 @@ class Converter {
 
             log.warn("Result contains an error: {}, code: {}", errorMessage, errorCode)
             return String.format("There was an error executing the tool. Message: %s. Code: %s", errorMessage, errorCode)
+        }
+
+        fun toJsonObjectSchema(inputSchema: JsonNode): JsonObjectSchema {
+            return if(!inputSchema.has("properties") || inputSchema["properties"].isEmpty)
+                JsonObjectSchema.builder().build()
+            else
+                try {
+                    ToolSpecificationHelper.jsonNodeToJsonSchemaElement(inputSchema) as JsonObjectSchema
+                }catch (ex: Exception) {
+                    throw McpToolsInputSchemaParsingException("Error ${ex.message} while parsing schema=$inputSchema", ex)
+                }
         }
     }
 }
