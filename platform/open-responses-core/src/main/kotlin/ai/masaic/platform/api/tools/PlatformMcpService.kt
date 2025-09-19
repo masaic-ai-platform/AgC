@@ -22,6 +22,7 @@ import com.openai.models.chat.completions.ChatCompletionSystemMessageParam
 import com.openai.models.chat.completions.ChatCompletionUserMessageParam
 import mu.KotlinLogging
 import org.springframework.data.annotation.Id
+import org.springframework.http.codec.ServerSentEvent
 import java.net.URI
 import java.time.Instant
 
@@ -37,15 +38,14 @@ class PlatformMcpService(
     suspend fun createMockServer(request: CreateMockMcpServerRequest): MockMcpServerResponse {
         // 1. create random Id of 9 chars long.
         val id =
-            java.util.UUID
+            request.id ?: java.util.UUID
                 .randomUUID()
                 .toString()
                 .replace("-", "")
                 .substring(0, 9)
 
         // 2. frame url like https://{id}.mock.masaic.ai/api/mcp
-        val url = "https://$id$MOCK_UURL_ENDS_WITH"
-        val serverInfo = MCPServerInfo(id = id, url = url)
+        val url = request.url ?: "https://$id$MOCK_UURL_ENDS_WITH"
 
         // 3. persist McpMockServer in DB
         var mockServer = McpMockServer(id = id, url = url, serverLabel = request.serverLabel, toolIds = request.toolIds)
@@ -169,6 +169,7 @@ open class MockMcpClient(
         paramsAccessor: ToolParamsAccessor?,
         openAIClient: OpenAIClient?,
         headers: Map<String, String>,
+        eventEmitter: ((ServerSentEvent<String>) -> Unit)?,
     ): String {
         log.debug("Executing native tool ${tool.name} with arguments: $arguments")
         val functionDefinition = mockFunRepository.findById(tool.id) ?: return "No function definition with id=${tool.id} is present."
@@ -293,6 +294,8 @@ $arguments
 data class CreateMockMcpServerRequest(
     val serverLabel: String,
     val toolIds: List<String>,
+    val url: String? = null,
+    val id: String? = null,
 )
 
 data class MockMcpServerResponse(

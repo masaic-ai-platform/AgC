@@ -171,7 +171,7 @@ ${request.description}
         val toolDefinition = toolService.findToolByName(toolRequest.name) ?: throw ResponseProcessingException("Tool ${toolRequest.name} not found.")
         val toolResponse =
             try {
-                mcpToolExecutor.executeTool(toolDefinition, mapper.writeValueAsString(toolRequest.arguments), null, null) ?: throw ResponseProcessingException("no response returned by tool ${toolRequest.name}")
+                mcpToolExecutor.executeTool(toolDefinition, mapper.writeValueAsString(toolRequest.arguments), null, null, null) ?: throw ResponseProcessingException("no response returned by tool ${toolRequest.name}")
             } catch (ex: McpUnAuthorizedException) {
                 mcpToolRegistry.invalidateTool(toolDefinition as McpToolDefinition)
                 log.error("Received ${ex.javaClass}, while running ${toolDefinition.name}, error: ${ex.message}")

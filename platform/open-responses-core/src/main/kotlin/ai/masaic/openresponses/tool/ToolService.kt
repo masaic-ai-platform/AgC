@@ -393,7 +393,7 @@ class ToolService(
                 -> nativeToolRegistry.executeTool(resolvedName, arguments, paramsAccessor, openAIClient, eventEmitter, toolMetadata, context)
                 is McpToolDefinition -> {
                     try {
-                        mcpToolExecutor.executeTool(tool, arguments, paramsAccessor, openAIClient)
+                        mcpToolExecutor.executeTool(tool, arguments, paramsAccessor, openAIClient, eventEmitter)
                     } catch (ex: McpUnAuthorizedException) {
                         mcpToolRegistry.invalidateTool(tool as McpToolDefinition)
                         log.error("Received ${ex.javaClass}, while running ${tool.name}, error: ${ex.message}")

@@ -86,7 +86,7 @@ class PythonCodeRunnerService(
 
         val toolResult =
             try {
-                mcpToolExecutor.executeTool(codeRunnerToolDef, mapper.writeValueAsString(mapOf("code" to code)), null, null)
+                mcpToolExecutor.executeTool(codeRunnerToolDef, mapper.writeValueAsString(mapOf("code" to code)), null, null, eventEmitter)
                     ?: "no response from $codeRunnerTool"
             } catch (ex: McpUnAuthorizedException) {
                 toolService.invalidateMcpTool(codeRunnerToolDef)

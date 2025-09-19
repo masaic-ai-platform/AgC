@@ -16,6 +16,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.client.OpenAIClient
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema
 import mu.KotlinLogging
+import org.springframework.http.codec.ServerSentEvent
 
 class RegSuiteMcpClient(
     private val responseStoreService: ResponseStoreService,
@@ -38,6 +39,7 @@ class RegSuiteMcpClient(
         paramsAccessor: ToolParamsAccessor?,
         openAIClient: OpenAIClient?,
         headers: Map<String, String>,
+        eventEmitter: ((ServerSentEvent<String>) -> Unit)?,
     ): String {
         val argTree = mapper.readTree(arguments)
         return when (tool.name) {
