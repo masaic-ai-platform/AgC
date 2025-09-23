@@ -17,6 +17,12 @@ object JsonSchemaMapper {
             "integer" -> JsonIntegerSchema.builder().description(schemaMap["description"] as? String).build()
             "number" -> JsonNumberSchema.builder().description(schemaMap["description"] as? String).build()
             "boolean" -> JsonBooleanSchema.builder().description(schemaMap["description"] as? String).build()
+            "enum" ->
+                JsonEnumSchema
+                    .builder()
+                    .description(schemaMap["description"] as? String)
+                    .enumValues(schemaMap["enum"] as? List<String>)
+                    .build()
             else -> JsonStringSchema.builder().build()
         }
 

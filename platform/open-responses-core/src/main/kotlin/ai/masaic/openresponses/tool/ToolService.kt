@@ -657,6 +657,7 @@ class ToolService(
             is JsonIntegerSchema -> mapPrimitiveSchema(schema, result, "integer")
             is JsonNumberSchema -> mapPrimitiveSchema(schema, result, "number")
             is JsonBooleanSchema -> mapPrimitiveSchema(schema, result, "boolean")
+            is JsonEnumSchema -> mapPrimitiveSchema(schema, result, "string")
             else -> {
                 // Default to string for unknown types
                 result["type"] = "string"
@@ -731,6 +732,10 @@ class ToolService(
             is JsonIntegerSchema -> schema.description()?.let { result["description"] = it }
             is JsonNumberSchema -> schema.description()?.let { result["description"] = it }
             is JsonBooleanSchema -> schema.description()?.let { result["description"] = it }
+            is JsonEnumSchema -> {
+                schema.description()?.let { result["description"] = it }
+                schema.enumValues()?.let { result["enum"] = it }
+            }
         }
     }
 }

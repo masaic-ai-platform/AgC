@@ -55,7 +55,7 @@ class AgentsController(
     suspend fun deleteAgent(
         @PathVariable agentName: String,
     ): ResponseEntity<Unit> {
-        val deleted = agentService.deleteAgent(agentName.lowercase())
+        val deleted = agentService.deleteAgent(agentName)
         return if (deleted) {
             ResponseEntity.ok().build()
         } else {

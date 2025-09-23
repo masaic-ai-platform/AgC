@@ -702,6 +702,7 @@ class MasaicToolHandler(
                 logger.info { "Executing tool: ${function.name()} with ID: ${function.id()}" }
                 val toolMeta = toolService.getAvailableTool(function.name())
                 val funNameForEventPrefix = function.name().lowercase().replace("^\\W".toRegex(), "_")
+                val emitToolEvents = toolMeta?.eventMeta?.emitProgressEvents ?: true
                 val eventPrefix =
                     if (toolMeta?.eventMeta != null) {
                         "response.${toolMeta.eventMeta.infix}.$funNameForEventPrefix"
@@ -713,16 +714,18 @@ class MasaicToolHandler(
                         "response.$funNameForEventPrefix"
                     }
 
-                eventEmitter.invoke(
-                    ServerSentEvent
-                        .builder<String>()
-                        .event("$eventPrefix.in_progress")
-                        .data(
-                            " " + objectMapper.writeValueAsString(InProgressEventData(itemId = function.id().getOrNull() ?: function.callId(), outputIndex = index.toString(), type = "$eventPrefix.in_progress", toolArgs = function.arguments())),
-                        ).build(),
-                )
+                if (emitToolEvents) {
+                    eventEmitter.invoke(
+                        ServerSentEvent
+                            .builder<String>()
+                            .event("$eventPrefix.in_progress")
+                            .data(
+                                " " + objectMapper.writeValueAsString(InProgressEventData(itemId = function.id().getOrNull() ?: function.callId(), outputIndex = index.toString(), type = "$eventPrefix.in_progress", toolArgs = function.arguments())),
+                            ).build(),
+                    )
+                }
 
-                if (toolMeta?.protocol != ToolProtocol.PY_CODE) {
+                if (toolMeta?.protocol != ToolProtocol.PY_CODE && emitToolEvents) {
                     eventEmitter.invoke(
                         ServerSentEvent
                             .builder<String>()
@@ -913,17 +916,19 @@ class MasaicToolHandler(
                                 ),
                             )
 
-                            eventEmitter.invoke(
-                                ServerSentEvent
-                                    .builder<String>()
-                                    .event("$eventPrefix.completed")
-                                    .data(
-                                        " " +
-                                            objectMapper.writeValueAsString(
-                                                CompletedEventData(itemId = function.id().toString(), outputIndex = index.toString(), type = "$eventPrefix.completed", toolResult = toolResult),
-                                            ),
-                                    ).build(),
-                            )
+                            if (emitToolEvents) {
+                                eventEmitter.invoke(
+                                    ServerSentEvent
+                                        .builder<String>()
+                                        .event("$eventPrefix.completed")
+                                        .data(
+                                            " " +
+                                                objectMapper.writeValueAsString(
+                                                    CompletedEventData(itemId = function.id().toString(), outputIndex = index.toString(), type = "$eventPrefix.completed", toolResult = toolResult),
+                                                ),
+                                        ).build(),
+                                )
+                            }
                         } else {
                             logger.warn { "Tool execution returned null for ${function.name()}" }
                             // Add the function call to response items
@@ -950,16 +955,18 @@ class MasaicToolHandler(
                                 ),
                             )
 
-                            eventEmitter.invoke(
-                                ServerSentEvent
-                                    .builder<String>()
-                                    .event("$eventPrefix.error")
-                                    .data(
-                                        objectMapper.writeValueAsString(
-                                            " " + ErrorEventData(itemId = function.id().toString(), outputIndex = index.toString(), type = "$eventPrefix.error", error = "Tool returned error or null"),
-                                        ),
-                                    ).build(),
-                            )
+                            if (emitToolEvents) {
+                                eventEmitter.invoke(
+                                    ServerSentEvent
+                                        .builder<String>()
+                                        .event("$eventPrefix.error")
+                                        .data(
+                                            objectMapper.writeValueAsString(
+                                                " " + ErrorEventData(itemId = function.id().toString(), outputIndex = index.toString(), type = "$eventPrefix.error", error = "Tool returned error or null"),
+                                            ),
+                                        ).build(),
+                                )
+                            }
                         }
                     }
                 }

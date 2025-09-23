@@ -272,7 +272,7 @@ class MasaicResponseService(
                 )
                 // Add error handling to the flow
                 .catch { error ->
-                    logger.error { "Error in streaming response" }
+                    logger.error(error) { "Error in streaming response, ${error.message}" }
 
                     val errorEvent =
                         EventUtils.convertEvent(
@@ -293,7 +293,7 @@ class MasaicResponseService(
                     throw ResponseStreamingException("Error in streaming response: ${error.message}", error)
                 }.onCompletion { error ->
                     if (error != null) {
-                        logger.error { "Stream completed with error" }
+                        logger.error(error) { "Stream completed with error, ${error.message}" }
                     } else {
                         logger.info { "Stream completed successfully" }
                     }

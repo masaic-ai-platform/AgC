@@ -8,6 +8,8 @@ import ai.masaic.platform.api.repository.MocksRepository
 import ai.masaic.platform.api.service.ModelService
 import ai.masaic.platform.api.tools.PlatformMcpClientFactory
 import ai.masaic.platform.usecases.api.service.AtomMcpServerBootstrapService
+import ai.masaic.platform.usecases.api.service.AtomTemporalWorkflowService
+import ai.masaic.platform.usecases.api.service.AtomWorkflowService
 import org.springframework.stereotype.Component
 
 @Component
@@ -17,6 +19,8 @@ class UseCasesMcpClientFactory(
     mocksRepository: MocksRepository,
     modelSettings: ModelSettings,
     modelService: ModelService,
+    private val atomWorkflowService: AtomWorkflowService,
+    private val temporalService: AtomTemporalWorkflowService,
 ) : PlatformMcpClientFactory(mockServerRepository, mockFunRepository, mocksRepository, modelSettings, modelService) {
     override suspend fun init(
         serverName: String,
@@ -24,7 +28,7 @@ class UseCasesMcpClientFactory(
         headers: Map<String, String>,
     ): McpClient {
         if (url == AtomMcpServerBootstrapService.ATOM_MCP_SERVER_URL) {
-            return AtomMcpClient()
+            return AtomMcpClient(atomWorkflowService, temporalService)
         }
 
         return super.init(serverName, url, headers)

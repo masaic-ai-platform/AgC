@@ -63,6 +63,7 @@ open class ToolDefinition(
 @Serializable
 data class ToolProgressEventMeta(
     val infix: String,
+    val emitProgressEvents: Boolean = true,
 )
 
 /**

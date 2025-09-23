@@ -554,7 +554,7 @@ class MasaicStreamingService(
                     ResponseErrorEvent
                         .builder()
                         .message(
-                            "Timeout while processing. Increase the timeout limit by setting OPEN_RESPONSES_MAX_STREAMING_TIMEOUT environment variable.",
+                            "Stream is taking longer than usual, timeout occurred. Closing stream. Try again.",
                         ).code("timeout")
                         .param(null)
                         .type(JsonValue.from("response.error"))

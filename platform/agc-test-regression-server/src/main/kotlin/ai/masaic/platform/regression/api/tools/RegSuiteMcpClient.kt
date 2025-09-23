@@ -220,6 +220,7 @@ class RegSuiteMcpClient(
             description = nativeTool.description,
             parameters = parameters,
             serverInfo = mcpServerInfo,
+            eventMeta = nativeTool.eventMeta,
         )
     }
 }
