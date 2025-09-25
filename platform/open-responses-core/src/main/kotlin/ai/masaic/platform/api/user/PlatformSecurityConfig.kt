@@ -36,9 +36,7 @@ class PlatformSecurityConfig {
                 .cors { it.configurationSource(corsConfigurationSource()) }
                 .authorizeExchange { authorizeExchange ->
                     authorizeExchange
-                        .pathMatchers("/v1/dashboard/platform/info")
-                        .permitAll()
-                        .pathMatchers("/v1/dashboard/platform/auth/verify")
+                        .pathMatchers("/v1/dashboard/platform/info", "/v1/dashboard/platform/auth/verify", "/v1/dashboard/oauth/callback")
                         .permitAll()
                         .pathMatchers("/v1/dashboard/**")
                         .authenticated()

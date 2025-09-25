@@ -3,7 +3,6 @@ package ai.masaic.openresponses.tool.mcp
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolHosting
 import ai.masaic.openresponses.tool.ToolParamsAccessor
-import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.client.OpenAIClient
