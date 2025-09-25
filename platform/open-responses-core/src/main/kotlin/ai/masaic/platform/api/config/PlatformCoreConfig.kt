@@ -162,7 +162,7 @@ class PlatformCoreConfig {
         configProperties: AuthConfigProperties,
         partners: Partners,
         @Value("\${platform.deployment.oauth.redirectAgcHost:na}") agcPlatformRedirectBaseUrl: String = "na",
-        @Value("\${platform.deployment.oauth.redirectAgcHost:na}") agcUiHost: String = "na",
+        @Value("\${platform.deployment.oauth.agcUiHost:na}") agcUiHost: String = "na",
     ): PlatformInfo {
         val vectorStoreInfo =
             if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
