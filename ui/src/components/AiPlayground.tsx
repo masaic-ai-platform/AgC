@@ -139,6 +139,7 @@ const AiPlayground: React.FC = () => {
     accessToken?: string;
     errorMessage?: string;
   } | null>(null);
+  const [isInitialized, setIsInitialized] = useState(false);
   const [modelTestAgentData, setModelTestAgentData] = useState<null | { systemPrompt: string; greetingMessage: string; userMessage: string; tools: any[] }>(null);
   const [modelTestUrl, setModelTestUrl] = useState('');
   const [modelTestName, setModelTestName] = useState('');
@@ -220,8 +221,20 @@ const AiPlayground: React.FC = () => {
 
   const newChatRef = useRef<ResponsesChatRef>(null);
 
-  // Handle OAuth MCP return flow
+  // Mark component as initialized after a delay to ensure all setup is complete
   useEffect(() => {
+    const timer = setTimeout(() => {
+      setIsInitialized(true);
+      console.log('AiPlayground component initialized');
+    }, 1500);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Handle OAuth MCP return flow - only after component is initialized
+  useEffect(() => {
+    if (!isInitialized) return;
+
     const screen = searchParams.get('screen');
     const modal = searchParams.get('modal');
     const serverUrl = searchParams.get('serverUrl');
@@ -229,10 +242,10 @@ const AiPlayground: React.FC = () => {
     const accessToken = searchParams.get('accessToken');
     const errorMessage = searchParams.get('errorMessage');
 
-    console.log('OAuth MCP URL params:', { screen, modal, serverUrl, serverLabel, accessToken, errorMessage });
+    console.log('OAuth MCP URL params (after initialization):', { screen, modal, serverUrl, serverLabel, accessToken, errorMessage });
 
     if (screen === 'playground' && modal === 'mcp' && serverUrl && serverLabel) {
-      console.log('Setting OAuth MCP config:', { serverUrl, serverLabel, accessToken, errorMessage });
+      console.log('Setting OAuth MCP config after initialization:', { serverUrl, serverLabel, accessToken, errorMessage });
       setOauthMcpConfig({
         serverUrl,
         serverLabel,
@@ -251,7 +264,7 @@ const AiPlayground: React.FC = () => {
       newSearchParams.delete('authentication');
       setSearchParams(newSearchParams);
     }
-  }, [searchParams, setSearchParams]);
+  }, [isInitialized, searchParams, setSearchParams]);
 
   const { platformInfo } = usePlatformInfo();
   const modelSettings = platformInfo?.modelSettings;

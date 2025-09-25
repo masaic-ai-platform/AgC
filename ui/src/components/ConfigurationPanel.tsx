@@ -311,10 +311,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         setOauthMcpModalConfig(modalConfig);
       }
       
-      // Clear the config after handling
-      if (onOauthMcpConfigHandled) {
-        onOauthMcpConfigHandled();
-      }
+      // Don't clear the config immediately - let the modal handle its own lifecycle
+      // The config will be cleared when the modal closes or connects successfully
     }
   }, [oauthMcpConfig, onOauthMcpConfigHandled]);
 
@@ -1378,7 +1376,13 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         open={!!oauthMcpModalConfig}
         onOpenChange={(open) => { 
           console.log('OAuth MCP Modal onOpenChange:', open);
-          if (!open) setOauthMcpModalConfig(null); 
+          if (!open) {
+            setOauthMcpModalConfig(null);
+            // Clear the original config when modal closes
+            if (onOauthMcpConfigHandled) {
+              onOauthMcpConfigHandled();
+            }
+          }
         }}
         onConnect={(config) => {
           console.log('OAuth MCP Modal onConnect:', config);
@@ -1410,6 +1414,10 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           }
           
           setOauthMcpModalConfig(null);
+          // Clear the original config when connection is successful
+          if (onOauthMcpConfigHandled) {
+            onOauthMcpConfigHandled();
+          }
           toast.success(`MCP server "${config.label}" ${existingToolIndex !== -1 ? 'updated' : 'connected'} successfully`);
         }}
         initialConfig={oauthMcpModalConfig || undefined}
