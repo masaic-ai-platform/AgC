@@ -139,7 +139,11 @@ const AiPlayground: React.FC = () => {
     accessToken?: string;
     errorMessage?: string;
   } | null>(null);
-  const [isInitialized, setIsInitialized] = useState(false);
+
+  // Debug OAuth config changes
+  useEffect(() => {
+    console.log('AiPlayground: oauthMcpConfig changed:', oauthMcpConfig);
+  }, [oauthMcpConfig]);
   const [modelTestAgentData, setModelTestAgentData] = useState<null | { systemPrompt: string; greetingMessage: string; userMessage: string; tools: any[] }>(null);
   const [modelTestUrl, setModelTestUrl] = useState('');
   const [modelTestName, setModelTestName] = useState('');
@@ -221,20 +225,8 @@ const AiPlayground: React.FC = () => {
 
   const newChatRef = useRef<ResponsesChatRef>(null);
 
-  // Mark component as initialized after a delay to ensure all setup is complete
+  // Handle OAuth MCP return flow
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsInitialized(true);
-      console.log('AiPlayground component initialized');
-    }, 1500);
-    
-    return () => clearTimeout(timer);
-  }, []);
-
-  // Handle OAuth MCP return flow - only after component is initialized
-  useEffect(() => {
-    if (!isInitialized) return;
-
     const screen = searchParams.get('screen');
     const modal = searchParams.get('modal');
     const serverUrl = searchParams.get('serverUrl');
@@ -242,10 +234,10 @@ const AiPlayground: React.FC = () => {
     const accessToken = searchParams.get('accessToken');
     const errorMessage = searchParams.get('errorMessage');
 
-    console.log('OAuth MCP URL params (after initialization):', { screen, modal, serverUrl, serverLabel, accessToken, errorMessage });
+    console.log('OAuth MCP URL params:', { screen, modal, serverUrl, serverLabel, accessToken, errorMessage });
 
     if (screen === 'playground' && modal === 'mcp' && serverUrl && serverLabel) {
-      console.log('Setting OAuth MCP config after initialization:', { serverUrl, serverLabel, accessToken, errorMessage });
+      console.log('Setting OAuth MCP config:', { serverUrl, serverLabel, accessToken, errorMessage });
       setOauthMcpConfig({
         serverUrl,
         serverLabel,
@@ -253,18 +245,10 @@ const AiPlayground: React.FC = () => {
         errorMessage: errorMessage || undefined
       });
 
-      // Clear URL parameters
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.delete('screen');
-      newSearchParams.delete('modal');
-      newSearchParams.delete('serverUrl');
-      newSearchParams.delete('serverLabel');
-      newSearchParams.delete('accessToken');
-      newSearchParams.delete('errorMessage');
-      newSearchParams.delete('authentication');
-      setSearchParams(newSearchParams);
+      // Don't clear URL parameters immediately - let the modal handle its lifecycle
+      // The URL will be cleaned up when the modal closes or connects successfully
     }
-  }, [isInitialized, searchParams, setSearchParams]);
+  }, [searchParams, setSearchParams]);
 
   const { platformInfo } = usePlatformInfo();
   const modelSettings = platformInfo?.modelSettings;
@@ -1453,7 +1437,10 @@ const AiPlayground: React.FC = () => {
           onAgentSaved={handleAgentSaved}
           onAgentSelect={handleAgentSelect}
           oauthMcpConfig={oauthMcpConfig}
-          onOauthMcpConfigHandled={() => setOauthMcpConfig(null)}
+          onOauthMcpConfigHandled={() => {
+            console.log('AiPlayground: onOauthMcpConfigHandled called - clearing config');
+            setOauthMcpConfig(null);
+          }}
         />
       </DrawerContent>
     </Drawer>
@@ -1531,7 +1518,10 @@ const AiPlayground: React.FC = () => {
         onTestModelConnectivity={handleTestModelConnectivity}
         isTestingModel={isTestingModel}
         oauthMcpConfig={oauthMcpConfig}
-        onOauthMcpConfigHandled={() => setOauthMcpConfig(null)}
+        onOauthMcpConfigHandled={() => {
+          console.log('AiPlayground: onOauthMcpConfigHandled called - clearing config');
+          setOauthMcpConfig(null);
+        }}
       />
 
       {/* Chat Area */}

@@ -7,8 +7,8 @@ USER app
 WORKDIR /app
 
 # Copy the built JAR and configuration file into the image
-COPY build/libs/agc-usecases-server-v0.5.3-uc.jar /app/agc-usecases-server-v0.5.3-uc.jar
+COPY build/libs/agc-usecases-server-0.5.3-uc.jar /app/agc-usecases-server-0.5.3-uc.jar
 
 EXPOSE 6644
 # Start the Java application directly
-ENTRYPOINT ["java", "-jar", "/app/agc-usecases-server-v0.5.3-uc.jar"]
+ENTRYPOINT ["java", "-jar", "/app/agc-usecases-server-0.5.3-uc.jar"]

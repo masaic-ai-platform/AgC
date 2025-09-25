@@ -1378,9 +1378,23 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           console.log('OAuth MCP Modal onOpenChange:', open);
           if (!open) {
             setOauthMcpModalConfig(null);
-            // Clear the original config when modal closes
+            // Clear the original config and URL parameters when modal closes
             if (onOauthMcpConfigHandled) {
               onOauthMcpConfigHandled();
+            }
+            // Clear URL parameters
+            const currentUrl = new URL(window.location.href);
+            const searchParams = new URLSearchParams(currentUrl.search);
+            if (searchParams.has('screen') || searchParams.has('modal')) {
+              searchParams.delete('screen');
+              searchParams.delete('modal');
+              searchParams.delete('serverUrl');
+              searchParams.delete('serverLabel');
+              searchParams.delete('accessToken');
+              searchParams.delete('errorMessage');
+              searchParams.delete('authentication');
+              const newUrl = `${currentUrl.pathname}${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+              window.history.replaceState({}, '', newUrl);
             }
           }
         }}
@@ -1414,9 +1428,23 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
           }
           
           setOauthMcpModalConfig(null);
-          // Clear the original config when connection is successful
+          // Clear the original config and URL parameters when connection is successful
           if (onOauthMcpConfigHandled) {
             onOauthMcpConfigHandled();
+          }
+          // Clear URL parameters
+          const currentUrl = new URL(window.location.href);
+          const searchParams = new URLSearchParams(currentUrl.search);
+          if (searchParams.has('screen') || searchParams.has('modal')) {
+            searchParams.delete('screen');
+            searchParams.delete('modal');
+            searchParams.delete('serverUrl');
+            searchParams.delete('serverLabel');
+            searchParams.delete('accessToken');
+            searchParams.delete('errorMessage');
+            searchParams.delete('authentication');
+            const newUrl = `${currentUrl.pathname}${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+            window.history.replaceState({}, '', newUrl);
           }
           toast.success(`MCP server "${config.label}" ${existingToolIndex !== -1 ? 'updated' : 'connected'} successfully`);
         }}

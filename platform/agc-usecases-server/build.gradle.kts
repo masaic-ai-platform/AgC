@@ -7,7 +7,7 @@ plugins {
     id("org.jmailen.kotlinter")
 }
 
-version = "v0.5.3-uc"
+version = "0.5.3-uc"
 
 java {
     toolchain {
