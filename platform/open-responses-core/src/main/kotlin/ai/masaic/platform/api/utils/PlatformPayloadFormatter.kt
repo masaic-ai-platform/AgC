@@ -6,6 +6,7 @@ import ai.masaic.openresponses.api.model.PyFunTool
 import ai.masaic.openresponses.api.model.Tool
 import ai.masaic.openresponses.api.utils.PayloadFormatter
 import ai.masaic.openresponses.tool.ToolService
+import ai.masaic.openresponses.tool.mcp.McpToolNotFoundException
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
@@ -29,7 +30,7 @@ class PlatformPayloadFormatter(
 
                 is MCPTool -> {
                     val mcpToolFunctions = toolService.getRemoteMcpTools(it)
-                    if (mcpToolFunctions.isEmpty()) throw IllegalStateException("No MCP tools found for ${it.serverLabel}, ${it.serverUrl}")
+                    if (mcpToolFunctions.isEmpty()) throw McpToolNotFoundException("No MCP tools found for ${it.serverLabel}, ${it.serverUrl}")
                     updatedTools.addAll(mcpToolFunctions)
                 }
 

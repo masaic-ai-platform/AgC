@@ -40,7 +40,6 @@ class AgCMcpServerConfig(
     fun webFluxStatelessServerTransport(mapper: ObjectMapper?): WebFluxStatelessServerTransport =
         WebFluxStatelessServerTransport
             .builder()
-            .objectMapper(mapper)
             .messageEndpoint("/mcp")
             .build()
 

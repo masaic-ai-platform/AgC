@@ -50,6 +50,7 @@ data class PromptGenerationResponse(
 data class McpListToolsRequest(
     val serverLabel: String,
     val serverUrl: String,
+    val isOAuth: Boolean = false,
     val headers: Map<String, String> = emptyMap(),
     val testMcpTool: List<ExecuteToolRequest> = emptyList(),
 )

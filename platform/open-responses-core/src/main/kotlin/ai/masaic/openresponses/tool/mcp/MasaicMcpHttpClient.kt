@@ -75,6 +75,7 @@ interface McpClient {
     suspend fun close()
 }
 
+@Deprecated(message = "Replaced with McpWebFluxClientFactory")
 class SimpleMcpClient : McpClient {
     private val log = KotlinLogging.logger {}
     private var customClient: McpSyncClient? = null
@@ -469,6 +470,7 @@ data class ClientCapabilities(
 /**
  * Synchronous MCP client.
  */
+@Deprecated(message = "Replaced with SdkBackedMcpClient")
 class McpSyncClient private constructor(
     private val transport: HttpSseTransport,
     private val capabilities: ClientCapabilities,
@@ -625,6 +627,16 @@ class McpUnAuthorizedException(
     message: String,
 ) : RuntimeException(message)
 
+class McpException(
+    message: String,
+    cause: Throwable?,
+) : RuntimeException(message, cause)
+
 class McpToolNotFoundException(
     message: String,
 ) : RuntimeException(message)
+
+class McpToolsInputSchemaParsingException(
+    message: String,
+    cause: Throwable?,
+) : RuntimeException(message, cause)

@@ -7,6 +7,7 @@ import ai.masaic.openresponses.api.model.ModelInfo
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.*
+import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import ai.masaic.platform.api.config.ModelSettings
 import ai.masaic.platform.api.config.PlatformCoreConfig
 import ai.masaic.platform.api.config.PlatformInfo
@@ -24,9 +25,11 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import mu.KotlinLogging
 import org.springframework.context.annotation.Profile
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import java.net.URI
 import java.util.*
 
 @Profile("platform")
@@ -44,6 +47,7 @@ class DashboardController(
     private val codeRunnerService: CodeRunnerService,
     private val systemPromptGeneratorTool: SystemPromptGeneratorTool,
     private val functionRegistryService: FunctionRegistryService,
+    private val mcpoAuthService: MCPOAuthService,
 ) {
     private val mapper = jacksonObjectMapper()
     private val modelProviders: Set<ModelProvider> = PlatformCoreConfig.loadProviders()
@@ -135,17 +139,47 @@ ${request.description}
     @PostMapping("/mcp/list_actions")
     suspend fun listMcpActions(
         @RequestBody mcpListToolsRequest: McpListToolsRequest,
-    ): ResponseEntity<List<FunctionTool>> {
-        val tools =
-            toolService.getRemoteMcpTools(
-                mcpTool =
-                    MCPTool(
-                        type = "mcp",
-                        serverLabel = mcpListToolsRequest.serverLabel,
-                        serverUrl = mcpListToolsRequest.serverUrl,
-                        headers = mcpListToolsRequest.headers,
-                    ),
+    ): ResponseEntity<*> {
+        val mcpTool =
+            MCPTool(
+                type = "mcp",
+                serverLabel = mcpListToolsRequest.serverLabel,
+                serverUrl = mcpListToolsRequest.serverUrl,
+                headers = mcpListToolsRequest.headers,
             )
+
+        var beginOAuthFlow = false
+        if (mcpListToolsRequest.isOAuth) {
+            try {
+                val accessToken = mcpoAuthService.ensureFreshAccessToken(mcpTool)
+                return ResponseEntity.ok(geTools(mcpListToolsRequest.copy(headers = mapOf("Authorization" to "Bearer $accessToken"))))
+            } catch (e: McpUnAuthorizedException) {
+                log.info { "Token not found for mcp server=${mcpTool.serverUrl}, initiating oAuth flow." }
+                beginOAuthFlow = true
+            }
+        }
+
+        if (beginOAuthFlow) {
+            val redirectUri = URI("${platformInfo.oAuthRedirectSpecs.agcPlatformRedirectUri}/v1/dashboard/oauth/callback")
+            log.info { "Redirect URI for oAuth login will be $redirectUri" }
+            val oAuthUri = mcpoAuthService.beginOAuthFlow(mcpTool, redirectUri)
+            log.info { "oAuthUri for mcp is $oAuthUri" }
+            return ResponseEntity.ok().body(mapOf("statusCode" to HttpStatus.UNAUTHORIZED, "location" to oAuthUri.toString()))
+        }
+
+        return ResponseEntity.ok(geTools(mcpListToolsRequest))
+    }
+
+    private suspend fun geTools(mcpListToolsRequest: McpListToolsRequest): List<FunctionTool> {
+        val mcpTool =
+            MCPTool(
+                type = "mcp",
+                serverLabel = mcpListToolsRequest.serverLabel,
+                serverUrl = mcpListToolsRequest.serverUrl,
+                headers = mcpListToolsRequest.headers,
+            )
+        val tools =
+            toolService.getRemoteMcpTools(mcpTool)
 
         val updatedTools =
             tools.map {
@@ -161,7 +195,18 @@ ${request.description}
                 throw e
             }
         }
-        return ResponseEntity.ok(updatedTools)
+        return updatedTools
+    }
+
+    @GetMapping("/oauth/callback")
+    suspend fun callback(
+        @RequestParam code: String,
+        @RequestParam state: String,
+    ): ResponseEntity<Any> {
+        val mcpTool = mcpoAuthService.handleCallback(code, state)
+        val finalUrl = "${platformInfo.oAuthRedirectSpecs.agcUiHost}?screen=playground&modal=mcp&serverUrl=${mcpTool.serverUrl}&serverLabel=${mcpTool.serverLabel}&accessToken=${mcpTool.headers["accessToken"]}"
+        log.info { "finalUrl: $finalUrl" }
+        return ResponseEntity.status(HttpStatus.FOUND).location(URI(finalUrl)).build()
     }
 
     @PostMapping("/tools/mcp/execute", produces = [MediaType.APPLICATION_JSON_VALUE])

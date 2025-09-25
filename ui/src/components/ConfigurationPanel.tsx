@@ -169,6 +169,15 @@ interface ConfigurationPanelProps {
   onAgentSaved?: (agentName: string, agentDescription: string) => void;
   // Callback when agent is selected from agent list
   onAgentSelect?: (agent: any) => void;
+  // OAuth MCP configuration for return flow
+  oauthMcpConfig?: {
+    serverUrl: string;
+    serverLabel: string;
+    accessToken?: string;
+    errorMessage?: string;
+  } | null;
+  // Callback when OAuth MCP config is handled
+  onOauthMcpConfigHandled?: () => void;
 }
 
 const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
@@ -231,7 +240,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   agentMode = false,
   agentData = null,
   onAgentSaved,
-  onAgentSelect
+  onAgentSelect,
+  oauthMcpConfig = null,
+  onOauthMcpConfigHandled
 }) => {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
@@ -262,6 +273,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const [mcpPreview, setMcpPreview] = useState<{tools:any[], serverLabel:string}|null>(null);
   interface MCPTool { name:string; description:string; parameters:any; strict?:boolean; type?:string; }
   const [deletingFunctions, setDeletingFunctions] = useState<string[]>([]);
+  const [oauthMcpModalConfig, setOauthMcpModalConfig] = useState<any>(null);
 
   useEffect(() => {
     if(mockyMode){
@@ -269,6 +281,42 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       loadMockFunctions();
     }
   }, [mockyMode]);
+
+  // Handle OAuth MCP return flow
+  useEffect(() => {
+    console.log('ConfigurationPanel received oauthMcpConfig:', oauthMcpConfig);
+    if (oauthMcpConfig) {
+      if (oauthMcpConfig.errorMessage) {
+        // Show error and keep modal in connect state
+        console.log('Showing OAuth error:', oauthMcpConfig.errorMessage);
+        toast.error(oauthMcpConfig.errorMessage);
+        setOauthMcpModalConfig({
+          url: oauthMcpConfig.serverUrl,
+          label: oauthMcpConfig.serverLabel,
+          authentication: 'oauth',
+          selectedTools: []
+        });
+      } else if (oauthMcpConfig.accessToken) {
+        // Auto-populate and connect
+        console.log('Setting up OAuth auto-connect with token:', oauthMcpConfig.accessToken);
+        const modalConfig = {
+          url: oauthMcpConfig.serverUrl,
+          label: oauthMcpConfig.serverLabel,
+          authentication: 'oauth',
+          accessToken: oauthMcpConfig.accessToken,
+          selectedTools: [],
+          autoConnect: true
+        };
+        console.log('Setting oauthMcpModalConfig to:', modalConfig);
+        setOauthMcpModalConfig(modalConfig);
+      }
+      
+      // Clear the config after handling
+      if (onOauthMcpConfigHandled) {
+        onOauthMcpConfigHandled();
+      }
+    }
+  }, [oauthMcpConfig, onOauthMcpConfigHandled]);
 
   const loadMockServers = async () => {
     setLoadingServers(true);
@@ -1199,6 +1247,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                 initialConfig={{ url:'', label:mcpPreview.serverLabel, authentication:'none', selectedTools:[] }}
               />
             )}
+
           </div>
         )}
 
@@ -1318,6 +1367,52 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         existingAgentName={agentData?.name || ''}
         existingAgentDescription={agentData?.description || ''}
         onAgentSaved={onAgentSaved}
+      />
+
+      {/* OAuth MCP Modal - Always rendered outside conditional blocks */}
+      {(() => {
+        console.log('Rendering OAuth MCP Modal with config:', oauthMcpModalConfig, 'open:', !!oauthMcpModalConfig);
+        return null;
+      })()}
+      <MCPModal
+        open={!!oauthMcpModalConfig}
+        onOpenChange={(open) => { 
+          console.log('OAuth MCP Modal onOpenChange:', open);
+          if (!open) setOauthMcpModalConfig(null); 
+        }}
+        onConnect={(config) => {
+          console.log('OAuth MCP Modal onConnect:', config);
+          // Add or update the MCP tool in selected tools
+          const newTool: Tool = {
+            id: 'mcp_server',
+            name: config.label,
+            icon: Globe,
+            mcpConfig: config
+          };
+          
+          // Check if we're updating an existing tool (remove the old one first)
+          const existingToolIndex = (selectedTools || []).findIndex(t => 
+            t.id === 'mcp_server' && t.mcpConfig?.label === config.label
+          );
+          
+          let updatedTools;
+          if (existingToolIndex !== -1) {
+            // Replace existing tool
+            updatedTools = [...(selectedTools || [])];
+            updatedTools[existingToolIndex] = newTool;
+          } else {
+            // Add new tool
+            updatedTools = [...(selectedTools || []), newTool];
+          }
+          
+          if (onSelectedToolsChange) {
+            onSelectedToolsChange(updatedTools);
+          }
+          
+          setOauthMcpModalConfig(null);
+          toast.success(`MCP server "${config.label}" ${existingToolIndex !== -1 ? 'updated' : 'connected'} successfully`);
+        }}
+        initialConfig={oauthMcpModalConfig || undefined}
       />
     </div>
   );
