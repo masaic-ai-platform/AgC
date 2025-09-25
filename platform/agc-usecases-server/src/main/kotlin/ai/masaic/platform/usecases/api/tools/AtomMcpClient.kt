@@ -26,7 +26,6 @@ class AtomMcpClient(
     companion object {
         const val ATOM_CALL_LOG_TOOL_NAME = "call_log_update"
         const val ATOM_PAST_CALLS_LOGS_TOOL_NAME = "get_past_calls_logs"
-        private const val EVENT_PREFIX = "response.mcp_call.Sales-Force"
 
         val callLogUpdateToolDef =
             nativeToolDefinition {

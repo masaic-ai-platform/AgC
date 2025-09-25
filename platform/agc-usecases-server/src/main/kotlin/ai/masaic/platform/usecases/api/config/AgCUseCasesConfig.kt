@@ -1,5 +1,6 @@
 package ai.masaic.platform.usecases.api.config
 
+import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import ai.masaic.platform.api.config.ModelSettings
 import ai.masaic.platform.api.repository.McpMockServerRepository
 import ai.masaic.platform.api.repository.MockFunctionRepository
@@ -23,5 +24,6 @@ class AgCUseCasesConfig {
         @Lazy modelService: ModelService,
         atomWorkflowService: AtomWorkflowService,
         temporalService: AtomTemporalWorkflowService,
-    ) = UseCasesMcpClientFactory(mcpMockServerRepository, mockFunctionRepository, mocksRepository, modelSettings, modelService, atomWorkflowService, temporalService)
+        mcpoAuthService: MCPOAuthService,
+    ) = UseCasesMcpClientFactory(mcpMockServerRepository, mockFunctionRepository, mocksRepository, modelSettings, modelService, mcpoAuthService, atomWorkflowService, temporalService)
 }

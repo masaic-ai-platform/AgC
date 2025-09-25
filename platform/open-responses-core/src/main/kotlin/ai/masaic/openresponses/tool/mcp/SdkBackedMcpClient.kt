@@ -3,7 +3,6 @@ package ai.masaic.openresponses.tool.mcp
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolHosting
 import ai.masaic.openresponses.tool.ToolParamsAccessor
-import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.client.OpenAIClient
@@ -15,6 +14,7 @@ import io.modelcontextprotocol.spec.McpTransportException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.reactor.awaitSingle
 import mu.KotlinLogging
+import org.springframework.http.codec.ServerSentEvent
 import org.springframework.web.reactive.function.client.WebClientResponseException
 
 /**
@@ -77,6 +77,7 @@ class SdkBackedMcpClient(
         paramsAccessor: ToolParamsAccessor?,
         openAIClient: OpenAIClient?,
         headers: Map<String, String>,
+        eventEmitter: ((ServerSentEvent<String>) -> Unit)?,
     ): String? =
         try {
             // Parse arguments JSON to Map
