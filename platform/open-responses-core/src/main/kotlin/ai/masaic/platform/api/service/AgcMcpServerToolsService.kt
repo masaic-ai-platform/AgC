@@ -3,7 +3,6 @@ package ai.masaic.platform.api.service
 import ai.masaic.platform.api.model.PlatformAgent
 import com.fasterxml.jackson.module.kotlin.convertValue
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
 import io.modelcontextprotocol.server.McpStatelessServerFeatures
 import io.modelcontextprotocol.spec.McpSchema
 import io.modelcontextprotocol.spec.McpSchema.*
@@ -87,7 +86,7 @@ class AgcMcpServerToolsService(
                 .builder()
                 .name(LIST_AGENTS_TOOL_NAME)
                 .description(listToolDescription)
-                .inputSchema("""{"type": "object"}""")
+                .inputSchema(listAgentsInputSchema)
                 .build()
         return McpStatelessServerFeatures.AsyncToolSpecification(tool) { exchange, request ->
             log.debug { "exchange=$exchange, request=$request" }
@@ -118,62 +117,47 @@ class AgcMcpServerToolsService(
         }
 
     private val askAgentInputSchema =
-        """
-{
-  "type": "object",
-  "properties": {
-    "agent_name": {
-      "type": "string",
-      "description": "Name of the agent to whom this query is addressed. Exact name of the agent is available in $LIST_AGENTS_TOOL_NAME tool."
-    },
-    "query": {
-      "type": "string",
-      "description": "Question, for which you are looking answer from Agent. Provide as much possible elaborative quert."
-    },
-    "context": {
-      "type": "string",
-      "description": "If there is any relevant context from past conversation is available, provide that as well. Better the context better I will perform in meeting expectations."
-    },
-    "previous_response_id": {
-      "type": "string",
-      "description": "Use this parameter when the current query depends on the previous query and its answer. Each agent response includes a \"response_id\" (e.g., {\"content\": \"<answer>\", \"response_id\": \"<id>\"}). That \"response_id\" can be passed here as \"previous_response_id\" in the next request. If the current query is independent, leave this parameter empty."
-    }
-  },
-  "required": [
-    "agentName",
-    "query",
-    "context"
-  ]
-}
-        """.trimIndent()
+        JsonSchema(
+            "object",
+            mapOf(
+                "agent_name" to
+                    mapOf(
+                        "type" to "string",
+                        "description" to "Name of the agent to whom this query is addressed. Exact name of the agent is available in \$LIST_AGENTS_TOOL_NAME tool.",
+                    ),
+                "query" to
+                    mapOf(
+                        "type" to "string",
+                        "description" to "Question, for which you are looking answer from Agent. Provide as much possible elaborative quert.",
+                    ),
+                "context" to
+                    mapOf(
+                        "type" to "string",
+                        "description" to "If there is any relevant context from past conversation is available, provide that as well. Better the context better I will perform in meeting expectations.",
+                    ),
+                "previous_response_id" to
+                    mapOf(
+                        "type" to "string",
+                        "description" to "Use this parameter when the current query depends on the previous query and its answer. Each agent response includes a \"response_id\" (e.g., {\"content\": \"<answer>\", \"response_id\": \"<id>\"}). That \"response_id\" can be passed here as \"previous_response_id\" in the next request. If the current query is independent, leave this parameter empty.",
+                    ),
+            ),
+            listOf(
+                "agent_name",
+                "query",
+                "context",
+            ),
+            false,
+            emptyMap(),
+            emptyMap(),
+        )
 
-    private val schema =
-        """
-            {
-  "type": "object",
-  "properties": {
-    "query": {
-      "type": "string",
-      "description": "Question, for which you are looking answer from Agent. Provide as much possible elaborative quert."
-    },
-    "context": {
-      "type": "string",
-      "description": "If there is any relevant context from past conversation is available, provide that as well. Better the context better I will perform in meeting expectations."
-    }
-  },
-  "required": [
-    "query"
-  ]
-}
-        """.trimIndent()
-}
-
-fun main() {
-    val json = """{
-  "agent_name": "Discount-Calculator",
-  "query": "Calculate the final bill for a premium customer with 5% flat discount. The customer's purchase includes: shirts = ${'$'}50, shorts = ${'$'}15, shoes = ${'$'}100. Please provide the subtotal, discount amount, and final total.",
-  "context": "This is for a premium customer who gets a 5% flat discount on their entire purchase. Need to calculate the complete billing breakdown."
-}"""
-
-    println(jacksonObjectMapper().readValue<AskAgentRequest>(json))
+    private val listAgentsInputSchema =
+        JsonSchema(
+            "object",
+            emptyMap(),
+            emptyList(),
+            false,
+            emptyMap(),
+            emptyMap(),
+        )
 }

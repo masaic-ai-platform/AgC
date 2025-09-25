@@ -17,6 +17,7 @@ import ai.masaic.openresponses.api.service.search.*
 import ai.masaic.openresponses.api.support.service.TelemetryService
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
+import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import ai.masaic.platform.api.interpreter.CodeRunnerService
 import ai.masaic.platform.api.interpreter.PythonCodeRunnerService
 import ai.masaic.platform.api.model.ModelProvider
@@ -46,9 +47,9 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.*
-import org.springframework.core.env.Environment
 import org.springframework.core.io.ClassPathResource
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
+import java.net.URI
 import java.time.Instant
 
 @Profile("platform")
@@ -128,7 +129,8 @@ class PlatformCoreConfig {
         mocksRepository: MocksRepository,
         modelSettings: ModelSettings,
         @Lazy modelService: ModelService,
-    ) = PlatformMcpClientFactory(mcpMockServerRepository, mockFunctionRepository, mocksRepository, modelSettings, modelService)
+        mcpoAuthService: MCPOAuthService,
+    ) = PlatformMcpClientFactory(mcpMockServerRepository, mockFunctionRepository, mocksRepository, modelSettings, modelService, mcpoAuthService)
 
     @Bean
     fun platformMcpService(
@@ -159,10 +161,13 @@ class PlatformCoreConfig {
         pyInterpreterSettings: PyInterpreterSettings,
         configProperties: AuthConfigProperties,
         partners: Partners,
+        @Value("\${platform.deployment.oauth.redirectAgcHost:na}") agcPlatformRedirectBaseUrl: String = "na",
+        @Value("\${platform.deployment.oauth.redirectAgcHost:na}") agcUiHost: String = "na",
     ): PlatformInfo {
         val vectorStoreInfo =
             if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
 
+        val oAuthRedirectSpecs = if (agcPlatformRedirectBaseUrl != "na" && agcUiHost != "na") OAuthRedirectSpecs(URI(agcPlatformRedirectBaseUrl), URI(agcUiHost)) else OAuthRedirectSpecs()
         return PlatformInfo(
             version = "v${buildProperties.version}",
             buildTime = buildProperties.time,
@@ -179,6 +184,7 @@ class PlatformCoreConfig {
                     PyInterpreterSettings()
                 },
             partners = partners,
+            oAuthRedirectSpecs = oAuthRedirectSpecs,
         )
     }
 
@@ -569,6 +575,12 @@ data class PlatformInfo(
     val authConfig: AuthConfig,
     val pyInterpreterSettings: PyInterpreterSettings,
     val partners: Partners,
+    val oAuthRedirectSpecs: OAuthRedirectSpecs,
+)
+
+data class OAuthRedirectSpecs(
+    val agcPlatformRedirectUri: URI = URI("http://localhost:6644"),
+    val agcUiHost: URI = URI("http://localhost:6645"),
 )
 
 data class VectorStoreInfo(

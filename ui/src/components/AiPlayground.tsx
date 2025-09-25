@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Drawer, DrawerTrigger, DrawerContent } from '@/components/ui/drawer';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -88,6 +88,7 @@ const isValidUrl = (url: string): boolean => {
 
 const AiPlayground: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('http://localhost:8080');
@@ -130,6 +131,14 @@ const AiPlayground: React.FC = () => {
 
   // Model Test Agent mode state
   const [modelTestMode, setModelTestMode] = useState(false);
+
+  // OAuth MCP modal state
+  const [oauthMcpConfig, setOauthMcpConfig] = useState<{
+    serverUrl: string;
+    serverLabel: string;
+    accessToken?: string;
+    errorMessage?: string;
+  } | null>(null);
   const [modelTestAgentData, setModelTestAgentData] = useState<null | { systemPrompt: string; greetingMessage: string; userMessage: string; tools: any[] }>(null);
   const [modelTestUrl, setModelTestUrl] = useState('');
   const [modelTestName, setModelTestName] = useState('');
@@ -210,6 +219,39 @@ const AiPlayground: React.FC = () => {
   const apiUrl = API_URL;
 
   const newChatRef = useRef<ResponsesChatRef>(null);
+
+  // Handle OAuth MCP return flow
+  useEffect(() => {
+    const screen = searchParams.get('screen');
+    const modal = searchParams.get('modal');
+    const serverUrl = searchParams.get('serverUrl');
+    const serverLabel = searchParams.get('serverLabel');
+    const accessToken = searchParams.get('accessToken');
+    const errorMessage = searchParams.get('errorMessage');
+
+    console.log('OAuth MCP URL params:', { screen, modal, serverUrl, serverLabel, accessToken, errorMessage });
+
+    if (screen === 'playground' && modal === 'mcp' && serverUrl && serverLabel) {
+      console.log('Setting OAuth MCP config:', { serverUrl, serverLabel, accessToken, errorMessage });
+      setOauthMcpConfig({
+        serverUrl,
+        serverLabel,
+        accessToken: accessToken || undefined,
+        errorMessage: errorMessage || undefined
+      });
+
+      // Clear URL parameters
+      const newSearchParams = new URLSearchParams(searchParams);
+      newSearchParams.delete('screen');
+      newSearchParams.delete('modal');
+      newSearchParams.delete('serverUrl');
+      newSearchParams.delete('serverLabel');
+      newSearchParams.delete('accessToken');
+      newSearchParams.delete('errorMessage');
+      newSearchParams.delete('authentication');
+      setSearchParams(newSearchParams);
+    }
+  }, [searchParams, setSearchParams]);
 
   const { platformInfo } = usePlatformInfo();
   const modelSettings = platformInfo?.modelSettings;
@@ -1397,6 +1439,8 @@ const AiPlayground: React.FC = () => {
           agentData={agentData}
           onAgentSaved={handleAgentSaved}
           onAgentSelect={handleAgentSelect}
+          oauthMcpConfig={oauthMcpConfig}
+          onOauthMcpConfigHandled={() => setOauthMcpConfig(null)}
         />
       </DrawerContent>
     </Drawer>
@@ -1473,6 +1517,8 @@ const AiPlayground: React.FC = () => {
         setModelTestApiKey={setModelTestApiKey}
         onTestModelConnectivity={handleTestModelConnectivity}
         isTestingModel={isTestingModel}
+        oauthMcpConfig={oauthMcpConfig}
+        onOauthMcpConfigHandled={() => setOauthMcpConfig(null)}
       />
 
       {/* Chat Area */}
