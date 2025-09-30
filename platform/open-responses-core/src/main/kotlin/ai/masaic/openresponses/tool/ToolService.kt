@@ -44,6 +44,7 @@ class ToolService(
     private val nativeToolRegistry: NativeToolRegistry,
     private val objectMapper: ObjectMapper,
     private val mcpClientFactory: McpClientFactory,
+    private val plugableToolAdapter: PlugableToolAdapter,
 ) {
     @Value("\${open-responses.tools.mcp.enabled:false}")
     private val toolsMCPEnabled: Boolean = false
@@ -92,7 +93,7 @@ class ToolService(
      * @return Tool metadata if found, null otherwise
      */
     fun getAvailableTool(name: String): ToolMetadata? {
-        val tool = nativeToolRegistry.findByName(name) ?: mcpToolRegistry.findByName(name) ?: return null
+        val tool = nativeToolRegistry.findByName(name) ?: mcpToolRegistry.findByName(name) ?: plugableToolAdapter.plugIn(name) ?: return null
         val toolName =
             if (tool.hosting == ToolHosting.REMOTE) {
                 (tool as McpToolDefinition).serverInfo.unQualifiedToolName(tool.name)
@@ -164,10 +165,11 @@ class ToolService(
         context: ToolRequestContext,
     ): FunctionTool? {
         val resolvedName = resolveToolName(name, context)
-        val toolDefinition = nativeToolRegistry.findByName(resolvedName) ?: mcpToolRegistry.findByName(resolvedName) ?: return null
+        val toolDefinition = nativeToolRegistry.findByName(resolvedName) ?: mcpToolRegistry.findByName(resolvedName) ?: plugableToolAdapter.plugIn(name) ?: return null
         return when {
             toolDefinition is NativeToolDefinition -> NativeToolDefinition.toFunctionTool(toolDefinition)
             toolDefinition is PyFunToolDefinition -> toolDefinition.toFunctionTool()
+            toolDefinition is PlugableToolDefinition -> toolDefinition.toFunctionTool()
             else -> (toolDefinition as McpToolDefinition).toFunctionTool()
         }
     }
@@ -358,7 +360,7 @@ class ToolService(
     /**
      * Finds a tool by its name.
      */
-    fun findToolByName(name: String): ToolDefinition? = nativeToolRegistry.findByName(name) ?: mcpToolRegistry.findByName(name)
+    fun findToolByName(name: String): ToolDefinition? = nativeToolRegistry.findByName(name) ?: mcpToolRegistry.findByName(name) ?: plugableToolAdapter.plugIn(name)
 
     fun invalidateMcpTool(tool: ToolDefinition) = mcpToolRegistry.invalidateTool(tool as McpToolDefinition)
 
@@ -390,6 +392,7 @@ class ToolService(
                 is NativeToolDefinition,
                 is FileSearchToolDefinition,
                 is PyFunToolDefinition,
+                is PlugableToolDefinition,
                 -> nativeToolRegistry.executeTool(resolvedName, arguments, paramsAccessor, openAIClient, eventEmitter, toolMetadata, context)
                 is McpToolDefinition -> {
                     try {
