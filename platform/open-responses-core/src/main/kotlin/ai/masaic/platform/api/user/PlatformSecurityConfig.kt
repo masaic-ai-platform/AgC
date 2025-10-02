@@ -4,6 +4,7 @@ import ai.masaic.openresponses.api.exception.HttpStatusCodeException
 import ai.masaic.platform.api.user.auth.google.GoogleAuthentication
 import ai.masaic.platform.api.user.auth.google.GooglePreAuthToken
 import ai.masaic.platform.api.user.auth.google.GoogleTokenVerifier
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -23,6 +24,7 @@ import reactor.core.publisher.Mono
 @Profile("platform")
 @Configuration
 @EnableWebFluxSecurity
+@ConditionalOnProperty(name = ["platform.deployment.auth.enabled"], havingValue = "true")
 class PlatformSecurityConfig {
     @Bean
     fun filterChain(
