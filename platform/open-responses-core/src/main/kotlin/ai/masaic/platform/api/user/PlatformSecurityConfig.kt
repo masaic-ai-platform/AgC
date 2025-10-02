@@ -144,13 +144,14 @@ class PlatformNoOpSecurityConfig {
     @Bean
     fun filterChain(
         http: ServerHttpSecurity,
-    ): SecurityWebFilterChain = http
-                .csrf { it.disable() }
-                .cors { it.configurationSource(corsConfigurationSource()) }
-                .authorizeExchange { authorizeExchange ->
-                    authorizeExchange.anyExchange().permitAll()
-                }.addFilterAfter(userSessionContextFilter(), SecurityWebFiltersOrder.AUTHENTICATION)
-                .build()
+    ): SecurityWebFilterChain =
+        http
+            .csrf { it.disable() }
+            .cors { it.configurationSource(corsConfigurationSource()) }
+            .authorizeExchange { authorizeExchange ->
+                authorizeExchange.anyExchange().permitAll()
+            }.addFilterAfter(userSessionContextFilter(), SecurityWebFiltersOrder.AUTHENTICATION)
+            .build()
 
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
