@@ -10,7 +10,6 @@ import ai.masaic.platform.api.service.ModelService
 import ai.masaic.platform.api.tools.PlatformMcpClientFactory
 import ai.masaic.platform.usecases.api.service.AtomMcpServerBootstrapService
 import ai.masaic.platform.usecases.api.service.AtomTemporalWorkflowService
-import ai.masaic.platform.usecases.api.service.AtomWorkflowService
 import org.springframework.stereotype.Component
 
 @Component
@@ -21,7 +20,6 @@ class UseCasesMcpClientFactory(
     modelSettings: ModelSettings,
     modelService: ModelService,
     mcpoAuthService: MCPOAuthService,
-    private val atomWorkflowService: AtomWorkflowService,
     private val temporalService: AtomTemporalWorkflowService,
 ) : PlatformMcpClientFactory(mockServerRepository, mockFunRepository, mocksRepository, modelSettings, modelService, mcpoAuthService) {
     override suspend fun init(
@@ -30,7 +28,7 @@ class UseCasesMcpClientFactory(
         headers: Map<String, String>,
     ): McpClient {
         if (url == AtomMcpServerBootstrapService.ATOM_MCP_SERVER_URL) {
-            return AtomMcpClient(atomWorkflowService, temporalService)
+            return AtomMcpClient(temporalService)
         }
 
         return super.init(serverName, url, headers)

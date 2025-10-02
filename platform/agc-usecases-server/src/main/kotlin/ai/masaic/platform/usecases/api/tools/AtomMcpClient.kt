@@ -1,6 +1,9 @@
 package ai.masaic.platform.usecases.api.tools
 
-import ai.masaic.openresponses.tool.*
+import ai.masaic.openresponses.tool.NativeToolDefinition
+import ai.masaic.openresponses.tool.ToolDefinition
+import ai.masaic.openresponses.tool.ToolHosting
+import ai.masaic.openresponses.tool.ToolParamsAccessor
 import ai.masaic.openresponses.tool.mcp.MCPServerInfo
 import ai.masaic.openresponses.tool.mcp.McpClient
 import ai.masaic.openresponses.tool.mcp.McpToolDefinition
@@ -8,16 +11,13 @@ import ai.masaic.openresponses.tool.mcp.nativeToolDefinition
 import ai.masaic.platform.api.utils.JsonSchemaMapper
 import ai.masaic.platform.usecases.api.service.AtomTemporalWorkflowService
 import ai.masaic.platform.usecases.api.service.AtomWorkflowInput
-import ai.masaic.platform.usecases.api.service.AtomWorkflowService
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.client.OpenAIClient
 import dev.langchain4j.model.chat.request.json.JsonObjectSchema
 import mu.KotlinLogging
 import org.springframework.http.codec.ServerSentEvent
-import java.util.*
 
 class AtomMcpClient(
-    private val atomWorkflowService: AtomWorkflowService,
     private val temporalService: AtomTemporalWorkflowService,
 ) : McpClient {
     private val log = KotlinLogging.logger { }

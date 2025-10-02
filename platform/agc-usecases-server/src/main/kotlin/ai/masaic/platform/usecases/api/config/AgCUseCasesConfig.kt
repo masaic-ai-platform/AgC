@@ -7,7 +7,6 @@ import ai.masaic.platform.api.repository.MockFunctionRepository
 import ai.masaic.platform.api.repository.MocksRepository
 import ai.masaic.platform.api.service.ModelService
 import ai.masaic.platform.usecases.api.service.AtomTemporalWorkflowService
-import ai.masaic.platform.usecases.api.service.AtomWorkflowService
 import ai.masaic.platform.usecases.api.tools.UseCasesMcpClientFactory
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -22,8 +21,7 @@ class AgCUseCasesConfig {
         mocksRepository: MocksRepository,
         modelSettings: ModelSettings,
         @Lazy modelService: ModelService,
-        atomWorkflowService: AtomWorkflowService,
         temporalService: AtomTemporalWorkflowService,
         mcpoAuthService: MCPOAuthService,
-    ) = UseCasesMcpClientFactory(mcpMockServerRepository, mockFunctionRepository, mocksRepository, modelSettings, modelService, mcpoAuthService, atomWorkflowService, temporalService)
+    ) = UseCasesMcpClientFactory(mcpMockServerRepository, mockFunctionRepository, mocksRepository, modelSettings, modelService, mcpoAuthService, temporalService)
 }
