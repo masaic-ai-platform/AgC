@@ -1,8 +1,8 @@
 version: '3.8'
 
 # Image versions - can be overridden via environment variables
-x-image-open-responses: &image-open-responses masaicai/open-responses:${OPEN_RESPONSES_VERSION:-0.5.3}
-x-image-platform-ui: &image-platform-ui masaicai/platform-ui:${PLATFORM_UI_VERSION:-0.5.3}
+x-image-open-responses: &image-open-responses masaicai/open-responses:${OPEN_RESPONSES_VERSION:-0.5.4}
+x-image-platform-ui: &image-platform-ui masaicai/platform-ui:${PLATFORM_UI_VERSION:-0.5.4}
 
 services:
   # MongoDB service (only when using internal MongoDB)

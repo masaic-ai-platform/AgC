@@ -15,6 +15,7 @@ import ai.masaic.openresponses.api.service.embedding.OpenAIProxyEmbeddingService
 import ai.masaic.openresponses.api.service.rerank.RerankerService
 import ai.masaic.openresponses.api.service.search.*
 import ai.masaic.openresponses.api.support.service.TelemetryService
+import ai.masaic.openresponses.tool.PlugableToolAdapter
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
@@ -114,11 +115,13 @@ class PlatformCoreConfig {
         responseStore: ResponseStore,
         platformNativeTools: List<PlatformNativeTool>,
         @Lazy codeRunnerService: CodeRunnerService,
+        plugableToolAdapter: PlugableToolAdapter,
     ) = PlatformNativeToolRegistry(
         objectMapper,
         responseStore,
         platformNativeTools,
         codeRunnerService,
+        plugableToolAdapter,
     )
 
     @Bean

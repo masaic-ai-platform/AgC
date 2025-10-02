@@ -3,6 +3,7 @@ package ai.masaic.platform.api.controller
 import ai.masaic.platform.api.user.UserInfo
 import ai.masaic.platform.api.user.auth.google.GoogleTokenVerifier
 import kotlinx.coroutines.reactor.awaitSingle
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Profile
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*
 @RestController
 @RequestMapping("/v1/dashboard/platform/auth")
 @CrossOrigin("*")
+@ConditionalOnProperty(name = ["platform.deployment.auth.enabled"], havingValue = "true")
 class AuthController(
     private val googleTokenVerifier: GoogleTokenVerifier,
 ) {

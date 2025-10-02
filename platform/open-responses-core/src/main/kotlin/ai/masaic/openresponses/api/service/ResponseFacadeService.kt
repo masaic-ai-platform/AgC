@@ -1,12 +1,15 @@
 package ai.masaic.openresponses.api.service
 
 import ai.masaic.openresponses.api.model.CreateResponseRequest
+import ai.masaic.openresponses.api.utils.AgCLoopContext
 import ai.masaic.openresponses.api.utils.PayloadFormatter
 import ai.masaic.openresponses.api.validation.RequestValidator
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseCreateParams
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.http.codec.ServerSentEvent
 import org.springframework.stereotype.Service
@@ -73,6 +76,23 @@ class ResponseFacadeService(
                     queryParams,
                 )
             ResponseProcessingResult.NonStreaming(response)
+        }
+    }
+
+    suspend fun agCLoopWithRequestContext(agCLoopRequest: AgCLoopRequest): ResponseProcessingResult {
+        val ctx = AgCLoopContext(userId = agCLoopRequest.userId, sessionId = agCLoopRequest.sessionId, loopId = agCLoopRequest.id)
+        val result =
+            withContext(ctx) {
+                processResponse(
+                    request = agCLoopRequest.request,
+                    headers = mapOf("Authorization" to "Bearer ${agCLoopRequest.apiKey}").toMultiValueMap(),
+                    queryParams = emptyMap<String, String>().toMultiValueMap(),
+                )
+            }
+
+        return when (result) {
+            is ResponseProcessingResult.Streaming -> ResponseProcessingResult.Streaming(result.flow.flowOn(ctx))
+            is ResponseProcessingResult.NonStreaming -> result
         }
     }
 
@@ -188,6 +208,14 @@ data class ResponseProcessingInput(
     val request: CreateResponseRequest,
     val headers: Map<String, String> = emptyMap(),
     val queryParams: Map<String, String> = emptyMap(),
+)
+
+data class AgCLoopRequest(
+    val id: String,
+    val request: CreateResponseRequest,
+    val apiKey: String,
+    val sessionId: String? = null,
+    val userId: String? = null,
 )
 
 /**

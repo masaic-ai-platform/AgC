@@ -139,6 +139,11 @@ const AiPlayground: React.FC = () => {
     accessToken?: string;
     errorMessage?: string;
   } | null>(null);
+
+  // Debug OAuth config changes
+  useEffect(() => {
+    console.log('AiPlayground: oauthMcpConfig changed:', oauthMcpConfig);
+  }, [oauthMcpConfig]);
   const [modelTestAgentData, setModelTestAgentData] = useState<null | { systemPrompt: string; greetingMessage: string; userMessage: string; tools: any[] }>(null);
   const [modelTestUrl, setModelTestUrl] = useState('');
   const [modelTestName, setModelTestName] = useState('');
@@ -240,16 +245,8 @@ const AiPlayground: React.FC = () => {
         errorMessage: errorMessage || undefined
       });
 
-      // Clear URL parameters
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.delete('screen');
-      newSearchParams.delete('modal');
-      newSearchParams.delete('serverUrl');
-      newSearchParams.delete('serverLabel');
-      newSearchParams.delete('accessToken');
-      newSearchParams.delete('errorMessage');
-      newSearchParams.delete('authentication');
-      setSearchParams(newSearchParams);
+      // Don't clear URL parameters immediately - let the modal handle its lifecycle
+      // The URL will be cleaned up when the modal closes or connects successfully
     }
   }, [searchParams, setSearchParams]);
 
@@ -1440,7 +1437,10 @@ const AiPlayground: React.FC = () => {
           onAgentSaved={handleAgentSaved}
           onAgentSelect={handleAgentSelect}
           oauthMcpConfig={oauthMcpConfig}
-          onOauthMcpConfigHandled={() => setOauthMcpConfig(null)}
+          onOauthMcpConfigHandled={() => {
+            console.log('AiPlayground: onOauthMcpConfigHandled called - clearing config');
+            setOauthMcpConfig(null);
+          }}
         />
       </DrawerContent>
     </Drawer>
@@ -1518,7 +1518,10 @@ const AiPlayground: React.FC = () => {
         onTestModelConnectivity={handleTestModelConnectivity}
         isTestingModel={isTestingModel}
         oauthMcpConfig={oauthMcpConfig}
-        onOauthMcpConfigHandled={() => setOauthMcpConfig(null)}
+        onOauthMcpConfigHandled={() => {
+          console.log('AiPlayground: onOauthMcpConfigHandled called - clearing config');
+          setOauthMcpConfig(null);
+        }}
       />
 
       {/* Chat Area */}

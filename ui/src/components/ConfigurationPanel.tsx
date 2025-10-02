@@ -310,11 +310,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         console.log('Setting oauthMcpModalConfig to:', modalConfig);
         setOauthMcpModalConfig(modalConfig);
       }
-      
-      // Clear the config after handling
-      if (onOauthMcpConfigHandled) {
-        onOauthMcpConfigHandled();
-      }
+
+      // Don't clear the config immediately - let the modal handle its own lifecycle
+      // The config will be cleared when the modal closes or connects successfully
     }
   }, [oauthMcpConfig, onOauthMcpConfigHandled]);
 
@@ -1376,9 +1374,29 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       })()}
       <MCPModal
         open={!!oauthMcpModalConfig}
-        onOpenChange={(open) => { 
+        onOpenChange={(open) => {
           console.log('OAuth MCP Modal onOpenChange:', open);
-          if (!open) setOauthMcpModalConfig(null); 
+          if (!open) {
+            setOauthMcpModalConfig(null);
+            // Clear the original config and URL parameters when modal closes
+            if (onOauthMcpConfigHandled) {
+              onOauthMcpConfigHandled();
+            }
+            // Clear URL parameters
+            const currentUrl = new URL(window.location.href);
+            const searchParams = new URLSearchParams(currentUrl.search);
+            if (searchParams.has('screen') || searchParams.has('modal')) {
+              searchParams.delete('screen');
+              searchParams.delete('modal');
+              searchParams.delete('serverUrl');
+              searchParams.delete('serverLabel');
+              searchParams.delete('accessToken');
+              searchParams.delete('errorMessage');
+              searchParams.delete('authentication');
+              const newUrl = `${currentUrl.pathname}${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+              window.history.replaceState({}, '', newUrl);
+            }
+          }
         }}
         onConnect={(config) => {
           console.log('OAuth MCP Modal onConnect:', config);
@@ -1389,12 +1407,12 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             icon: Globe,
             mcpConfig: config
           };
-          
+
           // Check if we're updating an existing tool (remove the old one first)
-          const existingToolIndex = (selectedTools || []).findIndex(t => 
+          const existingToolIndex = (selectedTools || []).findIndex(t =>
             t.id === 'mcp_server' && t.mcpConfig?.label === config.label
           );
-          
+
           let updatedTools;
           if (existingToolIndex !== -1) {
             // Replace existing tool
@@ -1404,12 +1422,30 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             // Add new tool
             updatedTools = [...(selectedTools || []), newTool];
           }
-          
+
           if (onSelectedToolsChange) {
             onSelectedToolsChange(updatedTools);
           }
-          
+
           setOauthMcpModalConfig(null);
+          // Clear the original config and URL parameters when connection is successful
+          if (onOauthMcpConfigHandled) {
+            onOauthMcpConfigHandled();
+          }
+          // Clear URL parameters
+          const currentUrl = new URL(window.location.href);
+          const searchParams = new URLSearchParams(currentUrl.search);
+          if (searchParams.has('screen') || searchParams.has('modal')) {
+            searchParams.delete('screen');
+            searchParams.delete('modal');
+            searchParams.delete('serverUrl');
+            searchParams.delete('serverLabel');
+            searchParams.delete('accessToken');
+            searchParams.delete('errorMessage');
+            searchParams.delete('authentication');
+            const newUrl = `${currentUrl.pathname}${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+            window.history.replaceState({}, '', newUrl);
+          }
           toast.success(`MCP server "${config.label}" ${existingToolIndex !== -1 ? 'updated' : 'connected'} successfully`);
         }}
         initialConfig={oauthMcpModalConfig || undefined}

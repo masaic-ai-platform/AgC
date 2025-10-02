@@ -372,7 +372,7 @@ class MasaicParameterConverterTest {
             // Mock the tool and its function
             val tool = mockk<Tool>(relaxed = true)
             val functionTool = mockk<FunctionTool>(relaxed = true)
-            every { functionTool.parameters() } returns Optional.empty()
+            every { functionTool.parameters().get() } returns FunctionTool.Parameters.builder().build()
             every { tool.isFunction() } returns true
             every { functionTool.name() } returns "someFunction"
             every { tool.asFunction() } returns functionTool

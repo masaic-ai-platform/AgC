@@ -390,7 +390,7 @@ class MasaicParameterConverter(
                                     .description(description)
                                     .parameters(
                                         objectMapper.readValue(
-                                            objectMapper.writeValueAsString(functionTool.parameters()),
+                                            objectMapper.writeValueAsString(functionTool.parameters().get()),
                                             FunctionParameters::class.java,
                                         ),
                                     ).build(),

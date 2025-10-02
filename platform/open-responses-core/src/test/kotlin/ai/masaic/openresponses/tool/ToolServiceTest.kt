@@ -40,7 +40,7 @@ class ToolServiceTest {
 
     @BeforeEach
     fun setUp() {
-        toolService = ToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, ObjectMapper(), mcpClientFactory)
+        toolService = ToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, ObjectMapper(), mcpClientFactory, NoOpPlugableToolAdapter())
     }
 
     /**

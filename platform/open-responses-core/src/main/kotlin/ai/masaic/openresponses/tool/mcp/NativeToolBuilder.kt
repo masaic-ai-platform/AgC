@@ -95,12 +95,17 @@ class ParameterSchemaBuilder {
         type: String,
         description: String,
         required: Boolean = false,
+        enum: List<String>? = null,
     ) = apply {
-        properties[name] =
-            mapOf(
+        val schema =
+            mutableMapOf<String, Any>(
                 "type" to type,
                 "description" to description,
             )
+        if (enum != null) {
+            schema["enum"] = enum
+        }
+        properties[name] = schema
         if (required) requiredProps += name
     }
 
@@ -128,11 +133,16 @@ class ParameterSchemaBuilder {
         name: String,
         description: String? = null,
         required: Boolean = false,
+        // NEW: optional default for array types
+        default: List<Any>? = null,
         init: ArraySchemaBuilder.() -> Unit,
     ) = apply {
         val schema = ArraySchemaBuilder().apply(init).build()
         if (description != null) {
             schema["description"] = description
+        }
+        if (default != null) {
+            schema["default"] = default
         }
         properties[name] = schema
         if (required) requiredProps += name

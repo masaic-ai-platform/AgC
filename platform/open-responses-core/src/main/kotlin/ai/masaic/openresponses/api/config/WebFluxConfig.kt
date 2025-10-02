@@ -2,16 +2,14 @@ package ai.masaic.openresponses.api.config
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.context.annotation.Configuration
 import org.springframework.http.MediaType
 import org.springframework.http.codec.ServerCodecConfigurer
 import org.springframework.http.codec.json.Jackson2JsonDecoder
 import org.springframework.http.codec.json.Jackson2JsonEncoder
-import org.springframework.web.reactive.config.EnableWebFlux
 import org.springframework.web.reactive.config.WebFluxConfigurer
 
-@Configuration
-@EnableWebFlux
+// @Configuration
+// @EnableWebFlux
 class WebFluxConfig(
     private val objectMapper: ObjectMapper,
     @Value("\${spring.codec.max-in-memory-size:32MB}") private val maxInMemorySize: String,

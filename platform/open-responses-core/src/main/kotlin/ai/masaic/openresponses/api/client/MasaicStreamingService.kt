@@ -5,6 +5,7 @@ import ai.masaic.openresponses.api.support.service.GenAIObsAttributes
 import ai.masaic.openresponses.api.support.service.TelemetryService
 import ai.masaic.openresponses.api.utils.EventUtils
 import ai.masaic.openresponses.api.utils.PayloadFormatter
+import ai.masaic.openresponses.tool.PlugableToolAdapter
 import ai.masaic.openresponses.tool.ToolRequestContext
 import ai.masaic.openresponses.tool.ToolService
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -350,7 +351,7 @@ class MasaicStreamingService(
                                 onFinalResponse(responseWithToolRequests)
 
                                 // internalToolItemIds is populated by convertAndPublish if a tool call matches a known internal tool.
-                                if (internalToolItemIds.isEmpty()) {
+                                if (internalToolItemIds.isEmpty() && !PlugableToolAdapter.isEnabled()) {
                                     storeResponseWithInputItems(responseWithToolRequests, params)
                                     // LLM requested tools, but none were recognized as internal/actionable by us.
                                     logger.info { "Response completed with tool requests, but no recognized internal tools to execute. ID: ${responseWithToolRequests.id()}" }
@@ -554,7 +555,7 @@ class MasaicStreamingService(
                     ResponseErrorEvent
                         .builder()
                         .message(
-                            "Timeout while processing. Increase the timeout limit by setting OPEN_RESPONSES_MAX_STREAMING_TIMEOUT environment variable.",
+                            "Stream is taking longer than usual, timeout occurred. Closing stream. Try again.",
                         ).code("timeout")
                         .param(null)
                         .type(JsonValue.from("response.error"))

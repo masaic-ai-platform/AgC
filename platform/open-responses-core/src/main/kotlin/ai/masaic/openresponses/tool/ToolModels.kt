@@ -27,6 +27,7 @@ enum class ToolHosting {
     /** Tool is hosted and managed by Masaic */
     MASAIC_MANAGED,
     REMOTE,
+    MASAIC_PLUG,
 }
 
 /**
@@ -40,6 +41,7 @@ enum class ToolProtocol {
     MCP,
     NATIVE,
     PY_CODE,
+    PLUGABLE,
 }
 
 /**
@@ -63,6 +65,7 @@ open class ToolDefinition(
 @Serializable
 data class ToolProgressEventMeta(
     val infix: String,
+    val emitProgressEvents: Boolean = true,
 )
 
 /**

@@ -4,6 +4,7 @@ import ai.masaic.openresponses.api.exception.HttpStatusCodeException
 import ai.masaic.platform.api.user.auth.google.GoogleAuthentication
 import ai.masaic.platform.api.user.auth.google.GooglePreAuthToken
 import ai.masaic.platform.api.user.auth.google.GoogleTokenVerifier
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
@@ -23,6 +24,7 @@ import reactor.core.publisher.Mono
 @Profile("platform")
 @Configuration
 @EnableWebFluxSecurity
+@ConditionalOnProperty(name = ["platform.deployment.auth.enabled"], havingValue = "true")
 class PlatformSecurityConfig {
     @Bean
     fun filterChain(
@@ -127,6 +129,65 @@ class PlatformSecurityConfig {
                     if (sessionId != null) updated = updated.put("x-session-id", sessionId)
                     // Only include x-user-id in context when auth is disabled
                     if (!authConfigProperties.enabled && headerUserId != null) {
+                        updated = updated.put("x-user-id", headerUserId)
+                    }
+                    updated
+                }
+        }
+}
+
+@Profile("platform")
+@Configuration
+@EnableWebFluxSecurity
+@ConditionalOnProperty(name = ["platform.deployment.auth.enabled"], havingValue = "false", matchIfMissing = true)
+class PlatformNoOpSecurityConfig {
+    @Bean
+    fun filterChain(
+        http: ServerHttpSecurity,
+    ): SecurityWebFilterChain =
+        http
+            .csrf { it.disable() }
+            .cors { it.configurationSource(corsConfigurationSource()) }
+            .authorizeExchange { authorizeExchange ->
+                authorizeExchange.anyExchange().permitAll()
+            }.addFilterAfter(userSessionContextFilter(), SecurityWebFiltersOrder.AUTHENTICATION)
+            .build()
+
+    @Bean
+    fun corsConfigurationSource(): CorsConfigurationSource {
+        val configuration = CorsConfiguration()
+        configuration.allowedOriginPatterns = listOf("*")
+        configuration.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS")
+        configuration.allowedHeaders = listOf("*")
+        configuration.allowCredentials = true
+
+        val source = UrlBasedCorsConfigurationSource()
+        source.registerCorsConfiguration("/**", configuration)
+        return source
+    }
+
+    @Bean
+    fun userSessionContextFilter(): WebFilter =
+        WebFilter { exchange, chain ->
+            val sessionId =
+                exchange.request.headers
+                    .getFirst("x-session-id")
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+            val headerUserId =
+                exchange.request.headers
+                    .getFirst("x-user-id")
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+
+            chain
+                .filter(exchange)
+                .contextWrite { ctx ->
+                    var updated = ctx
+                    // Always include session id when present
+                    if (sessionId != null) updated = updated.put("x-session-id", sessionId)
+                    // Only include x-user-id in context when auth is disabled
+                    if (headerUserId != null) {
                         updated = updated.put("x-user-id", headerUserId)
                     }
                     updated

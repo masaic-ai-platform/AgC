@@ -106,4 +106,6 @@ tasks.getByName<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar
 // Enable regular jar for library usage
 tasks.getByName<Jar>("jar") {
     enabled = true
+    // Ensure the main artifact has no classifier (avoid -plain)
+    archiveClassifier.set("")
 }

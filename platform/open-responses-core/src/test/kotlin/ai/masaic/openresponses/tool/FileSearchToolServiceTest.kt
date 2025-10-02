@@ -30,7 +30,7 @@ class FileSearchToolServiceTest {
         nativeToolRegistry = mockk(relaxed = true)
         mcpClientFactory = mockk(relaxed = true)
         
-        toolService = ToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, ObjectMapper(), mcpClientFactory)
+        toolService = ToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, ObjectMapper(), mcpClientFactory, NoOpPlugableToolAdapter())
     }
 
     @Test

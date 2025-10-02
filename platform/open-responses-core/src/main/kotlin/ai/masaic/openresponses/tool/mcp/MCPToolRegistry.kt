@@ -5,6 +5,7 @@ import ai.masaic.openresponses.tool.ToolHosting
 import ai.masaic.openresponses.tool.ToolParamsAccessor
 import com.openai.client.OpenAIClient
 import org.slf4j.LoggerFactory
+import org.springframework.http.codec.ServerSentEvent
 import org.springframework.stereotype.Component
 
 /**
@@ -55,6 +56,7 @@ class MCPToolExecutor(
         arguments: String,
         paramsAccessor: ToolParamsAccessor?,
         openAIClient: OpenAIClient?,
+        eventEmitter: ((ServerSentEvent<String>) -> Unit)?,
     ): String? {
         val mcpTool = tool as McpToolDefinition
         var serverId = mcpTool.serverInfo.id
@@ -65,7 +67,7 @@ class MCPToolExecutor(
         }
 
         val mcpClient = mcpClients[serverId] ?: return null
-        return mcpClient.executeTool(tool.copy(name = toolName), arguments, paramsAccessor, openAIClient, headers = mcpTool.serverInfo.headers)
+        return mcpClient.executeTool(tool.copy(name = toolName), arguments, paramsAccessor, openAIClient, headers = mcpTool.serverInfo.headers, eventEmitter)
     }
 
     /**

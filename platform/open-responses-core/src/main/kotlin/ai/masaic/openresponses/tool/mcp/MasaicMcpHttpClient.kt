@@ -29,6 +29,7 @@ import okhttp3.Response
 import okhttp3.sse.EventSource
 import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
+import org.springframework.http.codec.ServerSentEvent
 import java.time.Duration
 import java.util.concurrent.*
 import kotlin.time.Duration.Companion.seconds
@@ -68,6 +69,7 @@ interface McpClient {
         paramsAccessor: ToolParamsAccessor?,
         openAIClient: OpenAIClient?,
         headers: Map<String, String>,
+        eventEmitter: ((ServerSentEvent<String>) -> Unit)?,
     ): String?
 
     suspend fun close()
@@ -172,6 +174,7 @@ class SimpleMcpClient : McpClient {
         paramsAccessor: ToolParamsAccessor?,
         openAIClient: OpenAIClient?,
         headers: Map<String, String>,
+        eventEmitter: ((ServerSentEvent<String>) -> Unit)?,
     ): String? {
         return customClient?.callTool(CallToolRequest(tool.name, mapper.readTree(arguments)), headers)
             ?: return defaultMcpClient?.executeTool(

@@ -14,6 +14,7 @@ import io.modelcontextprotocol.spec.McpTransportException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.reactor.awaitSingle
 import mu.KotlinLogging
+import org.springframework.http.codec.ServerSentEvent
 import org.springframework.web.reactive.function.client.WebClientResponseException
 
 /**
@@ -76,6 +77,7 @@ class SdkBackedMcpClient(
         paramsAccessor: ToolParamsAccessor?,
         openAIClient: OpenAIClient?,
         headers: Map<String, String>,
+        eventEmitter: ((ServerSentEvent<String>) -> Unit)?,
     ): String? =
         try {
             // Parse arguments JSON to Map
