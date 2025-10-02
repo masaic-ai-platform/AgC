@@ -12,7 +12,7 @@ class RegTestSuiteAgent {
             systemPrompt = agentPrompt,
             userMessage = "Tell me the weather of San Francisco",
             tools = listOf(MCPTool(type = "mcp", serverLabel = "reg-mcp-server", serverUrl = RegSuiteMcpClient.REGRESS_SERVER_URL, allowedTools = listOf(RegSuiteMcpClient.RUN_PW_SCRIPT_TOOL_NAME, RegSuiteMcpClient.GET_TEST_TRAIL_TOOL_NAME))),
-            suggestedQueries = listOf(allBirdsMCPTest, addModelTest, fileSearchTest, agentBuilderTest, ecommerceAgentTest, mockyTest),
+            suggestedQueries = listOf(allBirdsMCPTest, addModelTest, fileSearchTest, agentBuilderTest, ecommerceAgentTest, mockyTest, mcpOauthConTest),
         )
 
     private val agentPrompt =
@@ -140,5 +140,14 @@ Assertions:
 1. User sends message: 'Use the given tool to add two number.\nAdd +7 and +5'
 2. a tool to add given numbers must be executed.
 3. Assistant: Assistant replied with sum of two numbers.
+        """.trimIndent()
+
+    private val mcpOauthConTest =
+        """
+Run: mcp-oauth-connection.spec.ts
+Assertions:
+1. User sends message: 'What all pages about AgC you have... give title of each page'
+2. notion tool to search pages is executed .
+3. Assistant: Assistant replied with list of pages that are about AgC.
         """.trimIndent()
 }
