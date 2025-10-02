@@ -310,7 +310,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         console.log('Setting oauthMcpModalConfig to:', modalConfig);
         setOauthMcpModalConfig(modalConfig);
       }
-      
+
       // Don't clear the config immediately - let the modal handle its own lifecycle
       // The config will be cleared when the modal closes or connects successfully
     }
@@ -1374,7 +1374,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       })()}
       <MCPModal
         open={!!oauthMcpModalConfig}
-        onOpenChange={(open) => { 
+        onOpenChange={(open) => {
           console.log('OAuth MCP Modal onOpenChange:', open);
           if (!open) {
             setOauthMcpModalConfig(null);
@@ -1407,12 +1407,12 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             icon: Globe,
             mcpConfig: config
           };
-          
+
           // Check if we're updating an existing tool (remove the old one first)
-          const existingToolIndex = (selectedTools || []).findIndex(t => 
+          const existingToolIndex = (selectedTools || []).findIndex(t =>
             t.id === 'mcp_server' && t.mcpConfig?.label === config.label
           );
-          
+
           let updatedTools;
           if (existingToolIndex !== -1) {
             // Replace existing tool
@@ -1422,11 +1422,11 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
             // Add new tool
             updatedTools = [...(selectedTools || []), newTool];
           }
-          
+
           if (onSelectedToolsChange) {
             onSelectedToolsChange(updatedTools);
           }
-          
+
           setOauthMcpModalConfig(null);
           // Clear the original config and URL parameters when connection is successful
           if (onOauthMcpConfigHandled) {
