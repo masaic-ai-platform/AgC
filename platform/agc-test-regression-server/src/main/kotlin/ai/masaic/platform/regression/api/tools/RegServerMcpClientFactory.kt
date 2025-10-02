@@ -2,6 +2,7 @@ package ai.masaic.platform.regression.api.tools
 
 import ai.masaic.openresponses.api.service.ResponseStoreService
 import ai.masaic.openresponses.tool.mcp.McpClient
+import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import ai.masaic.platform.api.config.ModelSettings
 import ai.masaic.platform.api.repository.McpMockServerRepository
 import ai.masaic.platform.api.repository.MockFunctionRepository
@@ -16,8 +17,9 @@ class RegServerMcpClientFactory(
     mocksRepository: MocksRepository,
     modelSettings: ModelSettings,
     modelService: ModelService,
+    mcpoAuthService: MCPOAuthService,
     private val responseStoreService: ResponseStoreService,
-) : PlatformMcpClientFactory(mockServerRepository, mockFunRepository, mocksRepository, modelSettings, modelService) {
+) : PlatformMcpClientFactory(mockServerRepository, mockFunRepository, mocksRepository, modelSettings, modelService, mcpoAuthService) {
     override suspend fun init(
         serverName: String,
         url: String,

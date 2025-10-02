@@ -21,7 +21,7 @@ interface MCPModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onConnect: (config: MCPServerConfig & { selectedTools: string[] }) => void;
-  initialConfig?: MCPServerConfig & { selectedTools: string[] };
+  initialConfig?: MCPServerConfig & { selectedTools: string[]; autoConnect?: boolean };
   readOnly?: boolean;
   preloadedTools?: MCPTool[];
 }
@@ -29,7 +29,7 @@ interface MCPModalProps {
 interface MCPServerConfig {
   url: string;
   label: string;
-  authentication: 'none' | 'access_token' | 'custom_headers';
+  authentication: 'none' | 'access_token' | 'oauth' | 'custom_headers';
   accessToken?: string;
   customHeaders?: { key: string; value: string }[];
 }
@@ -59,7 +59,7 @@ const MCPModal: React.FC<MCPModalProps> = ({
 }) => {
   const [url, setUrl] = useState('');
   const [label, setLabel] = useState('');
-  const [authentication, setAuthentication] = useState<'none' | 'access_token' | 'custom_headers'>('access_token');
+  const [authentication, setAuthentication] = useState<'none' | 'access_token' | 'oauth' | 'custom_headers'>('access_token');
   const [accessToken, setAccessToken] = useState('');
   const [showToken, setShowToken] = useState(false);
   const [customHeaders, setCustomHeaders] = useState<{ key: string; value: string }[]>([{ key: '', value: '' }]);
@@ -71,6 +71,8 @@ const MCPModal: React.FC<MCPModalProps> = ({
   const [isEditing, setIsEditing] = useState(false);
   const [serverSuggestions, setServerSuggestions] = useState<{url:string,label:string}[]>([]);
   const [showUrlSuggestions, setShowUrlSuggestions] = useState(false);
+  const [oauthRedirectUri, setOauthRedirectUri] = useState<string | null>(null);
+  const [autoConnectAttempted, setAutoConnectAttempted] = useState(false);
   const filteredUrlSuggestions = serverSuggestions.filter(sug => {
     if (!url.trim()) return false;
     const query = url.toLowerCase();
@@ -106,48 +108,69 @@ const MCPModal: React.FC<MCPModalProps> = ({
     setIsConnecting(true);
     
     try {
-      // Prepare headers based on authentication type
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-      };
+      let requestBody: any;
+      
+      if (authentication === 'oauth' && (!accessToken || !accessToken.trim())) {
+        // OAuth discovery flow - send isOAuth flag without headers
+        requestBody = {
+          serverLabel: label.trim(),
+          serverUrl: url.trim(),
+          isOAuth: true
+        };
+      } else {
+        // Regular flow - prepare headers based on authentication type
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json'
+        };
 
-      if (authentication === 'access_token' && accessToken.trim()) {
-        headers['Authorization'] = `Bearer ${accessToken.trim()}`;
-      } else if (authentication === 'custom_headers') {
-        const validHeaders = customHeaders.filter(h => h.key.trim() && h.value.trim());
-        validHeaders.forEach(header => {
-          headers[header.key.trim()] = header.value.trim();
-        });
+        if ((authentication === 'access_token' || authentication === 'oauth') && accessToken.trim()) {
+          headers['Authorization'] = `Bearer ${accessToken.trim()}`;
+        } else if (authentication === 'custom_headers') {
+          const validHeaders = customHeaders.filter(h => h.key.trim() && h.value.trim());
+          validHeaders.forEach(header => {
+            headers[header.key.trim()] = header.value.trim();
+          });
+        }
+
+        requestBody = {
+          serverLabel: label.trim(),
+          serverUrl: url.trim(),
+          headers: authentication === 'none' ? {} : headers
+        };
       }
 
-      // Prepare request body
-      const requestBody = {
-        serverLabel: label.trim(),
-        serverUrl: url.trim(),
-        headers: authentication === 'none' ? {} : headers
-      };
-
       // Make API call
-      const data: MCPTool[] = await apiClient.jsonRequest<MCPTool[]>('/v1/dashboard/mcp/list_actions', {
+      console.log('MCP API request payload:', requestBody);
+      const data = await apiClient.jsonRequest<any>('/v1/dashboard/mcp/list_actions', {
         method: 'POST',
         body: JSON.stringify(requestBody)
       });
       
+      // Handle OAuth redirect response (statusCode: "UNAUTHORIZED" with location)
+      if (authentication === 'oauth' && data && data.statusCode === 'UNAUTHORIZED' && data.location) {
+        setOauthRedirectUri(data.location);
+        setIsConnecting(false);
+        return;
+      }
+      
+      // Ensure data is an array of tools
+      const tools: MCPTool[] = Array.isArray(data) ? data : [];
+      
       // Simulate connection animation delay
       setTimeout(() => {
-        setTools(data);
+        setTools(tools);
         
         // If editing (initialConfig exists), preserve previously selected tools
         // Otherwise, select all tools by default for new connections
         if (isEditing && initialConfig && initialConfig.selectedTools) {
           // Only select tools that still exist in the new API response
-          const availableToolNames = data.map(tool => tool.name);
+          const availableToolNames = tools.map(tool => tool.name);
           const validSelectedTools = initialConfig.selectedTools.filter(toolName => 
             availableToolNames.includes(toolName)
           );
           setSelectedTools(validSelectedTools);
         } else {
-          setSelectedTools(data.map(tool => tool.name)); // Select all tools by default
+          setSelectedTools(tools.map(tool => tool.name)); // Select all tools by default
         }
         
         setCurrentView('connected');
@@ -175,43 +198,65 @@ const MCPModal: React.FC<MCPModalProps> = ({
     setIsConnecting(true);
     
     try {
-      // Use initialConfig values directly instead of state that might not be set yet
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json'
-      };
-
       const auth = initialConfig.authentication || 'access_token';
       const token = initialConfig.accessToken || '';
       const customHeaders = initialConfig.customHeaders || [];
 
-      if (auth === 'access_token' && token.trim()) {
-        headers['Authorization'] = `Bearer ${token.trim()}`;
-      } else if (auth === 'custom_headers') {
-        const validHeaders = customHeaders.filter(h => h.key.trim() && h.value.trim());
-        validHeaders.forEach(header => {
-          headers[header.key.trim()] = header.value.trim();
-        });
+      let requestBody: any;
+
+      if (auth === 'oauth' && (!token || !token.trim())) {
+        // OAuth discovery flow - send isOAuth flag without headers
+        requestBody = {
+          serverLabel: initialConfig.label?.trim() || '',
+          serverUrl: initialConfig.url?.trim() || '',
+          isOAuth: true
+        };
+      } else {
+        // Regular flow - prepare headers based on authentication type
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json'
+        };
+
+        if ((auth === 'access_token' || auth === 'oauth') && token.trim()) {
+          headers['Authorization'] = `Bearer ${token.trim()}`;
+        } else if (auth === 'custom_headers') {
+          const validHeaders = customHeaders.filter(h => h.key.trim() && h.value.trim());
+          validHeaders.forEach(header => {
+            headers[header.key.trim()] = header.value.trim();
+          });
+        }
+
+        requestBody = {
+          serverLabel: initialConfig.label?.trim() || '',
+          serverUrl: initialConfig.url?.trim() || '',
+          headers: auth === 'none' ? {} : headers
+        };
       }
 
-      // Prepare request body using initialConfig values
-      const requestBody = {
-        serverLabel: initialConfig.label?.trim() || '',
-        serverUrl: initialConfig.url?.trim() || '',
-        headers: auth === 'none' ? {} : headers
-      };
-
       // Make API call
-      const data: MCPTool[] = await apiClient.jsonRequest<MCPTool[]>('/v1/dashboard/mcp/list_actions', {
+      console.log('MCP API request payload (fetchToolsForEditing):', requestBody);
+      const data = await apiClient.jsonRequest<any>('/v1/dashboard/mcp/list_actions', {
         method: 'POST',
         body: JSON.stringify(requestBody)
       });
       
+      // Handle OAuth redirect response (statusCode: "UNAUTHORIZED" with location)
+      if (auth === 'oauth' && data && data.statusCode === 'UNAUTHORIZED' && data.location) {
+        setOauthRedirectUri(data.location);
+        setCurrentView('connect'); // Switch to connect view to show OAuth redirect UI
+        setIsConnecting(false);
+        return;
+      }
+      
+      // Ensure data is an array of tools
+      const tools: MCPTool[] = Array.isArray(data) ? data : [];
+      
       // Set tools and preserve previously selected tools
-      setTools(data);
+      setTools(tools);
       
       // Only select tools that still exist in the new API response
       if (initialConfig.selectedTools) {
-        const availableToolNames = data.map(tool => tool.name);
+        const availableToolNames = tools.map(tool => tool.name);
         const validSelectedTools = initialConfig.selectedTools.filter(toolName => 
           availableToolNames.includes(toolName)
         );
@@ -304,6 +349,8 @@ const MCPModal: React.FC<MCPModalProps> = ({
     setSelectedTools([]);
     setSelectedTool(null);
     setIsEditing(false);
+    setOauthRedirectUri(null);
+    setAutoConnectAttempted(false);
   };
 
   // Reset form when modal closes
@@ -338,6 +385,29 @@ const MCPModal: React.FC<MCPModalProps> = ({
     }
   }, [initialConfig, open]);
 
+  // Auto-connect for OAuth return flow
+  useEffect(() => {
+    console.log('MCPModal autoConnect check:', { 
+      autoConnect: initialConfig?.autoConnect, 
+      open, 
+      isConnecting,
+      url,
+      label,
+      authentication,
+      accessToken,
+      autoConnectAttempted,
+      initialConfig 
+    });
+    if (initialConfig?.autoConnect && open && !isConnecting && !autoConnectAttempted && url && label && accessToken) {
+      console.log('Starting auto-connect with populated form...');
+      setAutoConnectAttempted(true);
+      // Small delay to ensure form is populated
+      setTimeout(() => {
+        handleConnect();
+      }, 100);
+    }
+  }, [initialConfig?.autoConnect, open, isConnecting, autoConnectAttempted, url, label, accessToken]);
+
   // If readOnly and preloadedTools provided, preselect all tools
   useEffect(()=>{
     if(readOnly && preloadedTools.length>0){
@@ -350,8 +420,24 @@ const MCPModal: React.FC<MCPModalProps> = ({
     switch (authentication) {
       case 'none': return 'None';
       case 'access_token': return 'Access token / API key';
+      case 'oauth': return 'OAuth';
       case 'custom_headers': return 'Custom headers';
       default: return 'None';
+    }
+  };
+
+  const extractHostnameFromUri = (uri: string): string => {
+    try {
+      const url = new URL(uri);
+      return url.hostname;
+    } catch {
+      return uri;
+    }
+  };
+
+  const handleOAuthRedirect = () => {
+    if (oauthRedirectUri) {
+      window.open(oauthRedirectUri, '_self');
     }
   };
 
@@ -478,7 +564,7 @@ const MCPModal: React.FC<MCPModalProps> = ({
                   </Label>
                   <Select 
                     value={authentication} 
-                    onValueChange={(value: 'none' | 'access_token' | 'custom_headers') => setAuthentication(value)}
+                    onValueChange={(value: 'none' | 'access_token' | 'oauth' | 'custom_headers') => setAuthentication(value)}
                     disabled={isConnecting}
                   >
                     <SelectTrigger className="bg-muted/50 border border-border focus:border-positive-trend/60 focus:ring-0 focus:ring-offset-0 focus:shadow-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:border-positive-trend/60 transition-all duration-200">
@@ -487,6 +573,7 @@ const MCPModal: React.FC<MCPModalProps> = ({
                     <SelectContent>
                       <SelectItem value="none">None</SelectItem>
                       <SelectItem value="access_token">Access token / API key</SelectItem>
+                      <SelectItem value="oauth">OAuth</SelectItem>
                       <SelectItem value="custom_headers">Custom headers</SelectItem>
                     </SelectContent>
                   </Select>
@@ -580,6 +667,25 @@ const MCPModal: React.FC<MCPModalProps> = ({
                     </Button>
                   </div>
                 )}
+
+                {/* OAuth Redirect UI */}
+                {authentication === 'oauth' && oauthRedirectUri && (
+                  <div className="space-y-3 p-4 bg-muted/30 rounded-lg border border-border">
+                    <div className="text-center">
+                      <h4 className="text-sm font-medium mb-2">OAuth Authentication Required</h4>
+                      <p className="text-xs text-muted-foreground mb-3">
+                        Click below to authenticate with {extractHostnameFromUri(oauthRedirectUri)}
+                      </p>
+                      <Button
+                        onClick={handleOAuthRedirect}
+                        className="bg-positive-trend hover:bg-positive-trend/90 text-white"
+                        disabled={isConnecting}
+                      >
+                        Authenticate with {extractHostnameFromUri(oauthRedirectUri)}
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -645,7 +751,7 @@ const MCPModal: React.FC<MCPModalProps> = ({
                       <span className="ml-2 text-sm text-muted-foreground">Loading tools...</span>
                     </div>
                   ) : (
-                    <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent pr-2">
+                    <div className="space-y-2 max-h-[calc(60vh-200px)] overflow-y-auto scrollbar-thin scrollbar-thumb-muted scrollbar-track-transparent pr-2 border border-border/30 rounded-md p-3 bg-muted/10">
                       {tools.map((tool) => (
                         <div key={tool.name} className="flex items-center space-x-3 p-2 hover:bg-muted/30 rounded transition-colors">
                           {!readOnly && (
@@ -724,7 +830,7 @@ const MCPModal: React.FC<MCPModalProps> = ({
               >
                 <span>{isEditing ? 'Update' : 'Add'}</span>
               </Button>
-            ) ) : !readOnly && currentView === 'connect' ? (
+            ) ) : !readOnly && currentView === 'connect' && !(authentication === 'oauth' && oauthRedirectUri) ? (
               <Button
                 onClick={handleConnect}
                 disabled={

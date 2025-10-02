@@ -6,6 +6,7 @@ import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolParamsAccessor
 import ai.masaic.openresponses.tool.mcp.*
+import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import ai.masaic.platform.api.config.ModelSettings
 import ai.masaic.platform.api.config.SystemSettingsType
 import ai.masaic.platform.api.controller.FunctionBodyResponse
@@ -127,7 +128,8 @@ open class PlatformMcpClientFactory(
     private val mocksRepository: MocksRepository,
     private val modelSettings: ModelSettings,
     private val modelService: ModelService,
-) : SimpleMcpClientFactory() {
+    mcpoAuthService: MCPOAuthService,
+) : McpWebFluxClientFactory(mcpoAuthService) {
     override suspend fun init(
         serverName: String,
         url: String,
@@ -137,7 +139,7 @@ open class PlatformMcpClientFactory(
         if (uri.host.endsWith("mock.masaic.ai")) {
             return MockMcpClient(mockServerRepository, mockFunRepository, mocksRepository, modelSettings, modelService)
         }
-        return SimpleMcpClient().init(serverName, url, headers)
+        return super.init(serverName, url, headers)
     }
 }
 
