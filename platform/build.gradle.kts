@@ -11,7 +11,7 @@ plugins {
 
 allprojects {
     group = "ai.masaic"
-    version = "0.5.4"
+    version = "0.5.5-dev"
 
     repositories {
         mavenCentral()

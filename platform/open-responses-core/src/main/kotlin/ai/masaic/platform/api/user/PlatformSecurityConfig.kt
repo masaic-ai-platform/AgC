@@ -24,7 +24,7 @@ import reactor.core.publisher.Mono
 @Profile("platform")
 @Configuration
 @EnableWebFluxSecurity
-@ConditionalOnProperty(name = ["platform.deployment.auth.enabled"], havingValue = "true")
+@ConditionalOnProperty(name = ["platform.deployment.auth.autoconfigure"], havingValue = "true")
 class PlatformSecurityConfig {
     @Bean
     fun filterChain(
@@ -139,7 +139,7 @@ class PlatformSecurityConfig {
 @Profile("platform")
 @Configuration
 @EnableWebFluxSecurity
-@ConditionalOnProperty(name = ["platform.deployment.auth.enabled"], havingValue = "false", matchIfMissing = true)
+@ConditionalOnProperty(name = ["platform.deployment.auth.autoconfigure"], havingValue = "false", matchIfMissing = true)
 class PlatformNoOpSecurityConfig {
     @Bean
     fun filterChain(
