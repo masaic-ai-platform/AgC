@@ -38,8 +38,8 @@ object CurrentUserProvider {
     private suspend fun getPrincipalUserId(): String? =
         ReactiveSecurityContextHolder
             .getContext()
-            .map { it.authentication?.principal }
-            .map { principal ->
+            .mapNotNull { it.authentication?.principal }
+            .mapNotNull { principal ->
                 when (principal) {
                     is UserInfo -> principal.userId
                     is org.springframework.security.core.userdetails.UserDetails -> principal.username
