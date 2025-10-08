@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.api.service.search
 
+import ai.masaic.openresponses.api.config.FileStorageProperties
 import ai.masaic.openresponses.api.model.VectorStoreSearchResult
 import ai.masaic.openresponses.api.model.VectorStoreSearchResultContent
 import org.apache.lucene.analysis.standard.StandardAnalyzer
@@ -19,7 +20,6 @@ import org.apache.lucene.search.BooleanQuery
 import org.apache.lucene.search.IndexSearcher
 import org.apache.lucene.search.TermQuery
 import org.apache.lucene.store.FSDirectory
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.stereotype.Service
 import java.nio.file.Paths
 import kotlin.math.pow
@@ -29,10 +29,9 @@ import kotlin.math.pow
  */
 @Service
 class LuceneIndexService(
-    @Value("\${open-responses.file-storage.local.root-dir}")
-    private val rootDir: String,
+    fileStorageProperties: FileStorageProperties,
 ) {
-    private val indexPath = "$rootDir/lucene-index"
+    private val indexPath = "${fileStorageProperties.getRootDirectory()}/lucene-index"
     private val analyzer = StandardAnalyzer()
     private val log = org.slf4j.LoggerFactory.getLogger(LuceneIndexService::class.java)
 

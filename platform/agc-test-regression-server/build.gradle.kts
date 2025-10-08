@@ -24,20 +24,11 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":open-responses-core"))
+    implementation(project(":agc-platform-core"))
+    implementation(project(":open-responses-rest"))
+    implementation(project(":agc-platform-rest"))
     implementation("org.springframework.boot:spring-boot-starter-webflux")
-    implementation("org.springframework.boot:spring-boot-starter-validation")
-    implementation("com.openai:openai-java:2.2.0") {
-        exclude(group = "io.grpc", module = "grpc-netty-shaded") // -18M
-        exclude(group = "org.bouncycastle") // -17M if using JVM crypto
-    }
-
-    implementation("dev.langchain4j:langchain4j:1.0.0-beta2")
-    implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
-    // ensure Kotlin stdlib is on the runtime classpath
-    implementation(kotlin("stdlib-jdk8"))
+    implementation("org.springframework.boot:spring-boot-starter-actuator")
 }
 
 tasks.withType<org.springframework.boot.gradle.tasks.bundling.BootJar> {

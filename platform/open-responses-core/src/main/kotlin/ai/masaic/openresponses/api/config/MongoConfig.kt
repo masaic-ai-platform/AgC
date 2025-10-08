@@ -4,9 +4,10 @@ import ai.masaic.openresponses.api.client.MongoResponseStore
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.mongodb.reactivestreams.client.MongoClient
 import mu.KotlinLogging
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
+import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.data.mongodb.ReactiveMongoDatabaseFactory
@@ -28,16 +29,14 @@ import org.springframework.transaction.annotation.EnableTransactionManagement
 @EnableReactiveMongoAuditing
 @EnableTransactionManagement
 @ConditionalOnProperty(name = ["open-responses.store.type"], havingValue = "mongodb", matchIfMissing = false)
+@EnableConfigurationProperties(MongoConfigProperties::class)
 @ImportAutoConfiguration(
     classes = [
         org.springframework.boot.autoconfigure.mongo.MongoReactiveAutoConfiguration::class,
     ],
 )
 class MongoConfig(
-    @Value("\${open-responses.mongodb.uri}")
-    private val mongoURI: String,
-    @Value("\${open-responses.mongodb.database}")
-    private val databaseName: String,
+    private val mongoConfigProperties: MongoConfigProperties,
 ) : AbstractReactiveMongoConfiguration() {
     private val logger = KotlinLogging.logger {}
 
@@ -58,12 +57,18 @@ class MongoConfig(
 
     override fun getDatabaseName(): String {
         logger.debug { "MongoDB database name: $databaseName" }
-        return databaseName
+        return mongoConfigProperties.database
     }
 
     override fun reactiveMongoClient(): MongoClient {
-        logger.debug { "MongoDB URI: $mongoURI" }
+        logger.debug { "MongoDB URI: ${mongoConfigProperties.uri}" }
         return com.mongodb.reactivestreams.client.MongoClients
-            .create(mongoURI)
+            .create(mongoConfigProperties.uri)
     }
 }
+
+@ConfigurationProperties("open-responses.mongodb")
+data class MongoConfigProperties(
+    val uri: String = "mongodb://localhost:27017/openresponses",
+    val database: String = "openresponses",
+)

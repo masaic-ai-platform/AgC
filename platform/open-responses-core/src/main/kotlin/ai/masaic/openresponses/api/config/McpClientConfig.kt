@@ -6,17 +6,18 @@ import ai.masaic.openresponses.tool.mcp.McpClientFactory
 import ai.masaic.openresponses.tool.mcp.McpWebFluxClientFactory
 import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
-import org.springframework.context.annotation.Profile
 
 @Configuration
-@Profile("!platform")
 class McpClientConfig {
     @Bean
+    @ConditionalOnMissingBean(McpClientFactory::class)
     fun mcpClientFactory(oauthService: MCPOAuthService): McpClientFactory = McpWebFluxClientFactory(oauthService)
 
     @Bean
+    @ConditionalOnMissingBean
     fun nativeToolRegistry(
         objectMapper: ObjectMapper,
         responseStore: ResponseStore,

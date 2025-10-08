@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.api.service
 
+import ai.masaic.openresponses.api.config.FileStorageProperties
 import ai.masaic.openresponses.api.service.storage.LocalFileStorageService
 import ai.masaic.openresponses.api.utils.toFilePart
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -8,24 +9,23 @@ import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.io.TempDir
 import org.springframework.http.MediaType
 import org.springframework.mock.web.MockMultipartFile
 import java.nio.file.Files
-import java.nio.file.Path
+import java.nio.file.Paths
 import java.util.*
 import kotlin.test.*
 
 class LocalFileStorageServiceTest {
-    @TempDir
-    lateinit var tempDir: Path
+    private val fileStorageProperties = FileStorageProperties()
+    private var tempDir = Paths.get(fileStorageProperties.local.rootDir)
 
     private lateinit var fileStorageService: LocalFileStorageService
 
     @BeforeEach
     fun setUp() =
         runTest {
-            fileStorageService = LocalFileStorageService(tempDir.toString(), ObjectMapper())
+            fileStorageService = LocalFileStorageService(fileStorageProperties, ObjectMapper())
         }
 
     @AfterEach

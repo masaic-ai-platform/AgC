@@ -27,13 +27,9 @@ import io.opentelemetry.api.trace.Tracer
 import io.opentelemetry.context.Context
 import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Value
-import org.springframework.context.annotation.Profile
-import org.springframework.stereotype.Service
 import java.time.Duration
 import kotlin.jvm.optionals.getOrDefault
 
-@Profile("!platform")
-@Service
 open class TelemetryService(
     private val observationRegistry: ObservationRegistry,
     openTelemetry: OpenTelemetry,
@@ -63,7 +59,7 @@ open class TelemetryService(
         }
     }
 
-    suspend fun emitModelInputEventsForOtelSpan(
+    open suspend fun emitModelInputEventsForOtelSpan(
         span: Span,
         inputParams: ChatCompletionCreateParams,
         metadata: InstrumentationMetadataInput,
@@ -77,7 +73,7 @@ open class TelemetryService(
         }
     }
 
-    fun emitModelOutputEventsForOtelSpan(
+    open fun emitModelOutputEventsForOtelSpan(
         span: Span,
         response: Response,
         metadata: InstrumentationMetadataInput,
@@ -90,7 +86,7 @@ open class TelemetryService(
         }
     }
 
-    fun emitModelOutputEventsForOtel(
+    open fun emitModelOutputEventsForOtel(
         span: Span,
         chatCompletion: ChatCompletion,
         metadata: InstrumentationMetadataInput,
@@ -257,7 +253,7 @@ open class TelemetryService(
         return observation
     }
 
-    suspend fun startOtelSpan(
+    open suspend fun startOtelSpan(
         operationName: String,
         modelName: String,
         parentSpan: Span? = null,

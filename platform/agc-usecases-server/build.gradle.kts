@@ -26,17 +26,18 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":open-responses-core"))
+    implementation(project(":agc-platform-core"))
+    implementation(project(":agc-platform-rest"))
     implementation("org.springframework.boot:spring-boot-starter-webflux")
-    implementation("com.openai:openai-java:2.2.0") {
-        exclude(group = "io.grpc", module = "grpc-netty-shaded") // -18M
-        exclude(group = "org.bouncycastle") // -17M if using JVM crypto
-    }
-//
-    implementation("dev.langchain4j:langchain4j:1.0.0-beta2")
-    implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
+//    implementation("com.openai:openai-java:2.2.0") {
+//        exclude(group = "io.grpc", module = "grpc-netty-shaded") // -18M
+//        exclude(group = "org.bouncycastle") // -17M if using JVM crypto
+//    }
+////
+//    implementation("dev.langchain4j:langchain4j:1.0.0-beta2")
+//    implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
+//    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+//    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
 
     implementation("io.temporal:temporal-spring-boot-starter:1.31.0")
     // Add gRPC dependencies that Temporal needs

@@ -1,9 +1,9 @@
 package ai.masaic.platform.regression.api.tools
 
+import ai.masaic.openresponses.api.model.ModelSettings
 import ai.masaic.openresponses.api.service.ResponseStoreService
 import ai.masaic.openresponses.tool.mcp.McpClient
 import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
-import ai.masaic.platform.api.config.ModelSettings
 import ai.masaic.platform.api.repository.McpMockServerRepository
 import ai.masaic.platform.api.repository.MockFunctionRepository
 import ai.masaic.platform.api.repository.MocksRepository

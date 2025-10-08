@@ -1,10 +1,10 @@
 package ai.masaic.openresponses.api.service.search
 
+import ai.masaic.openresponses.api.config.VectorRepositoryProperties
 import ai.masaic.openresponses.api.service.search.HybridSearchService.ChunkForIndexing
 import kotlinx.coroutines.reactor.awaitSingle
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
 import org.springframework.data.mongodb.core.index.ReactiveIndexOperations
 import org.springframework.data.mongodb.core.index.TextIndexDefinition
@@ -18,8 +18,7 @@ import org.springframework.stereotype.Service
 class HybridSearchServiceHelper
     @Autowired
     constructor(
-        @Value("\${open-responses.store.vector.repository.type}")
-        private val repositoryType: String,
+        private val vectorRepositoryProperties: VectorRepositoryProperties,
         @Autowired(required = false)
         private val luceneIndexService: LuceneIndexService? = null,
         @Autowired(required = false)
@@ -29,7 +28,7 @@ class HybridSearchServiceHelper
 
         init {
             // Only initialize MongoDB text index if MongoDB is active
-            if (repositoryType == "mongodb" && mongoTemplate != null) {
+            if (vectorRepositoryProperties.repository.type == "mongodb" && mongoTemplate != null) {
                 val indexOps: ReactiveIndexOperations = mongoTemplate.indexOps(MongoChunk::class.java)
                 val textIndex =
                     TextIndexDefinition
@@ -50,10 +49,10 @@ class HybridSearchServiceHelper
             if (chunks.isEmpty()) return
 
             // Log indexing action
-            log.info("Indexing ${chunks.size} chunks for hybrid search, repository type: $repositoryType")
+            log.info("Indexing ${chunks.size} chunks for hybrid search, repository type: ${vectorRepositoryProperties.repository.type}")
 
             // If using file repository, index in Lucene
-            if (repositoryType == "file" && luceneIndexService != null) {
+            if (vectorRepositoryProperties.repository.type == "file" && luceneIndexService != null) {
                 try {
                     // Convert to Lucene chunks
                     val luceneChunks =
@@ -78,7 +77,7 @@ class HybridSearchServiceHelper
             }
 
             // If using MongoDB repository, index in MongoDB
-            if (repositoryType == "mongodb" && mongoTemplate != null) {
+            if (vectorRepositoryProperties.repository.type == "mongodb" && mongoTemplate != null) {
                 try {
                     // Convert to MongoChunk documents
                     val mongoChunks =
@@ -111,7 +110,7 @@ class HybridSearchServiceHelper
             vectorStoreId: String? = null,
         ) {
             // If using MongoDB repository, delete from MongoDB
-            if (repositoryType == "mongodb" && mongoTemplate != null) {
+            if (vectorRepositoryProperties.repository.type == "mongodb" && mongoTemplate != null) {
                 try {
                     val criteria = Criteria.where("fileId").`is`(fileId)
 

@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.api.service
 
+import ai.masaic.openresponses.api.config.FileStorageProperties
 import ai.masaic.openresponses.api.config.VectorSearchConfigProperties
 import ai.masaic.openresponses.api.model.ComparisonFilter
 import ai.masaic.openresponses.api.service.embedding.EmbeddingService
@@ -17,10 +18,10 @@ import org.junit.jupiter.api.Order
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.api.TestMethodOrder
-import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import java.nio.file.Path
+import java.nio.file.Paths
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
@@ -37,6 +38,7 @@ import kotlin.test.assertTrue
 @TestMethodOrder(MethodOrderer.OrderAnnotation::class)
 class FileBasedVectorSearchProviderPersistenceTest {
     // Use a shared directory for all tests instead of per-test directories
+    private val fileStorageProperties = FileStorageProperties()
     private lateinit var tempDirPath: Path
 
     private lateinit var embeddingService: EmbeddingService
@@ -50,10 +52,10 @@ class FileBasedVectorSearchProviderPersistenceTest {
 
     @BeforeAll
     fun setup(
-        @TempDir tempDir: Path,
+//        @TempDir tempDir: Path,
     ) {
         // Save the tempDir for use across all tests
-        this.tempDirPath = tempDir
+        this.tempDirPath = Paths.get(fileStorageProperties.local.rootDir)
 
         // Create mocks and configuration that will be used for all tests
         embeddingService = mockk()
@@ -99,7 +101,7 @@ class FileBasedVectorSearchProviderPersistenceTest {
             FileBasedVectorSearchProvider(
                 embeddingService,
                 objectMapper,
-                tempDirPath.toString(),
+                fileStorageProperties,
                 hybridSearchServiceHelper,
             )
 
@@ -132,7 +134,7 @@ class FileBasedVectorSearchProviderPersistenceTest {
             FileBasedVectorSearchProvider(
                 embeddingService,
                 objectMapper,
-                tempDirPath.toString(),
+                fileStorageProperties,
                 hybridSearchServiceHelper,
             )
 
@@ -173,7 +175,7 @@ class FileBasedVectorSearchProviderPersistenceTest {
             FileBasedVectorSearchProvider(
                 embeddingService,
                 objectMapper,
-                tempDirPath.toString(),
+                fileStorageProperties,
                 hybridSearchServiceHelper,
             )
 
@@ -203,7 +205,7 @@ class FileBasedVectorSearchProviderPersistenceTest {
             FileBasedVectorSearchProvider(
                 embeddingService,
                 objectMapper,
-                tempDirPath.toString(),
+                fileStorageProperties,
                 hybridSearchServiceHelper,
             )
 

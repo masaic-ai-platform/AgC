@@ -1,9 +1,12 @@
 package ai.masaic.openresponses.tool.agentic
 
-import ai.masaic.openresponses.api.model.*
+import ai.masaic.openresponses.api.model.Filter
+import ai.masaic.openresponses.api.model.ModelSettings
+import ai.masaic.openresponses.api.model.VectorStoreSearchRequest
 import ai.masaic.openresponses.api.service.search.VectorStoreService
-import ai.masaic.platform.api.config.ModelSettings
-import kotlinx.coroutines.*
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 
 class TopKSimilaritySeed(
     private val svc: VectorStoreService,

@@ -1,8 +1,8 @@
 package ai.masaic.openresponses.tool.agentic
 
 import ai.masaic.openresponses.api.model.Filter
+import ai.masaic.openresponses.api.model.ModelSettings
 import ai.masaic.openresponses.api.service.search.HybridSearchService
-import ai.masaic.platform.api.config.ModelSettings
 import kotlinx.coroutines.coroutineScope
 
 class HybridSimilaritySeed(

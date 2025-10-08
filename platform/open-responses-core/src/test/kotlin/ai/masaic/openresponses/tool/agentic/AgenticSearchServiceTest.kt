@@ -1,10 +1,10 @@
 package ai.masaic.openresponses.tool.agentic
 
+import ai.masaic.openresponses.api.model.ModelSettings
 import ai.masaic.openresponses.api.service.search.HybridSearchService
 import ai.masaic.openresponses.api.service.search.VectorStoreService
 import ai.masaic.openresponses.tool.AgenticSearchParams
 import ai.masaic.openresponses.tool.ResponseParamsAdapter
-import ai.masaic.platform.api.config.ModelSettings
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.client.OpenAIClient
@@ -15,7 +15,7 @@ import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
-import java.util.Optional
+import java.util.*
 
 class AgenticSearchServiceTest {
     private val vectorStoreService = mockk<VectorStoreService>()

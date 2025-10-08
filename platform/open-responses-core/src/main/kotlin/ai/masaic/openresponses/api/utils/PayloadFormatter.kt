@@ -12,23 +12,19 @@ import com.fasterxml.jackson.databind.node.ObjectNode
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.models.responses.Response
 import com.openai.models.responses.ResponseStreamEvent
-import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpStatus
-import org.springframework.stereotype.Component
 import org.springframework.web.server.ResponseStatusException
 import java.math.BigDecimal
 
-@Profile("!platform")
-@Component
 open class PayloadFormatter(
     private val toolService: ToolService,
     private val mapper: ObjectMapper,
 ) {
-    internal suspend fun formatResponseRequest(request: CreateResponseRequest) {
+    suspend fun formatResponseRequest(request: CreateResponseRequest) {
         request.tools = updateToolsInRequest(request.tools)
     }
 
-    internal suspend fun formatCompletionRequest(request: CreateCompletionRequest) {
+    suspend fun formatCompletionRequest(request: CreateCompletionRequest) {
         request.tools = updateToolsInCompletionRequest(request.tools)
     }
 
@@ -38,7 +34,7 @@ open class PayloadFormatter(
      * @param tools The original list of tools in the request
      * @return The updated list of tools
      */
-    protected suspend fun updateToolsInRequest(tools: List<Tool>?): MutableList<Tool>? {
+    open suspend fun updateToolsInRequest(tools: List<Tool>?): MutableList<Tool>? {
         val updatedTools = mutableListOf<Tool>()
         tools?.forEach {
             when (it) {

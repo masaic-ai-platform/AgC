@@ -2,17 +2,13 @@ package ai.masaic.openresponses.api.service.search
 
 import ai.masaic.openresponses.api.config.QdrantVectorProperties
 import ai.masaic.openresponses.api.config.VectorSearchConfigProperties
-import ai.masaic.openresponses.api.model.ChunkingStrategy
-import ai.masaic.openresponses.api.model.Filter
-import ai.masaic.openresponses.api.model.RankingOptions
-import ai.masaic.openresponses.api.model.StaticChunkingConfig
+import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.embedding.EmbeddingService
 import ai.masaic.openresponses.api.service.search.HybridSearchService.ChunkForIndexing
 import ai.masaic.openresponses.api.utils.DocumentTextExtractor
 import ai.masaic.openresponses.api.utils.FilterUtils
 import ai.masaic.openresponses.api.utils.IdGenerator
 import ai.masaic.openresponses.api.utils.TextChunkingUtil
-import ai.masaic.platform.api.config.ModelSettings
 import dev.langchain4j.data.document.Metadata
 import dev.langchain4j.data.embedding.Embedding
 import dev.langchain4j.data.segment.TextSegment
@@ -23,8 +19,6 @@ import io.qdrant.client.QdrantClient
 import io.qdrant.client.grpc.Collections
 import org.slf4j.LoggerFactory
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
-import org.springframework.context.annotation.Profile
-import org.springframework.stereotype.Service
 import java.io.InputStream
 import java.time.Duration
 
@@ -34,10 +28,7 @@ import java.time.Duration
  * This class provides a VectorSearchProvider implementation that uses Qdrant
  * vector database for storing and searching vector embeddings.
  */
-@Service
-@Profile("!platform")
-@ConditionalOnProperty(name = ["open-responses.store.vector.search.provider"], havingValue = "qdrant")
-class QdrantVectorSearchProvider(
+open class QdrantVectorSearchProvider(
     private val embeddingService: EmbeddingService,
     private val qdrantProperties: QdrantVectorProperties,
     vectorSearchProperties: VectorSearchConfigProperties,
@@ -262,12 +253,12 @@ class QdrantVectorSearchProvider(
         }
     }
 
-    protected fun embeddings(
+    open fun embeddings(
         chunkTexts: List<String>,
         modelSettings: ModelSettings?,
     ): List<List<Float>> = embeddingService.embedTexts(chunkTexts)
 
-    protected fun embedding(
+    open fun embedding(
         query: String,
         modelSettings: ModelSettings?,
     ): List<Float> = embeddingService.embedText(query)

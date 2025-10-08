@@ -10,17 +10,9 @@ import ai.masaic.openresponses.api.service.VectorStoreFileManager
 import ai.masaic.openresponses.api.support.service.OpenResponsesObsAttributes
 import ai.masaic.openresponses.api.support.service.TelemetryService
 import ai.masaic.openresponses.api.utils.IdGenerator
-import ai.masaic.platform.api.config.ModelSettings
 import io.micrometer.core.instrument.Timer
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
+import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.context.annotation.Profile
-import org.springframework.stereotype.Service
 import java.io.InputStream
 import java.time.Instant
 
@@ -30,14 +22,12 @@ import java.time.Instant
  * This service provides methods for creating, retrieving, listing,
  * updating, and deleting vector stores and their files.
  */
-@Service
-@Profile("!platform")
-class VectorStoreService(
-    @Autowired private val vectorStoreFileManager: VectorStoreFileManager,
-    @Autowired private val vectorStoreRepository: VectorStoreRepository,
-    @Autowired private val vectorSearchProvider: VectorSearchProvider,
-    @Autowired private val telemetryService: TelemetryService,
-    @Autowired(required = false) private val hybridSearchServiceHelper: HybridSearchServiceHelper,
+open class VectorStoreService(
+    private val vectorStoreFileManager: VectorStoreFileManager,
+    private val vectorStoreRepository: VectorStoreRepository,
+    private val vectorSearchProvider: VectorSearchProvider,
+    private val telemetryService: TelemetryService,
+    private val hybridSearchServiceHelper: HybridSearchServiceHelper,
 ) {
     private val log = LoggerFactory.getLogger(VectorStoreService::class.java)
 
@@ -763,7 +753,7 @@ class VectorStoreService(
             }
         }
 
-    protected fun searchSimilar(
+    open fun searchSimilar(
         vectorStoreId: String,
         filter: CompoundFilter,
         request: VectorStoreSearchRequest,
@@ -1000,7 +990,7 @@ class VectorStoreService(
         }
     }
 
-    protected suspend fun indexFile(
+    open suspend fun indexFile(
         fileId: String,
         content: InputStream,
         filename: String,

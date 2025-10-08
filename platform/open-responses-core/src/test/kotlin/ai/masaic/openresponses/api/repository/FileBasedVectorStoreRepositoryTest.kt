@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.api.repository
 
+import ai.masaic.openresponses.api.config.FileStorageProperties
 import ai.masaic.openresponses.api.model.FileCounts
 import ai.masaic.openresponses.api.model.VectorStore
 import ai.masaic.openresponses.api.model.VectorStoreFile
@@ -12,10 +13,9 @@ import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
-import org.junit.jupiter.api.io.TempDir
 import org.springframework.test.context.junit.jupiter.SpringExtension
 import java.nio.file.Files
-import java.nio.file.Path
+import java.nio.file.Paths
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertEquals
@@ -26,8 +26,8 @@ import kotlin.test.assertTrue
 
 @ExtendWith(SpringExtension::class)
 class FileBasedVectorStoreRepositoryTest {
-    @TempDir
-    lateinit var tempDir: Path
+    private val fileStorageProperties = FileStorageProperties()
+    private val tempDir = Paths.get(fileStorageProperties.local.rootDir)
     
     private lateinit var objectMapper: ObjectMapper
     private lateinit var vectorStoreRepository: FileBasedVectorStoreRepository
@@ -38,7 +38,7 @@ class FileBasedVectorStoreRepositoryTest {
         objectMapper = jacksonObjectMapper()
         
         // Create the repository with a temp directory
-        vectorStoreRepository = FileBasedVectorStoreRepository(tempDir.toString(), objectMapper)
+        vectorStoreRepository = FileBasedVectorStoreRepository(fileStorageProperties, objectMapper)
     }
 
     @AfterEach

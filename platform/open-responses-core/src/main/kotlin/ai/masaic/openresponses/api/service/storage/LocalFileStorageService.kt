@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.api.service.storage
 
+import ai.masaic.openresponses.api.config.FileStorageProperties
 import ai.masaic.openresponses.api.utils.IdGenerator
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -11,7 +12,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.reactor.awaitSingleOrNull
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.io.Resource
 import org.springframework.core.io.UrlResource
 import org.springframework.core.io.buffer.DataBufferUtils
@@ -37,11 +37,11 @@ import kotlin.streams.asSequence
  */
 @Service
 class LocalFileStorageService(
-    @Value("\${open-responses.file-storage.local.root-dir}") private val rootDir: String,
+    fileStorageProperties: FileStorageProperties,
     private val objectMapper: ObjectMapper,
 ) : FileStorageService {
     private val log = LoggerFactory.getLogger(LocalFileStorageService::class.java)
-    private val rootLocation: Path = Paths.get(rootDir)
+    private val rootLocation: Path = Paths.get(fileStorageProperties.getRootDirectory())
     private val postProcessHooks = mutableListOf<suspend (String, String) -> Unit>()
 
     init {

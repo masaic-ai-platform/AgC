@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.api.service.search
 
+import ai.masaic.openresponses.api.config.FileStorageProperties
 import ai.masaic.openresponses.api.model.ChunkingStrategy
 import ai.masaic.openresponses.api.model.Filter
 import ai.masaic.openresponses.api.model.RankingOptions
@@ -16,7 +17,6 @@ import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.stereotype.Service
 import java.io.InputStream
@@ -35,13 +35,13 @@ import java.nio.file.Paths
 class FileBasedVectorSearchProvider(
     private val embeddingService: EmbeddingService,
     private val objectMapper: ObjectMapper,
-    @Value("\${open-responses.file-storage.local.root-dir}") private val rootDir: String,
+    fileStorageProperties: FileStorageProperties,
     @Autowired private val hybridSearchServiceHelper: HybridSearchServiceHelper,
 ) : VectorSearchProvider {
     private val log = LoggerFactory.getLogger(FileBasedVectorSearchProvider::class.java)
 
     // Directory for storing embeddings
-    private val embeddingsDir = "$rootDir/embeddings"
+    private val embeddingsDir = "${fileStorageProperties.getRootDirectory()}/embeddings"
 
     init {
         try {
