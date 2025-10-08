@@ -19,27 +19,28 @@ dependencyManagement {
     }
 }
 
-dependencies {
-    implementation(project(":open-responses-core"))
-    implementation("org.springframework.boot:spring-boot-starter")
-    implementation("dev.langchain4j:langchain4j-embeddings:1.0.0-beta2")
-    implementation("dev.langchain4j:langchain4j-onnx-scoring:1.0.0-beta2")
-    implementation("dev.langchain4j:langchain4j-embeddings-all-minilm-l6-v2:1.0.0-beta2")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
-    implementation("io.opentelemetry.instrumentation:opentelemetry-spring-boot-starter")
-
-    testImplementation("org.springframework.boot:spring-boot-starter-test")
-    testImplementation("com.ninja-squad:springmockk:4.0.2")
-    testImplementation("io.mockk:mockk:1.13.17")
-    testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
-    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test")
-    testImplementation("org.testcontainers:mongodb:1.19.1")
-    testImplementation("org.testcontainers:junit-jupiter:1.19.1")
-}
-
 repositories {
     mavenCentral()
+}
+
+dependencies {
+    api(project(":open-responses-core"))
+    implementation("com.knuddels:jtokkit:1.1.0")
+    implementation("org.springframework.boot:spring-boot-starter-webflux")
+//    testImplementation("io.mockk:mockk:1.13.17")
+//    testImplementation("com.ninja-squad:springmockk:4.0.2")
+//    testImplementation("org.springframework.boot:spring-boot-starter-test")
+//    implementation("com.openai:openai-java:2.2.0") {
+//        exclude(group = "io.grpc", module = "grpc-netty-shaded") // -18M
+//        exclude(group = "org.bouncycastle") // -17M if using JVM crypto
+//    }
+
+//    implementation("dev.langchain4j:langchain4j:1.0.0-beta2")
+//    implementation("io.github.microutils:kotlin-logging-jvm:3.0.5")
+//    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+//    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core")
+    // ensure Kotlin stdlib is on the runtime classpath
+//    implementation(kotlin("stdlib-jdk8"))
 }
 
 kotlin {
