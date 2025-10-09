@@ -18,7 +18,6 @@ import dev.langchain4j.store.embedding.qdrant.QdrantEmbeddingStore
 import io.qdrant.client.QdrantClient
 import io.qdrant.client.grpc.Collections
 import org.slf4j.LoggerFactory
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import java.io.InputStream
 import java.time.Duration
 

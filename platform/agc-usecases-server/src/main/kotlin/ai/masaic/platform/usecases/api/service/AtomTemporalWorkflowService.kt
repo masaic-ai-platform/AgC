@@ -4,11 +4,13 @@ import io.temporal.activity.ActivityInterface
 import io.temporal.client.WorkflowClient
 import io.temporal.client.WorkflowOptions
 import io.temporal.common.RetryOptions
+import io.temporal.spring.boot.ActivityImpl
 import io.temporal.spring.boot.WorkflowImpl
 import io.temporal.workflow.WorkflowInterface
 import io.temporal.workflow.WorkflowMethod
 import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.stereotype.Component
 import org.springframework.stereotype.Service
 import java.util.UUID
 
@@ -66,16 +68,15 @@ interface AtomAgentActivity {
     fun runAtomAgent(input: String): String
 }
 
-// @Component
-// @ActivityImpl(taskQueues = ["ATOM_AGENT_Q"])
-// class AtomAgentActivityImpl : AtomAgentActivity {
-//
-//    override fun logCallAndOpportunity(input: String): String {
-//        println("completing...... logCallAndOpportunity")
-//        // Simulate logging call and opportunity in Salesforce
-//        return "The call log added in sales force, opportunity too. There is one activity also logged"
-//    }
-// }
+@Component
+@ActivityImpl(taskQueues = ["\${spring.temporal.workers.task-queue}"])
+class AtomAgentActivityImpl : AtomAgentActivity {
+    override fun runAtomAgent(input: String): String {
+        println("completing...... logCallAndOpportunity")
+        // Simulate logging call and opportunity in Salesforce
+        return "The call log added in sales force, opportunity too. There is one activity also logged"
+    }
+}
 
 @WorkflowImpl(taskQueues = ["\${spring.temporal.workers.task-queue}"])
 class AtomAgentWorkflowImpl : AtomAgentWorkflow {
