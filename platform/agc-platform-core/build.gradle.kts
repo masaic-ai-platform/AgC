@@ -25,6 +25,8 @@ repositories {
 
 dependencies {
     api(project(":open-responses-core"))
+    api("io.temporal:temporal-spring-boot-starter:1.31.0")
+    api("io.grpc:grpc-netty-shaded:1.76.0")
 }
 
 kotlin {
