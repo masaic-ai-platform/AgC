@@ -143,6 +143,10 @@ class PlatformSecurityConfig {
 @EnableWebFluxSecurity
 @ConditionalOnProperty(name = ["platform.deployment.auth.enabled"], havingValue = "false", matchIfMissing = true)
 class PlatformNoOpSecurityConfig {
+    init {
+        UserInfoProvider.init(CurrentUserProvider())
+    }
+
     @Bean
     fun filterChain(
         http: ServerHttpSecurity,
