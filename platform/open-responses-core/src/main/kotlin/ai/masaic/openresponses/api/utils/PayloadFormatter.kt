@@ -121,7 +121,7 @@ open class PayloadFormatter(
      * @param response The response to update
      * @return Updated JSON representation of the response
      */
-    internal fun formatResponse(response: Response): JsonNode {
+    internal suspend fun formatResponse(response: Response): JsonNode {
         // Convert the Response object to a mutable JSON tree
         val rootNode = mapper.valueToTree<JsonNode>(response) as ObjectNode
         return formatResponseNode(rootNode)
@@ -134,7 +134,7 @@ open class PayloadFormatter(
         }
     }
 
-    internal fun formatResponseStreamEvent(event: ResponseStreamEvent): JsonNode {
+    internal suspend fun formatResponseStreamEvent(event: ResponseStreamEvent): JsonNode {
         if (event.isCompleted()) {
             val responseNode = mapper.valueToTree<JsonNode>(event.asCompleted().response()) as ObjectNode
             formatResponseNode(responseNode)
@@ -165,7 +165,7 @@ open class PayloadFormatter(
         return rootNode
     }
 
-    private fun formatResponseNode(rootNode: ObjectNode): ObjectNode {
+    private suspend fun formatResponseNode(rootNode: ObjectNode): ObjectNode {
         updateToolsInResponseJson(rootNode)
         updateDoubleFormat(rootNode)
         return rootNode
@@ -176,7 +176,7 @@ open class PayloadFormatter(
      *
      * @param rootNode The root JSON node of the response
      */
-    private fun updateToolsInResponseJson(rootNode: ObjectNode) {
+    private suspend fun updateToolsInResponseJson(rootNode: ObjectNode) {
         // Get the "tools" array node (if present)
         val toolsNode = rootNode.get("tools") as? ArrayNode ?: return
 
@@ -209,7 +209,7 @@ open class PayloadFormatter(
      * @param toolNode The current tool node
      * @param index The index of the current tool in the array
      */
-    private fun replaceFunctionToolWithMasaicTool(
+    private suspend fun replaceFunctionToolWithMasaicTool(
         toolsNode: ArrayNode,
         toolNode: ObjectNode,
         index: Int,

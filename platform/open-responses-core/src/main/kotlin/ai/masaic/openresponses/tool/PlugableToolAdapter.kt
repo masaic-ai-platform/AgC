@@ -23,7 +23,7 @@ interface PlugableToolAdapter {
         eventEmitter: (ServerSentEvent<String>) -> Unit,
     ): String?
 
-    fun plugIn(name: String): PlugableToolDefinition? =
+    suspend fun plugIn(name: String): PlugableToolDefinition? =
         if (isEnabled()) {
             PlugableToolDefinition(name = name, description = "This tool will execute externally but execution is managed by AgC", parameters = mutableMapOf(), eventMeta = ToolProgressEventMeta(infix = "agc"))
         } else {
@@ -50,14 +50,15 @@ data class PluggedToolRequest(
     val loopContextInfo: LoopContextInfo,
 )
 
-data class PlugableToolDefinition(
+open class PlugableToolDefinition(
     override val id: String = UUID.randomUUID().toString(),
     override val protocol: ToolProtocol = ToolProtocol.PLUGABLE,
     override val hosting: ToolHosting = ToolHosting.MASAIC_PLUG,
     override val name: String,
     override val description: String,
-    val parameters: MutableMap<String, Any>,
+    open val parameters: MutableMap<String, Any>,
     override val eventMeta: ToolProgressEventMeta? = null,
+    val type: String = "same_runtime",
 ) : ToolDefinition(id, protocol, hosting, name, description, eventMeta) {
     fun toFunctionTool(): FunctionTool =
         FunctionTool(

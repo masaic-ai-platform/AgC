@@ -14,9 +14,11 @@ import ai.masaic.openresponses.api.service.embedding.OpenAIProxyEmbeddingService
 import ai.masaic.openresponses.api.service.rerank.RerankerService
 import ai.masaic.openresponses.api.service.search.*
 import ai.masaic.openresponses.api.support.service.TelemetryService
+import ai.masaic.openresponses.tool.NativeToolRegistry
 import ai.masaic.openresponses.tool.PlugableToolAdapter
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
+import ai.masaic.openresponses.tool.mcp.MCPToolRegistry
 import ai.masaic.openresponses.tool.mcp.McpClientFactory
 import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import ai.masaic.platform.api.interpreter.CodeRunnerService
@@ -47,6 +49,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.*
 import org.springframework.core.io.ClassPathResource
+import org.springframework.core.io.ResourceLoader
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
 import java.net.URI
 import java.time.Instant
@@ -141,9 +144,21 @@ class PlatformCoreConfig {
 
     @Bean
     fun payloadFormatter(
-        toolService: ToolService,
+        toolService: PlatformToolService,
         mapper: ObjectMapper,
     ) = PlatformPayloadFormatter(toolService, mapper)
+
+    @Bean
+    fun platformToolService(
+        mcpToolRegistry: MCPToolRegistry,
+        mcpToolExecutor: MCPToolExecutor,
+        resourceLoader: ResourceLoader,
+        nativeToolRegistry: NativeToolRegistry,
+        objectMapper: ObjectMapper,
+        mcpClientFactory: McpClientFactory,
+        plugableToolAdapter: PlugableToolAdapter,
+        pluggedToolsRegistry: PluggedToolsRegistry,
+    ) = PlatformToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, objectMapper, mcpClientFactory, plugableToolAdapter, pluggedToolsRegistry)
 
     @Bean
     fun platformRequestValidator(

@@ -9,19 +9,6 @@ abstract class MultiPlugAdapter(
     private val adapters: List<PlugableToolAdapter>,
 ) : PlugableToolAdapter
 
-class NoOpMultiPlugAdapter(
-    private val adapters: List<PlugableToolAdapter>? = null,
-) : PlugableToolAdapter {
-    init {
-        PlugableToolAdapter.enableAdapter(false)
-    }
-
-    override suspend fun callTool(
-        pluggedToolRequest: PluggedToolRequest,
-        eventEmitter: (ServerSentEvent<String>) -> Unit,
-    ): String? = null
-}
-
 class SimpleMultiPlugAdapter(
     private val adapters: List<PlugableToolAdapter>,
 ) : PlugableToolAdapter {
@@ -29,17 +16,17 @@ class SimpleMultiPlugAdapter(
         PlugableToolAdapter.enableAdapter(true)
     }
 
-    override fun plugIn(name: String): PlugableToolDefinition? = findPluggedTool(name)
+    override suspend fun plugIn(name: String): PlugableToolDefinition? = findApplicableAdapter(name)?.plugIn(name)
 
     override suspend fun callTool(
         pluggedToolRequest: PluggedToolRequest,
         eventEmitter: (ServerSentEvent<String>) -> Unit,
-    ): String =
-        findPluggedTool(pluggedToolRequest.name)?.let {
-            callTool(pluggedToolRequest, eventEmitter)
-        } ?: throw MultiPlugAdapterException("No tool ${pluggedToolRequest.name} plugged into Multi plug adapter")
+    ): String? {
+        val adapter = findApplicableAdapter(pluggedToolRequest.name) ?: throw MultiPlugAdapterException("Unable to find adapter to call tool ${pluggedToolRequest.name}")
+        return adapter.callTool(pluggedToolRequest, eventEmitter)
+    }
 
-    private fun findPluggedTool(name: String) = adapters.firstOrNull { it.plugIn(name) != null }?.plugIn(name)
+    private suspend fun findApplicableAdapter(name: String) = adapters.firstOrNull { it.plugIn(name) != null }
 }
 
 class MultiPlugAdapterException(

@@ -1,18 +1,16 @@
 package ai.masaic.platform.api.utils
 
-import ai.masaic.openresponses.api.model.MCPTool
-import ai.masaic.openresponses.api.model.MasaicManagedTool
+import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.model.PyFunTool
-import ai.masaic.openresponses.api.model.Tool
 import ai.masaic.openresponses.api.utils.PayloadFormatter
-import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.McpToolNotFoundException
+import ai.masaic.platform.api.tools.PlatformToolService
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
 
 class PlatformPayloadFormatter(
-    private val toolService: ToolService,
+    private val toolService: PlatformToolService,
     private val mapper: ObjectMapper,
 ) : PayloadFormatter(toolService, mapper) {
     override suspend fun updateToolsInRequest(tools: List<Tool>?): MutableList<Tool>? {
@@ -36,6 +34,11 @@ class PlatformPayloadFormatter(
 
                 is PyFunTool -> {
                     updatedTools.add(toolService.getPyFunTool(it))
+                }
+
+                is FunctionTool -> {
+                    val derivedTool = toolService.derivePluggableTool(it)
+                    derivedTool?.let { updatedTools.add(derivedTool) } ?: updatedTools.add(it)
                 }
 
                 else -> {

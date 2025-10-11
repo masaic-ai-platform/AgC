@@ -1,7 +1,6 @@
 package ai.masaic.platform.api.telemtetry.langfuse
 
 import ai.masaic.openresponses.api.model.InstrumentationMetadataInput
-import ai.masaic.openresponses.api.utils.AgCLoopContext
 import ai.masaic.openresponses.api.utils.ResponsesUtils
 import ai.masaic.platform.api.telemtetry.PlatformTelemetryService
 import ai.masaic.platform.api.user.UserInfoProvider
@@ -25,8 +24,8 @@ class LangfuseTelemetryService(
         parentSpan: Span?,
     ): Span {
         val span = super.startOtelSpan(operationName, modelName, parentSpan)
-        UserInfoProvider.userId()?.let { span.setAttribute("user.id", it) } ?: AgCLoopContext.userId()?.let { span.setAttribute("user.id", it) }
-        UserInfoProvider.sessionId()?.let { span.setAttribute("session.id", it) } ?: AgCLoopContext.sessionId()?.let { span.setAttribute("session.id", it) }
+        UserInfoProvider.userId()?.let { span.setAttribute("user.id", it) }
+        UserInfoProvider.sessionId()?.let { span.setAttribute("session.id", it) }
         return span
     }
 

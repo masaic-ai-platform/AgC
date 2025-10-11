@@ -116,7 +116,7 @@ class SupportedToolsFormatter {
             )
         }
 
-        private fun constOrFirstEnum(
+        fun constOrFirstEnum(
             node: JsonNode,
             field: String,
         ): String {
@@ -125,6 +125,27 @@ class SupportedToolsFormatter {
             val enumNode = node.path("enum")
             if (enumNode.isArray && enumNode.size() > 0) return enumNode[0].asText()
             error("Missing const/enum for '$field' in schema")
+        }
+
+        inline fun <reified T> constOrFirstEnum(
+            node: JsonNode,
+            field: String,
+        ): T {
+            val constNode = node.path("const")
+            val targetNode =
+                if (!constNode.isMissingNode && !constNode.isNull) {
+                    constNode
+                } else {
+                    node.path("enum").takeIf { it.isArray && it.size() > 0 }?.get(0)
+                        ?: error("Missing const/enum for '$field' in schema")
+                }
+
+            return when (T::class) {
+                String::class -> targetNode.asText() as T
+                Int::class -> targetNode.asInt() as T
+                Long::class -> targetNode.asLong() as T
+                else -> error("Unsupported type ${T::class.simpleName} for '$field'")
+            }
         }
 
         private fun valueFromConstOrEnum(
