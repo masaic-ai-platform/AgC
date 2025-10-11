@@ -7,6 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
+import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.core.io.ResourceLoader
@@ -34,42 +35,43 @@ class FileSearchToolServiceTest {
     }
 
     @Test
-    fun `getAvailableTool should return file_search tool`() {
-        // Given
-        val toolDefinition =
-            NativeToolDefinition(
-                id = "file_search_id",
-                name = "file_search",
-                description = "Search through vector stores for relevant file content",
-                parameters =
-                    mutableMapOf(
-                        "type" to "object",
-                        "properties" to
-                            mapOf(
-                                "query" to
-                                    mapOf(
-                                        "type" to "string",
-                                        "description" to "The search query",
-                                    ),
-                            ),
-                        "required" to listOf("query"),
-                    ),
-            )
+    fun `getAvailableTool should return file_search tool`() =
+        runBlocking {
+            // Given
+            val toolDefinition =
+                NativeToolDefinition(
+                    id = "file_search_id",
+                    name = "file_search",
+                    description = "Search through vector stores for relevant file content",
+                    parameters =
+                        mutableMapOf(
+                            "type" to "object",
+                            "properties" to
+                                mapOf(
+                                    "query" to
+                                        mapOf(
+                                            "type" to "string",
+                                            "description" to "The search query",
+                                        ),
+                                ),
+                            "required" to listOf("query"),
+                        ),
+                )
         
-        every { nativeToolRegistry.findByName("file_search") } returns toolDefinition
-        every { mcpToolRegistry.findByName(any()) } returns null
+            every { nativeToolRegistry.findByName("file_search") } returns toolDefinition
+            every { mcpToolRegistry.findByName(any()) } returns null
         
-        // When
-        val result = toolService.getAvailableTool("file_search")
+            // When
+            val result = toolService.getAvailableTool("file_search")
         
-        // Then
-        assertNotNull(result)
-        assertEquals("file_search_id", result.id)
-        assertEquals("file_search", result.name)
-        assertEquals("Search through vector stores for relevant file content", result.description)
+            // Then
+            assertNotNull(result)
+            assertEquals("file_search_id", result.id)
+            assertEquals("file_search", result.name)
+            assertEquals("Search through vector stores for relevant file content", result.description)
         
-        verify { nativeToolRegistry.findByName("file_search") }
-    }
+            verify { nativeToolRegistry.findByName("file_search") }
+        }
 
     @Test
     fun `getFunctionTool should return file_search as FunctionTool`() {

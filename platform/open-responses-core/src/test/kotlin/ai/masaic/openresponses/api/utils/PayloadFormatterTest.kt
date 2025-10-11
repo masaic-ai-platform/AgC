@@ -20,6 +20,7 @@ import com.openai.models.responses.ResponseCreatedEvent
 import com.openai.models.responses.ResponseFailedEvent
 import com.openai.models.responses.ResponseInProgressEvent
 import com.openai.models.responses.ResponseStreamEvent
+import io.mockk.coEvery
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -109,49 +110,51 @@ class PayloadFormatterTest {
     @Nested
     inner class FormatResponseTests {
         @Test
-        fun `formatResponse - transforms function tools and created_at field`() {
-            // Create a sample Response with a "function" tool
-            val created = System.currentTimeMillis()
-            val response: Response = getMockResponse(created, true)
+        fun `formatResponse - transforms function tools and created_at field`() =
+            runBlocking {
+                // Create a sample Response with a "function" tool
+                val created = System.currentTimeMillis()
+                val response: Response = getMockResponse(created, true)
 
-            // Mock the tool service so that "testFunction" is known
-            every { toolService.getAvailableTool("myTool") } returns mockk(relaxed = true)
+                // Mock the tool service so that "testFunction" is known
+                coEvery { toolService.getAvailableTool("myTool") } returns mockk(relaxed = true)
 
-            val resultNode: JsonNode = payloadFormatter.formatResponse(response)
+                val resultNode: JsonNode = payloadFormatter.formatResponse(response)
 
-            // Verify the tools array was replaced
-            val toolsNode = resultNode.get("tools")
-            Assertions.assertTrue(toolsNode.isArray)
-            Assertions.assertEquals("myTool", toolsNode[0].get("type").asText())
+                // Verify the tools array was replaced
+                val toolsNode = resultNode.get("tools")
+                Assertions.assertTrue(toolsNode.isArray)
+                Assertions.assertEquals("myTool", toolsNode[0].get("type").asText())
 
-            // Verify created_at was converted to BigDecimal
-            val createdAtNode = resultNode.get("created_at")
-            Assertions.assertTrue(createdAtNode.isBigDecimal)
-            Assertions.assertEquals(
-                0,
-                BigDecimal.valueOf(created).compareTo(createdAtNode.decimalValue()),
-            )
-        }
+                // Verify created_at was converted to BigDecimal
+                val createdAtNode = resultNode.get("created_at")
+                Assertions.assertTrue(createdAtNode.isBigDecimal)
+                Assertions.assertEquals(
+                    0,
+                    BigDecimal.valueOf(created).compareTo(createdAtNode.decimalValue()),
+                )
+            }
 
         @Test
-        fun `formatResponse - no tools means no transformation on tools array`() {
-            val created = System.currentTimeMillis()
-            val response: Response = getMockResponse(created)
+        fun `formatResponse - no tools means no transformation on tools array`() =
+            runBlocking {
+                val created = System.currentTimeMillis()
+                val response: Response = getMockResponse(created)
 
-            // No expectations on toolService since there are no tools to transform
-            val resultNode: JsonNode = payloadFormatter.formatResponse(response)
+                // No expectations on toolService since there are no tools to transform
+                val resultNode: JsonNode = payloadFormatter.formatResponse(response)
 
-            // tools is null, so there's no array
-            Assertions.assertTrue(resultNode.get("tools").size() == 0)
+                // tools is null, so there's no array
+                Assertions.assertTrue(resultNode.get("tools").size() == 0)
 
-            // Verify created_at was converted
-            val createdAtNode = resultNode.get("created_at")
-            Assertions.assertTrue(createdAtNode.isBigDecimal)
-            Assertions.assertEquals(
-                0,
-                BigDecimal.valueOf(created).compareTo(createdAtNode.decimalValue()),
-            )
-        }
+                // Verify created_at was converted
+                val createdAtNode = resultNode.get("created_at")
+                Assertions.assertTrue(createdAtNode.isBigDecimal)
+                Assertions.assertEquals(
+                    0,
+                    BigDecimal.valueOf(created).compareTo(createdAtNode.decimalValue()),
+                )
+            }
 
         fun getMockResponse(
             createdAt: Long,
@@ -216,107 +219,111 @@ class PayloadFormatterTest {
     @Nested
     inner class FormatResponseStreamEventTests {
         @Test
-        fun `formatResponseStreamEvent - completed event`() {
-            val created = System.currentTimeMillis()
-            val response: Response = getMockResponse(created)
-            val event: ResponseStreamEvent =
-                ResponseStreamEvent.ofCompleted(
-                    ResponseCompletedEvent
-                        .builder()
-                        .response(
-                            response,
-                        ).sequenceNumber(System.nanoTime())
-                        .build(),
+        fun `formatResponseStreamEvent - completed event`() =
+            runBlocking {
+                val created = System.currentTimeMillis()
+                val response: Response = getMockResponse(created)
+                val event: ResponseStreamEvent =
+                    ResponseStreamEvent.ofCompleted(
+                        ResponseCompletedEvent
+                            .builder()
+                            .response(
+                                response,
+                            ).sequenceNumber(System.nanoTime())
+                            .build(),
+                    )
+
+                val node = payloadFormatter.formatResponseStreamEvent(event)
+
+                // Check created_at is converted
+                val createdAt = node["response"]["created_at"]
+                Assertions.assertNotNull(createdAt)
+                Assertions.assertTrue(createdAt.isBigDecimal)
+                Assertions.assertEquals(
+                    0,
+                    BigDecimal.valueOf(created).compareTo(createdAt.decimalValue()),
                 )
-
-            val node = payloadFormatter.formatResponseStreamEvent(event)
-
-            // Check created_at is converted
-            val createdAt = node["response"]["created_at"]
-            Assertions.assertNotNull(createdAt)
-            Assertions.assertTrue(createdAt.isBigDecimal)
-            Assertions.assertEquals(
-                0,
-                BigDecimal.valueOf(created).compareTo(createdAt.decimalValue()),
-            )
-        }
+            }
 
         @Test
-        fun `formatResponseStreamEvent - created event`() {
-            val created = System.currentTimeMillis()
-            val response: Response = getMockResponse(created)
-            val event: ResponseStreamEvent =
-                ResponseStreamEvent.ofCreated(
-                    ResponseCreatedEvent
-                        .builder()
-                        .response(
-                            response,
-                        ).sequenceNumber(System.nanoTime())
-                        .build(),
+        fun `formatResponseStreamEvent - created event`() =
+            runBlocking {
+                val created = System.currentTimeMillis()
+                val response: Response = getMockResponse(created)
+                val event: ResponseStreamEvent =
+                    ResponseStreamEvent.ofCreated(
+                        ResponseCreatedEvent
+                            .builder()
+                            .response(
+                                response,
+                            ).sequenceNumber(System.nanoTime())
+                            .build(),
+                    )
+
+                val node = payloadFormatter.formatResponseStreamEvent(event)
+
+                val createdAt = node["response"]["created_at"]
+                Assertions.assertTrue(createdAt.isBigDecimal)
+                Assertions.assertEquals(
+                    0,
+                    BigDecimal.valueOf(created).compareTo(createdAt.decimalValue()),
                 )
-
-            val node = payloadFormatter.formatResponseStreamEvent(event)
-
-            val createdAt = node["response"]["created_at"]
-            Assertions.assertTrue(createdAt.isBigDecimal)
-            Assertions.assertEquals(
-                0,
-                BigDecimal.valueOf(created).compareTo(createdAt.decimalValue()),
-            )
-        }
+            }
 
         @Test
-        fun `formatResponseStreamEvent - inProgress event updates tools`() {
-            val created = System.currentTimeMillis()
-            val response: Response = getMockResponse(created)
-            every { toolService.getAvailableTool("myTool") } returns mockk(relaxed = true)
+        fun `formatResponseStreamEvent - inProgress event updates tools`() =
+            runBlocking {
+                val created = System.currentTimeMillis()
+                val response: Response = getMockResponse(created)
+                coEvery { toolService.getAvailableTool("myTool") } returns mockk(relaxed = true)
 
-            val event: ResponseStreamEvent =
-                ResponseStreamEvent.ofInProgress(
-                    ResponseInProgressEvent
-                        .builder()
-                        .response(
-                            response,
-                        ).sequenceNumber(System.nanoTime())
-                        .build(),
+                val event: ResponseStreamEvent =
+                    ResponseStreamEvent.ofInProgress(
+                        ResponseInProgressEvent
+                            .builder()
+                            .response(
+                                response,
+                            ).sequenceNumber(System.nanoTime())
+                            .build(),
+                    )
+
+                val node = payloadFormatter.formatResponseStreamEvent(event)
+
+                // Tools array should have had the "function" replaced with { "type": "myTool" }
+                val toolType = node["response"]["tools"][0].get("type").asText()
+                Assertions.assertEquals("myTool", toolType)
+
+                // created_at is BigDecimal
+                Assertions.assertTrue(node["response"]["created_at"].isBigDecimal)
+                Assertions.assertEquals(
+                    0,
+                    BigDecimal.valueOf(created).compareTo(node["response"]["created_at"].decimalValue()),
                 )
-
-            val node = payloadFormatter.formatResponseStreamEvent(event)
-
-            // Tools array should have had the "function" replaced with { "type": "myTool" }
-            val toolType = node["response"]["tools"][0].get("type").asText()
-            Assertions.assertEquals("myTool", toolType)
-
-            // created_at is BigDecimal
-            Assertions.assertTrue(node["response"]["created_at"].isBigDecimal)
-            Assertions.assertEquals(
-                0,
-                BigDecimal.valueOf(created).compareTo(node["response"]["created_at"].decimalValue()),
-            )
-        }
+            }
 
         @Test
-        fun `formatResponseStreamEvent - failed event`() {
-            val created = System.currentTimeMillis()
-            val response: Response = getMockResponse(created)
-            val event: ResponseStreamEvent =
-                ResponseStreamEvent.ofFailed(
-                    ResponseFailedEvent
-                        .builder()
-                        .response(
-                            response,
-                        ).sequenceNumber(System.nanoTime())
-                        .build(),
-                )
+        fun `formatResponseStreamEvent - failed event`() =
+            runBlocking {
+                val created = System.currentTimeMillis()
+                val response: Response = getMockResponse(created)
+                val event: ResponseStreamEvent =
+                    ResponseStreamEvent.ofFailed(
+                        ResponseFailedEvent
+                            .builder()
+                            .response(
+                                response,
+                            ).sequenceNumber(System.nanoTime())
+                            .build(),
+                    )
 
-            val node = payloadFormatter.formatResponseStreamEvent(event)
-            val createdAt = node["response"]["created_at"]
-            Assertions.assertTrue(createdAt.isBigDecimal)
-            Assertions.assertEquals(
-                0,
-                BigDecimal.valueOf(created).compareTo(createdAt.decimalValue()),
-            )
-        }
+                val node = payloadFormatter.formatResponseStreamEvent(event)
+                val createdAt = node["response"]["created_at"]
+                Assertions.assertTrue(createdAt.isBigDecimal)
+                Assertions.assertEquals(
+                    0,
+                    BigDecimal.valueOf(created).compareTo(createdAt.decimalValue()),
+                )
+            }
 
         fun getMockResponse(createdAt: Long): Response {
             // Arrange
