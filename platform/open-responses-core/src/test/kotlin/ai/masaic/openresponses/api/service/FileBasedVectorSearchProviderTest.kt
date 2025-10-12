@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.api.service
 
+import ai.masaic.openresponses.api.config.FileStorageProperties
 import ai.masaic.openresponses.api.config.VectorSearchConfigProperties
 import ai.masaic.openresponses.api.model.ChunkingStrategy
 import ai.masaic.openresponses.api.model.ComparisonFilter
@@ -16,10 +17,9 @@ import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.io.TempDir
 import java.io.ByteArrayInputStream
 import java.nio.file.Files
-import java.nio.file.Path
+import java.nio.file.Paths
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
@@ -27,8 +27,8 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class FileBasedVectorSearchProviderTest {
-    @TempDir
-    lateinit var tempDir: Path
+    private val fileStorageProperties = FileStorageProperties()
+    private var tempDir = Paths.get(fileStorageProperties.local.rootDir)
 
     private lateinit var embeddingService: EmbeddingService
     private lateinit var vectorSearchProperties: VectorSearchConfigProperties
@@ -67,7 +67,7 @@ class FileBasedVectorSearchProviderTest {
             FileBasedVectorSearchProvider(
                 embeddingService,
                 objectMapper,
-                tempDir.toString(),
+                fileStorageProperties,
                 hybridSearchServiceHelper,
             )
     }
@@ -192,7 +192,7 @@ class FileBasedVectorSearchProviderTest {
             FileBasedVectorSearchProvider(
                 embeddingService,
                 objectMapper,
-                tempDir.toString(),
+                fileStorageProperties,
                 hybridSearchServiceHelper,
             )
 

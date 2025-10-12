@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.tool.agentic
 
+import ai.masaic.openresponses.api.model.ModelSettings
 import ai.masaic.openresponses.api.model.VectorStoreSearchResult
 import ai.masaic.openresponses.api.model.VectorStoreSearchResultContent
 import ai.masaic.openresponses.api.service.search.HybridSearchService
@@ -8,7 +9,6 @@ import ai.masaic.openresponses.tool.AgenticSearchIteration
 import ai.masaic.openresponses.tool.AgenticSearchParams
 import ai.masaic.openresponses.tool.ResponseParamsAdapter
 import ai.masaic.openresponses.tool.ToolParamsAccessor
-import ai.masaic.platform.api.config.ModelSettings
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.client.OpenAIClient
@@ -16,7 +16,8 @@ import com.openai.models.responses.ResponseCreateParams
 import io.mockk.coEvery
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
-import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class AgenticSearchServiceComprehensiveTest {

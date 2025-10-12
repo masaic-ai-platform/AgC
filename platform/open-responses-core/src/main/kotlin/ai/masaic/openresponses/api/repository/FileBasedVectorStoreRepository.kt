@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.api.repository
 
+import ai.masaic.openresponses.api.config.FileStorageProperties
 import ai.masaic.openresponses.api.model.VectorStore
 import ai.masaic.openresponses.api.model.VectorStoreFile
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -8,7 +9,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.context.annotation.Primary
 import org.springframework.stereotype.Repository
@@ -28,16 +28,16 @@ import java.nio.file.Paths
 @Primary
 @ConditionalOnProperty(name = ["open-responses.store.vector.repository.type"], havingValue = "file", matchIfMissing = true)
 class FileBasedVectorStoreRepository(
-    @Value("\${open-responses.file-storage.local.root-dir}") private val rootDir: String,
+    private val fileStorageProperties: FileStorageProperties,
     private val objectMapper: ObjectMapper,
 ) : AbstractVectorStoreRepository() {
     override val log: Logger = LoggerFactory.getLogger(FileBasedVectorStoreRepository::class.java)
     
     private val vectorStoresDir: String
-        get() = "$rootDir/vector_stores"
+        get() = "${fileStorageProperties.getRootDirectory()}/vector_stores"
 
     private val vectorStoreFilesDir: String
-        get() = "$rootDir/vector_store_files"
+        get() = "${fileStorageProperties.getRootDirectory()}/vector_store_files"
 
     init {
         // Ensure the directories exist

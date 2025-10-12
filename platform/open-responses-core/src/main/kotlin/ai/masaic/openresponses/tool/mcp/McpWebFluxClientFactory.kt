@@ -4,6 +4,7 @@ import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.modelcontextprotocol.client.McpClient
 import io.modelcontextprotocol.client.transport.WebClientStreamableHttpTransport
+import io.modelcontextprotocol.json.jackson.JacksonMcpJsonMapper
 import io.modelcontextprotocol.spec.McpClientTransport
 import mu.KotlinLogging
 import org.springframework.web.reactive.function.client.WebClient
@@ -88,6 +89,7 @@ open class McpWebFluxClientFactory(
         val transport =
             WebClientStreamableHttpTransport
                 .builder(webClientBuilder)
+                .jsonMapper(JacksonMcpJsonMapper(objectMapper))
                 .apply {
                     if (path.isNotEmpty()) {
                         endpoint(path)

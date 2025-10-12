@@ -13,9 +13,7 @@ import org.springframework.boot.web.embedded.netty.NettyReactiveWebServerFactory
 import org.springframework.boot.web.embedded.netty.NettyServerCustomizer
 import org.springframework.boot.web.reactive.server.ReactiveWebServerFactory
 import org.springframework.context.annotation.Bean
-import org.springframework.context.annotation.Configuration
 import org.springframework.http.client.reactive.ReactorClientHttpConnector
-import org.springframework.scheduling.annotation.EnableScheduling
 import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor
 import org.springframework.web.reactive.config.WebFluxConfigurer
 import org.springframework.web.reactive.function.client.WebClient
@@ -33,8 +31,7 @@ private val logger = KotlinLogging.logger {}
  * Configuration for thread pools and connection pools in the application.
  * This ensures resources are managed efficiently under load.
  */
-@Configuration
-@EnableScheduling
+@Deprecated("Not required")
 class ThreadPoolConfig : WebFluxConfigurer {
     @Value("\${server.port:6644}")
     private val serverPort: Int = 6644

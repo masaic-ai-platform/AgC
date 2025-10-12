@@ -1,13 +1,7 @@
 package ai.masaic.openresponses.api.model
 
 import ai.masaic.openresponses.tool.mcp.MCPServerInfo
-import ai.masaic.platform.api.config.ModelSettings
-import com.fasterxml.jackson.annotation.JsonIgnore
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties
-import com.fasterxml.jackson.annotation.JsonInclude
-import com.fasterxml.jackson.annotation.JsonProperty
-import com.fasterxml.jackson.annotation.JsonSubTypes
-import com.fasterxml.jackson.annotation.JsonTypeInfo
+import com.fasterxml.jackson.annotation.*
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.models.responses.Response
@@ -15,7 +9,7 @@ import com.openai.models.responses.ResponseOutputText
 import com.openai.models.responses.ResponseTextConfig
 import java.math.BigDecimal
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 /**
  * Represents the reasoning information for a response.
@@ -515,5 +509,59 @@ data class ModelInfo(
         ): ModelInfo? {
             return if (apiKey.isNullOrEmpty() || model.isNullOrEmpty()) return null else ModelInfo(apiKey, model)
         }
+    }
+}
+
+enum class SystemSettingsType {
+    RUNTIME,
+    DEPLOYMENT_TIME,
+}
+
+data class ProviderConfig(
+    val apiKey: String? = null,
+)
+
+data class ModelSettings(
+    val settingsType: SystemSettingsType,
+    var apiKey: String,
+    var model: String,
+    val providerApiKeys: Map<String, ProviderConfig> = emptyMap(),
+) {
+    var bearerToken: String
+    var qualifiedModelName: String = model
+
+    init {
+        if (model.contains("@")) model = model.split("@")[1]
+        if (apiKey.startsWith("Bearer ")) apiKey = apiKey.removePrefix("Bearer ").trim()
+
+        bearerToken = "Bearer $apiKey"
+    }
+
+    constructor() : this(SystemSettingsType.RUNTIME, "", "", emptyMap())
+    constructor(modelApiKey: String, model: String) : this(SystemSettingsType.RUNTIME, modelApiKey, model, emptyMap())
+    constructor(providerApiKeys: Map<String, ProviderConfig>) : this(SystemSettingsType.RUNTIME, "", "", providerApiKeys)
+
+    fun resolveSystemSettings(modelInfo: ModelInfo?): ModelSettings =
+        if (this.settingsType == SystemSettingsType.DEPLOYMENT_TIME) {
+            this
+        } else {
+            requireNotNull(modelInfo) { "apiKey and model is required" }
+            requireNotNull(modelInfo.bearerToken) { "apiKey required, can't be null or blank" }
+            requireNotNull(modelInfo.model) { "model required, can't be null or blank" }
+            ModelSettings(modelInfo.bearerToken, modelInfo.model)
+        }
+
+    fun resolveSystemSettings(modelSettings: ModelSettings?): ModelSettings =
+        if (this.settingsType == SystemSettingsType.DEPLOYMENT_TIME) {
+            this
+        } else {
+            requireNotNull(modelSettings) { "apiKey and model is required" }
+            requireNotNull(modelSettings.apiKey) { "apiKey required, can't be null or blank" }
+            requireNotNull(modelSettings.model) { "model required, can't be null or blank" }
+            ModelSettings(modelSettings.apiKey, modelSettings.model)
+        }
+
+    companion object {
+        fun findProvider(qualifiedModel: String): String? = if (qualifiedModel.contains("@")) qualifiedModel.split("@")[0] else null
     }
 }

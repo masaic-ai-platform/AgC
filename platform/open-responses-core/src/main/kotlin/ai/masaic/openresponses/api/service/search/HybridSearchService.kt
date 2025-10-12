@@ -1,13 +1,9 @@
 package ai.masaic.openresponses.api.service.search
 
-import ai.masaic.openresponses.api.model.ComparisonFilter
-import ai.masaic.openresponses.api.model.CompoundFilter
-import ai.masaic.openresponses.api.model.Filter
-import ai.masaic.openresponses.api.model.VectorStoreSearchResult
-import ai.masaic.openresponses.api.model.VectorStoreSearchResultContent
+import ai.masaic.openresponses.api.config.VectorRepositoryProperties
+import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.rerank.RerankerService
 import ai.masaic.openresponses.api.utils.FilterUtils
-import ai.masaic.platform.api.config.ModelSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -15,8 +11,6 @@ import kotlinx.coroutines.reactor.awaitSingle
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.beans.factory.annotation.Value
-import org.springframework.context.annotation.Profile
 import org.springframework.data.annotation.Id
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
 import org.springframework.data.mongodb.core.index.ReactiveIndexOperations
@@ -28,19 +22,15 @@ import org.springframework.data.mongodb.core.mapping.TextScore
 import org.springframework.data.mongodb.core.query.Criteria
 import org.springframework.data.mongodb.core.query.TextCriteria
 import org.springframework.data.mongodb.core.query.TextQuery
-import org.springframework.stereotype.Service
 
 /**
  * Hybrid search service combining vector similarity with Lucene and Mongo full-text search.
  */
-@Service
-@Profile("!platform")
-class HybridSearchService
+open class HybridSearchService
     @Autowired
     constructor(
         private val vectorSearchProvider: VectorSearchProvider,
-        @Value("\${open-responses.store.vector.repository.type}")
-        private val repositoryType: String,
+        private val vectorRepositoryProperties: VectorRepositoryProperties,
         @Autowired(required = false)
         private val luceneIndexService: LuceneIndexService? = null,
         @Autowired(required = false)
@@ -52,7 +42,7 @@ class HybridSearchService
 
         init {
             // Only initialize MongoDB text index if MongoDB is active
-            if (repositoryType == "mongodb" && mongoTemplate != null) {
+            if (vectorRepositoryProperties.repository.type == "mongodb" && mongoTemplate != null) {
                 val indexOps: ReactiveIndexOperations = mongoTemplate.indexOps(MongoChunk::class.java)
                 val textIndex =
                     TextIndexDefinition
@@ -128,7 +118,7 @@ class HybridSearchService
                     }
                 // Only run Lucene search if using file repository and luceneIndexService is available
                 val luceneResults =
-                    if (repositoryType == "file" && luceneIndexService != null) {
+                    if (vectorRepositoryProperties.repository.type == "file" && luceneIndexService != null) {
                         async { luceneIndexService.search(query, maxResults, vectorStoreIds) }.await()
                     } else {
                         emptyList()
@@ -136,7 +126,7 @@ class HybridSearchService
 
                 // Only run MongoDB search if using mongodb repository and mongoTemplate is available
                 val mongoResults =
-                    if (repositoryType == "mongodb" && mongoTemplate != null) {
+                    if (vectorRepositoryProperties.repository.type == "mongodb" && mongoTemplate != null) {
                         // Create text criteria
                         val textCriteria = TextCriteria.forDefaultLanguage().matching(query)
                         
@@ -270,7 +260,7 @@ class HybridSearchService
                 }?.take(maxResults) ?: prelimRanked.take(maxResults)
             }
 
-        protected fun searchSimilar(
+        open fun searchSimilar(
             query: String,
             maxResults: Int,
             filter: CompoundFilter,

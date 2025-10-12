@@ -253,7 +253,7 @@ interface ToolParamsAccessor {
  * Adapter for ResponseCreateParams to access tool parameters uniformly.
  */
 class ResponseParamsAdapter(
-    internal val params: ResponseCreateParams,
+    val params: ResponseCreateParams,
     val objectMapper: ObjectMapper,
 ) : ToolParamsAccessor {
     override fun getModel(): String = if (params.model().isString()) params.model().string().get() else params.model().asChat().toString()
@@ -408,7 +408,7 @@ class ResponseParamsAdapter(
  * Adapter for ChatCompletionCreateParams to access tool parameters uniformly.
  */
 class ChatCompletionParamsAdapter(
-    internal val params: ChatCompletionCreateParams,
+    val params: ChatCompletionCreateParams,
     private val objectMapper: ObjectMapper,
 ) : ToolParamsAccessor {
     override fun getModel(): String = params.model().toString() // Assuming model is JsonValue or String

@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.api.service
 
+import ai.masaic.openresponses.api.config.FileStorageProperties
 import ai.masaic.openresponses.api.model.VectorStoreSearchResult
 import ai.masaic.openresponses.api.service.search.LuceneChunk
 import ai.masaic.openresponses.api.service.search.LuceneIndexService
@@ -15,7 +16,7 @@ class LuceneIndexServiceTest {
     @BeforeEach
     fun setUp() {
         tempDir = createTempDir(prefix = "lucene_test_")
-        service = LuceneIndexService(tempDir.absolutePath)
+        service = LuceneIndexService(FileStorageProperties())
     }
 
     @AfterEach
