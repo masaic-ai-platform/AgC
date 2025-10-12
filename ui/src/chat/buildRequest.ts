@@ -157,6 +157,14 @@ export function buildToolsPayload(
         code: tool.pyFunctionConfig.code,
         code_interpreter: codeInterpreter
       };
+    } else if (tool.id === 'local_tool' && tool.localToolConfig) {
+      return {
+        type: tool.localToolConfig.type || 'function',
+        name: tool.localToolConfig.name,
+        description: tool.localToolConfig.description,
+        parameters: tool.localToolConfig.parameters,
+        strict: tool.localToolConfig.strict
+      };
     }
     
     // Return null for unknown tool types - they will be filtered out

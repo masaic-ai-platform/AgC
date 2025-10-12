@@ -24,6 +24,7 @@ import FileSearchModal from './FileSearchModal';
 import AgenticFileSearchModal from './AgenticFileSearchModal';
 import PyFunctionToolModal from './PyFunctionToolModal';
 import PyFunctionToolSelectionModal from './PyFunctionToolSelectionModal';
+import LocalToolModal from './LocalToolModal';
 import { toast } from 'sonner';
 
 interface Tool {
@@ -35,6 +36,7 @@ interface Tool {
   fileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[] }; // For file search tools
   agenticFileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[]; iterations: number; maxResults: number }; // For agentic file search tools
   pyFunctionConfig?: any; // For Python function tools
+  localToolConfig?: any; // For Local tools
 }
 
 interface PyFunctionTool {
@@ -60,6 +62,8 @@ interface ToolsSelectionModalProps {
   onEditingAgenticFileSearchChange?: (editingAgenticFileSearch: Tool | null) => void;
   editingPyFunction?: Tool | null;
   onEditingPyFunctionChange?: (editingPyFunction: Tool | null) => void;
+  editingLocalTool?: Tool | null;
+  onEditingLocalToolChange?: (editingLocalTool: Tool | null) => void;
   onOpenE2BModal?: () => void;
   getMCPToolByLabel?: (label: string) => any;
   children?: React.ReactNode;
@@ -68,6 +72,7 @@ interface ToolsSelectionModalProps {
 const availableTools: Tool[] = [
   { id: 'mcp_server', name: 'MCP Server', icon: MCP },
   { id: 'py_fun_tool', name: 'Py Function Tool', icon: Code },
+  { id: 'local_tool', name: 'Local Tool', icon: Puzzle },
   { id: 'file_search', name: 'File Search', icon: Search },
   { id: 'agentic_file_search', name: 'Agentic File Search', icon: FileSearch },
   { id: 'function', name: 'Function', icon: Code },
@@ -88,6 +93,8 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
   onEditingAgenticFileSearchChange,
   editingPyFunction,
   onEditingPyFunctionChange,
+  editingLocalTool,
+  onEditingLocalToolChange,
   onOpenE2BModal,
   getMCPToolByLabel,
   children
@@ -99,6 +106,7 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
   const [agenticFileSearchModalOpen, setAgenticFileSearchModalOpen] = useState(false);
   const [pyFunctionModalOpen, setPyFunctionModalOpen] = useState(false);
   const [pyFunctionSelectionModalOpen, setPyFunctionSelectionModalOpen] = useState(false);
+  const [localToolModalOpen, setLocalToolModalOpen] = useState(false);
   const [functionDefinition, setFunctionDefinition] = useState('');
   const [editingMCPConfig, setEditingMCPConfig] = useState<any>(null);
   
@@ -141,6 +149,13 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
     }
   }, [editingPyFunction]);
 
+  // Handle editing existing Local tool
+  React.useEffect(() => {
+    if (editingLocalTool && editingLocalTool.id === 'local_tool') {
+      setLocalToolModalOpen(true);
+    }
+  }, [editingLocalTool]);
+
   const handleToolSelect = (tool: Tool) => {
     if (tool.id === 'function') {
       setIsOpen(false);
@@ -157,6 +172,9 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
     } else if (tool.id === 'py_fun_tool') {
       setIsOpen(false);
       setPyFunctionSelectionModalOpen(true);
+    } else if (tool.id === 'local_tool') {
+      setIsOpen(false);
+      setLocalToolModalOpen(true);
     } else {
       onToolSelect(tool);
       setIsOpen(false);
@@ -351,9 +369,33 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
     }
   };
 
+  const handleLocalToolSave = (config: any) => {
+    // Create Local tool with config
+    const localTool: Tool = {
+      id: 'local_tool',
+      name: config.name || 'Local Function',
+      icon: Puzzle,
+      localToolConfig: config
+    };
+
+    // If editing, remove the old Local tool first
+    if (editingLocalTool && onEditingLocalToolChange) {
+      // The parent component will handle removing the old Local tool and adding the new one
+      onEditingLocalToolChange(null);
+    }
+
+    onToolSelect(localTool);
+    setLocalToolModalOpen(false);
+    
+    // Clear editing state
+    if (onEditingLocalToolChange) {
+      onEditingLocalToolChange(null);
+    }
+  };
+
   const isToolSelected = (toolId: string) => {
-    // Allow multiple functions, MCP servers, and PyFunction tools to be added
-    if (toolId === 'function' || toolId === 'mcp_server' || toolId === 'py_fun_tool') {
+    // Allow multiple functions, MCP servers, PyFunction tools, and Local tools to be added
+    if (toolId === 'function' || toolId === 'mcp_server' || toolId === 'py_fun_tool' || toolId === 'local_tool') {
       return false;
     }
     return selectedTools.some(tool => tool.id === toolId);
@@ -378,6 +420,14 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
 
     // Enable PyFunction tool
     if (tool.id === 'py_fun_tool') {
+      return {
+        isDisabled: false,
+        tooltipMessage: null
+      };
+    }
+
+    // Enable Local tool
+    if (tool.id === 'local_tool') {
       return {
         isDisabled: false,
         tooltipMessage: null
@@ -568,20 +618,35 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
         onOpenE2BModal={onOpenE2BModal}
       />
 
-             <PyFunctionToolSelectionModal
-         open={pyFunctionSelectionModalOpen}
-         onOpenChange={(open) => {
-           setPyFunctionSelectionModalOpen(open);
-           if (!open) {
-             // Clear editing state when modal closes
-             if (onEditingPyFunctionChange) {
-               onEditingPyFunctionChange(null);
-             }
-           }
-         }}
-         onFunctionSelect={handlePyFunctionSelect}
-         onCreateFunction={handleCreatePyFunction}
-       />
+      <PyFunctionToolSelectionModal
+        open={pyFunctionSelectionModalOpen}
+        onOpenChange={(open) => {
+          setPyFunctionSelectionModalOpen(open);
+          if (!open) {
+            // Clear editing state when modal closes
+            if (onEditingPyFunctionChange) {
+              onEditingPyFunctionChange(null);
+            }
+          }
+        }}
+        onFunctionSelect={handlePyFunctionSelect}
+        onCreateFunction={handleCreatePyFunction}
+      />
+
+      <LocalToolModal
+        open={localToolModalOpen}
+        onOpenChange={(open) => {
+          setLocalToolModalOpen(open);
+          if (!open) {
+            // Clear editing state when modal closes
+            if (onEditingLocalToolChange) {
+              onEditingLocalToolChange(null);
+            }
+          }
+        }}
+        onSave={handleLocalToolSave}
+        initialTool={editingLocalTool?.localToolConfig || null}
+      />
     </>
   );
 };

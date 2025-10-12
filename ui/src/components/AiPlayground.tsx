@@ -64,6 +64,7 @@ interface Tool {
   fileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[] }; // For file search tools
   agenticFileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[]; iterations: number; maxResults: number }; // For agentic file search tools
   pyFunctionConfig?: any; // For Py function tools
+  localToolConfig?: any; // For Local tools
 }
 
 const getProviderApiKey = (provider: string): string => {
@@ -311,6 +312,7 @@ const AiPlayground: React.FC = () => {
     const savedFileSearchTools = loadFileSearchToolsFromStorage();
     const savedAgenticFileSearchTools = loadAgenticFileSearchToolsFromStorage();
     const savedPyFunctionTools = loadPyFunctionToolsFromStorage();
+    const savedLocalTools = loadLocalToolsFromStorage();
     
     // Don't load apiKey from localStorage - it's managed by getProviderApiKey function
     setBaseUrl(savedBaseUrl);
@@ -328,7 +330,7 @@ const AiPlayground: React.FC = () => {
     setTextFormat(savedTextFormat);
     setToolChoice(savedToolChoice);
     setPromptMessages(savedPromptMessages);
-    setSelectedTools([...savedOtherTools, ...savedMCPTools, ...savedFileSearchTools, ...savedAgenticFileSearchTools, ...savedPyFunctionTools]);
+    setSelectedTools([...savedOtherTools, ...savedMCPTools, ...savedFileSearchTools, ...savedAgenticFileSearchTools, ...savedPyFunctionTools, ...savedLocalTools]);
   }, []);
 
   // Save settings to localStorage whenever they change
@@ -355,17 +357,20 @@ const AiPlayground: React.FC = () => {
     const fileSearchTools = selectedTools.filter(tool => tool.id === 'file_search');
     const agenticFileSearchTools = selectedTools.filter(tool => tool.id === 'agentic_file_search');
     const pyFunctionTools = selectedTools.filter(tool => tool.id === 'py_fun_tool');
+    const localTools = selectedTools.filter(tool => tool.id === 'local_tool');
     const otherTools = selectedTools.filter(tool => 
       tool.id !== 'mcp_server' && 
       tool.id !== 'file_search' && 
       tool.id !== 'agentic_file_search' &&
-      tool.id !== 'py_fun_tool'
+      tool.id !== 'py_fun_tool' &&
+      tool.id !== 'local_tool'
     );
     
     saveMCPToolsToStorage(mcpTools);
     saveFileSearchToolsToStorage(fileSearchTools);
     saveAgenticFileSearchToolsToStorage(agenticFileSearchTools);
     savePyFunctionToolsToStorage(pyFunctionTools);
+    saveLocalToolsToStorage(localTools);
     localStorage.setItem('aiPlayground_otherTools', JSON.stringify(otherTools));
   }, [apiKey, baseUrl, modelProvider, modelName, imageModelProvider, imageModelName, imageProviderKey, selectedVectorStore, instructions, temperature, maxTokens, topP, storeLogs, textFormat, toolChoice, promptMessages, selectedTools]);
 
@@ -633,6 +638,56 @@ const AiPlayground: React.FC = () => {
     });
     
     localStorage.setItem('platform_py_fun_tools', JSON.stringify(pyFunctionToolsMap));
+  };
+
+  // Local tools persistence
+  const loadLocalToolsFromStorage = (): Tool[] => {
+    try {
+      const stored = localStorage.getItem('platform_local_tools');
+      if (!stored) return [];
+      
+      const localToolsMap = JSON.parse(stored);
+      const localTools: Tool[] = [];
+      
+      // Handle both array and object formats for backward compatibility
+      if (Array.isArray(localToolsMap)) {
+        localToolsMap.forEach((tool: any) => {
+          localTools.push({
+            id: 'local_tool',
+            name: tool.name,
+            icon: Puzzle,
+            localToolConfig: tool
+          });
+        });
+      } else {
+        // Object format with function names as keys
+        Object.values(localToolsMap).forEach((tool: any) => {
+          localTools.push({
+            id: 'local_tool',
+            name: tool.name,
+            icon: Puzzle,
+            localToolConfig: tool
+          });
+        });
+      }
+      
+      return localTools;
+    } catch (error) {
+      console.error('Failed to load local tools from storage:', error);
+      return [];
+    }
+  };
+
+  const saveLocalToolsToStorage = (tools: Tool[]) => {
+    const localTools = tools.filter(tool => tool.id === 'local_tool' && tool.localToolConfig);
+    const localToolsMap: Record<string, any> = {};
+    
+    localTools.forEach(tool => {
+      const functionName = tool.localToolConfig!.name;
+      localToolsMap[functionName] = tool.localToolConfig;
+    });
+    
+    localStorage.setItem('platform_local_tools', JSON.stringify(localToolsMap));
   };
 
   // REMOVED: Old chat generateResponse function (was ~900 lines of legacy code)
