@@ -41,7 +41,7 @@ object ActivityWorkerMain {
 
         // ---- Worker hosting the ACTIVITY ONLY ----
         val factory = WorkerFactory.newInstance(client)
-        val actWorker: Worker = factory.newWorker("jb.add_two_numbers1")
+        val actWorker: Worker = factory.newWorker("jb.add_two_numbers")
         actWorker.registerActivitiesImplementations(ClientSideToolExecutionActivityImpl())
         factory.start()
 
