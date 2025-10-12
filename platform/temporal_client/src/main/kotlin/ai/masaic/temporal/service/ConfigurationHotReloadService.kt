@@ -98,16 +98,19 @@ class ConfigurationHotReloadService(
 
     private fun reloadConfiguration() {
         try {
+            // Try to load from file system first, then from classpath
             val configFile = Paths.get(configPath)
-            if (!Files.exists(configFile)) {
-                logger.warn("Configuration file does not exist: {}", configFile)
-                return
-            }
-
-            logger.info("Reloading configuration from: {}", configFile)
+            val configExists = Files.exists(configFile)
             
             // Load new configuration
-            val newConfig = TemporalWorkerFactory.loadConfiguration("/$configPath")
+            val newConfig = if (configExists) {
+                logger.info("Reloading configuration from: {}", configFile)
+                loadConfigurationFromFile(configFile)
+            } else {
+                logger.warn("Configuration file does not exist: {}", configFile)
+                logger.info("Trying to reload from classpath...")
+                TemporalWorkerFactory.loadConfiguration("/worker-config.json")
+            }
             
             // Shutdown existing workers
             logger.info("Shutting down existing workers for hot reload...")
@@ -135,4 +138,9 @@ class ConfigurationHotReloadService(
     }
 
     fun isWatching(): Boolean = isWatching
+
+    private fun loadConfigurationFromFile(configFile: java.nio.file.Path): ai.masaic.temporal.config.WorkerConfiguration {
+        val objectMapper = com.fasterxml.jackson.databind.ObjectMapper().registerModule(com.fasterxml.jackson.module.kotlin.KotlinModule.Builder().build())
+        return objectMapper.readValue(configFile.toFile(), ai.masaic.temporal.config.WorkerConfiguration::class.java)
+    }
 }

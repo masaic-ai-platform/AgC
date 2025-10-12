@@ -14,59 +14,44 @@ This will create a JAR file at: `temporal_client/build/libs/temporal_client-0.6.
 
 ## Running the JAR
 
-### Prerequisites
-
-Set the following environment variables:
-
-- `TEMPORAL_TARGET`: Your Temporal Cloud endpoint (e.g., `us-east-1.aws.api.temporal.io:7233`)
-- `TEMPORAL_NAMESPACE`: Your Temporal namespace (e.g., `your-namespace.your-account-id`)
-- `TEMPORAL_API_KEY`: Your Temporal Cloud API key
-
-### Running
+Simply navigate to the `temporal_client` directory and run:
 
 ```bash
-java -jar temporal_client-0.6.0-dev-all.jar
+cd temporal_client
+./run.sh
 ```
 
-Or use the convenient run script:
-```bash
-./run.sh [temporal_target] [namespace] [api_key]
-```
-
-Or with environment variables inline:
-
-```bash
-TEMPORAL_TARGET=us-east-1.aws.api.temporal.io:7233 \
-TEMPORAL_NAMESPACE=your-namespace.your-account-id \
-TEMPORAL_API_KEY=your-api-key \
-java -jar temporal_client-0.6.0-dev-all.jar
-```
+The application will:
+- Connect to the configured Temporal Cloud instance
+- Create a `config/worker-config.json` file on first run (if running from JAR)
+- Start workers based on the configuration
+- Enable hot reload for configuration changes
 
 ## Configuration
 
-The worker configuration is defined in `worker-config.json`:
+### Worker Configuration
+
+When running from JAR, the configuration file is located at `config/worker-config.json`:
 
 ```json
 {
-  "profileid": "default",
+  "profileid": "user_yWrOnKu6n",
   "queues": [
-    {"name": "user_yWrOnKu6n.add_two_number_new"},
-    {"name": "math.add_numbers"},
-    {"name": "math.multiply_numbers"}
+    {"name": "add_two_number_new"}
   ]
 }
 ```
 
-**Queue Naming**: Queues are automatically prefixed with the profile ID. For example, with profile `"default"` and queue `"math.add_numbers"`, the actual queue name will be `"default.math.add_numbers"`.
+**Queue Naming**: Queues are automatically prefixed with the profile ID. For example, with profile `"user_yWrOnKu6n"` and queue `"add_two_number_new"`, the actual queue name will be `"user_yWrOnKu6n.add_two_number_new"`.
 
 ### Hot Reload
 
-The application supports hot reload of the configuration file. When you modify `worker-config.json`, the application will:
+The application supports hot reload of the configuration file. Simply edit `config/worker-config.json` and the application will:
 
-1. Detect the file change
+1. Detect the file change automatically
 2. Shutdown existing workers gracefully
 3. Load the new configuration
-4. Create new workers with the updated configuration
+4. Create new workers with the updated queues
 5. Start the new workers
 
 This allows you to add/remove queues without restarting the application.
@@ -75,9 +60,10 @@ This allows you to add/remove queues without restarting the application.
 
 - ✅ **Configuration-based**: JSON configuration for queues and workers
 - ✅ **Hot Reload**: Update configuration without restarting
+- ✅ **Auto-Config Extraction**: Automatically creates config file on first run
 - ✅ **Proper Logging**: Structured logging with SLF4J and Logback
 - ✅ **Multiple Queues**: Support for multiple task queues
-- ✅ **Temporal Cloud**: Connects to Temporal Cloud with API key authentication
+- ✅ **Temporal Cloud**: Pre-configured connection to Temporal Cloud
 - ✅ **Graceful Shutdown**: Proper cleanup on application shutdown
 - ✅ **Production Ready**: Error handling, logging, and monitoring
 
@@ -96,7 +82,7 @@ To add new activities:
 ## Troubleshooting
 
 - Check console logs for detailed error information
-- Ensure all environment variables are set correctly
 - Verify Temporal Cloud credentials and network connectivity
-- For hot reload issues, check file permissions on the configuration file
-- Queue names are automatically prefixed with profile ID (e.g., `default.math.add_numbers`)
+- For hot reload issues, check file permissions on `config/worker-config.json`
+- Queue names are automatically prefixed with profile ID (e.g., `user_yWrOnKu6n.add_two_number_new`)
+- If config file is not created, check write permissions in the directory
