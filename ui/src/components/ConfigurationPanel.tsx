@@ -80,6 +80,7 @@ interface Tool {
   fileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[] }; // For file search tools
   agenticFileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[]; iterations: number; maxResults: number }; // For agentic file search tools
   pyFunctionConfig?: any; // For Py function tools
+  localToolConfig?: any; // For Local tools
 }
 
 interface ConfigurationPanelProps {
@@ -253,6 +254,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const [editingFileSearch, setEditingFileSearch] = useState<Tool | null>(null);
   const [editingAgenticFileSearch, setEditingAgenticFileSearch] = useState<Tool | null>(null);
   const [editingPyFunction, setEditingPyFunction] = useState<Tool | null>(null);
+  const [editingLocalTool, setEditingLocalTool] = useState<Tool | null>(null);
   const [apiKeysModalOpen, setApiKeysModalOpen] = useState(false);
   const [requiredProvider, setRequiredProvider] = useState<string | undefined>(undefined);
   const [pendingModelSelection, setPendingModelSelection] = useState<string | null>(null);
@@ -457,6 +459,17 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         // Add the new Py function
         onSelectedToolsChange([...selectedTools, tool]);
       }
+    } else if (tool.id === 'local_tool') {
+      // If editing an existing Local tool, remove the old one first
+      if (editingLocalTool) {
+        const updatedTools = selectedTools.filter(t => 
+          !(t.id === 'local_tool' && t.localToolConfig?.name === editingLocalTool.localToolConfig?.name)
+        );
+        onSelectedToolsChange([...updatedTools, tool]);
+      } else {
+        // Add the new Local tool
+        onSelectedToolsChange([...selectedTools, tool]);
+      }
     } else {
       // For other tools, check by id only
       if (!selectedTools.find(t => t.id === tool.id)) {
@@ -538,6 +551,10 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
   const handlePyFunctionEdit = (tool: Tool) => {
     setEditingPyFunction(tool);
+  };
+
+  const handleLocalToolEdit = (tool: Tool) => {
+    setEditingLocalTool(tool);
   };
 
   // Get tool color based on type
@@ -870,6 +887,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                 if (tool.id === 'py_fun_tool' && tool.pyFunctionConfig) {
                   return tool.pyFunctionConfig.tool_def.name || 'Python Function';
                 }
+                if (tool.id === 'local_tool' && tool.localToolConfig) {
+                  return tool.localToolConfig.name || 'Local Function';
+                }
                 return tool.name;
               };
               
@@ -879,8 +899,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
               const isFileSearch = tool.id === 'file_search';
               const isAgenticFileSearch = tool.id === 'agentic_file_search';
               const isPyFunction = tool.id === 'py_fun_tool';
-              const isClickable = isFunction || isMCP || isFileSearch || isAgenticFileSearch || isPyFunction;
-              const toolKey = (isFunction || isMCP || isPyFunction) ? `${tool.id}-${index}` : tool.id;
+              const isLocalTool = tool.id === 'local_tool';
+              const isClickable = isFunction || isMCP || isFileSearch || isAgenticFileSearch || isPyFunction || isLocalTool;
+              const toolKey = (isFunction || isMCP || isPyFunction || isLocalTool) ? `${tool.id}-${index}` : tool.id;
               
               // Check if file search tools should be disabled
               const isToolDisabled = (isFileSearch || isAgenticFileSearch) && !isVectorStoreEnabled;
@@ -905,6 +926,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                       isFileSearch ? () => handleFileSearchEdit(tool) :
                       isAgenticFileSearch ? () => handleAgenticFileSearchEdit(tool) :
                       isPyFunction ? () => handlePyFunctionEdit(tool) :
+                      isLocalTool ? () => handleLocalToolEdit(tool) :
                       undefined
                     ) : (e) => {
                       e.preventDefault();
@@ -927,6 +949,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                       } else if (tool.id === 'mcp_server') {
                         handleToolRemove(tool.id, undefined, index);
                       } else if (tool.id === 'py_fun_tool') {
+                        handleToolRemove(tool.id, undefined, index);
+                      } else if (tool.id === 'local_tool') {
                         handleToolRemove(tool.id, undefined, index);
                       } else {
                         handleToolRemove(tool.id);
@@ -974,6 +998,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
               onEditingAgenticFileSearchChange={setEditingAgenticFileSearch}
               editingPyFunction={editingPyFunction}
               onEditingPyFunctionChange={setEditingPyFunction}
+              editingLocalTool={editingLocalTool}
+              onEditingLocalToolChange={setEditingLocalTool}
               onOpenE2BModal={() => onE2bModalChange(true)}
               getMCPToolByLabel={getMCPToolByLabel}
             >

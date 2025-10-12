@@ -48,6 +48,7 @@ export interface Tool {
   fileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[] }; // For file search tools
   agenticFileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[]; iterations: number; maxResults: number }; // For agentic file search tools
   pyFunctionConfig?: any; // For Py function tools
+  localToolConfig?: any; // For Local tools
 }
 
 export type TextFormat = 'text' | 'json_object' | 'json_schema';
