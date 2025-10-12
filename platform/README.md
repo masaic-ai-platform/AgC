@@ -37,7 +37,7 @@ Get up and running in **2 steps** — an agentic orchestration API with tool cal
 ### 🐳 Run with Docker
 
 ```bash
-docker run -p 6644:6644 masaicai/open-responses:latest
+docker run -p 6644:6644 masaicai/agc-platform-server:latest
 ```
 
 ### Using with OpenAI SDK

@@ -6,16 +6,12 @@ import ai.masaic.openresponses.api.exception.VectorStoreNotFoundException
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.api.service.search.VectorStoreService
-import org.springframework.context.annotation.Profile
 import org.springframework.http.HttpStatus
-import org.springframework.stereotype.Component
 import org.springframework.web.server.ResponseStatusException
 
 /**
  * Validator for completion and response requests.
  */
-@Profile("!platform")
-@Component
 open class RequestValidator(
     private val vectorStoreService: VectorStoreService,
     private val responseStore: ResponseStore,
@@ -66,7 +62,7 @@ open class RequestValidator(
         request.tools?.forEach { tool -> validateTool(tool) }
     }
 
-    suspend fun validateTool(tool: Tool) {
+    open suspend fun validateTool(tool: Tool) {
         when (tool) {
             is ImageGenerationTool -> {
                 if (imageBaseUrl.isNullOrBlank()) {

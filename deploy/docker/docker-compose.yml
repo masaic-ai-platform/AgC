@@ -1,8 +1,8 @@
 version: '3.8'
 
 # Image versions - can be overridden via environment variables
-x-image-open-responses: &image-open-responses masaicai/open-responses:${OPEN_RESPONSES_VERSION:-0.5.4}
-x-image-platform-ui: &image-platform-ui masaicai/platform-ui:${PLATFORM_UI_VERSION:-0.5.4}
+x-image-agc-platform-server: &image-agc-platform-server masaicai/agc-platform-server:${OPEN_RESPONSES_VERSION:-0.6.0}
+x-image-platform-ui: &image-platform-ui masaicai/platform-ui:${PLATFORM_UI_VERSION:-0.6.0}
 
 services:
   # MongoDB service (only when using internal MongoDB)
@@ -40,11 +40,10 @@ services:
 
   # Open Responses service (default mode - no external databases)
   open-responses:
-    image: *image-open-responses
+    image: *image-agc-platform-server
+    pull_policy: always
     ports:
       - "6644:6644"
-    environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-platform}
     restart: unless-stopped
     profiles:
       - default
@@ -54,11 +53,11 @@ services:
 
   # Open Responses service (with vector search enabled)
   open-responses-vector:
-    image: *image-open-responses
+    image: *image-agc-platform-server
+    pull_policy: always
     ports:
       - "6644:6644"
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-platform}
       - OPEN_RESPONSES_STORE_VECTOR_SEARCH_PROVIDER=qdrant
       - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_HOST=qdrant
       - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_API_KEY=${OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_API_KEY:-}
@@ -74,11 +73,11 @@ services:
 
   # Open Responses service (with MongoDB enabled)
   open-responses-mongo:
-    image: *image-open-responses
+    image: *image-agc-platform-server
+    pull_policy: always
     ports:
       - "6644:6644"
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-platform}
       - OPEN_RESPONSES_STORE_TYPE=mongodb
       - OPEN_RESPONSES_MONGODB_URI=mongodb://mongo:27017
       - OPEN_RESPONSES_MONGODB_DATABASE=${OPEN_RESPONSES_MONGODB_DATABASE:-open_responses}
@@ -92,11 +91,11 @@ services:
 
   # Open Responses service (with both vector search and MongoDB)
   open-responses-full:
-    image: *image-open-responses
+    image: *image-agc-platform-server
+    pull_policy: always
     ports:
       - "6644:6644"
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-platform}
       - OPEN_RESPONSES_STORE_VECTOR_REPOSITORY_TYPE=mongodb
       - OPEN_RESPONSES_STORE_VECTOR_SEARCH_PROVIDER=qdrant
       - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_HOST=qdrant
@@ -118,11 +117,11 @@ services:
 
   # Open Responses service (external databases - no dependencies)
   open-responses-external:
-    image: *image-open-responses
+    image: *image-agc-platform-server
+    pull_policy: always
     ports:
       - "6644:6644"
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-platform}
       - OPEN_RESPONSES_STORE_VECTOR_REPOSITORY_TYPE=mongodb
       - OPEN_RESPONSES_STORE_VECTOR_SEARCH_PROVIDER=qdrant
       - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_HOST=${OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_HOST:-qdrant}
@@ -141,11 +140,12 @@ services:
 
   # Open Responses service (basic + langfuse)
   open-responses-basic-langfuse:
-    image: *image-open-responses
+    image: *image-agc-platform-server
+    pull_policy: always
     ports:
       - "6644:6644"
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-platform,langfuse}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-langfuse}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://host.docker.internal:3000/api/public/otel}
       - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS}
       - OTEL_INSTRUMENTATION_SPRING-WEBFLUX_ENABLED=false
@@ -160,11 +160,12 @@ services:
 
   # Open Responses service (full + langfuse)
   open-responses-full-langfuse:
-    image: *image-open-responses
+    image: *image-agc-platform-server
+    pull_policy: always
     ports:
       - "6644:6644"
     environment:
-      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-platform,langfuse}
+      - SPRING_PROFILES_ACTIVE=${SPRING_PROFILES_ACTIVE:-langfuse}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://host.docker.internal:3000/api/public/otel}
       - OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS}
       - OTEL_INSTRUMENTATION_SPRING-WEBFLUX_ENABLED=false
@@ -192,6 +193,7 @@ services:
   # Platform UI service (for all modes)
   platform-ui:
     image: *image-platform-ui
+    pull_policy: always
     ports:
       - "6645:80"
     environment:
