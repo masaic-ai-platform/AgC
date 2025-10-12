@@ -70,10 +70,37 @@ tasks.register<Jar>("fatJar") {
         attributes["Main-Class"] = "ai.masaic.temporal.TemporalWorkerMain"
     }
     
+    // Collect all service files and merge them
+    val serviceFiles = mutableMapOf<String, MutableSet<String>>()
+    
+    configurations.runtimeClasspath.get().filter { it.name.endsWith("jar") }.forEach { file ->
+        zipTree(file).matching {
+            include("META-INF/services/*")
+        }.forEach { serviceFile ->
+            val relativePath = serviceFile.relativeTo(zipTree(file).asFileTree.files.first().parentFile.parentFile).path
+            val lines = serviceFile.readLines().filter { it.isNotBlank() && !it.trim().startsWith("#") }
+            serviceFiles.getOrPut(relativePath) { mutableSetOf() }.addAll(lines)
+        }
+    }
+    
     from({
         configurations.runtimeClasspath.get().filter { it.name.endsWith("jar") }.map { zipTree(it) }
     }) {
         exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
+        exclude("META-INF/services/*")
+    }
+    
+    // Write merged service files
+    doFirst {
+        serviceFiles.forEach { (path, lines) ->
+            val serviceFile = temporaryDir.resolve(path)
+            serviceFile.parentFile.mkdirs()
+            serviceFile.writeText(lines.joinToString("\n"))
+        }
+    }
+    
+    from(temporaryDir) {
+        include("META-INF/services/*")
     }
     
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
