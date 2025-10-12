@@ -36,7 +36,7 @@ interface Tool {
   fileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[] }; // For file search tools
   agenticFileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[]; iterations: number; maxResults: number }; // For agentic file search tools
   pyFunctionConfig?: any; // For Python function tools
-  localToolConfig?: any; // For Local tools
+  clientSideToolConfig?: any; // For Client-side tools
 }
 
 interface PyFunctionTool {
@@ -62,8 +62,8 @@ interface ToolsSelectionModalProps {
   onEditingAgenticFileSearchChange?: (editingAgenticFileSearch: Tool | null) => void;
   editingPyFunction?: Tool | null;
   onEditingPyFunctionChange?: (editingPyFunction: Tool | null) => void;
-  editingLocalTool?: Tool | null;
-  onEditingLocalToolChange?: (editingLocalTool: Tool | null) => void;
+  editingClientSideTool?: Tool | null;
+  onEditingClientSideToolChange?: (editingClientSideTool: Tool | null) => void;
   onOpenE2BModal?: () => void;
   getMCPToolByLabel?: (label: string) => any;
   children?: React.ReactNode;
@@ -72,7 +72,7 @@ interface ToolsSelectionModalProps {
 const availableTools: Tool[] = [
   { id: 'mcp_server', name: 'MCP Server', icon: MCP },
   { id: 'py_fun_tool', name: 'Py Function Tool', icon: Code },
-  { id: 'local_tool', name: 'Local Tool', icon: Puzzle },
+  { id: 'client_side_tool', name: 'Client-Side Tool', icon: Puzzle },
   { id: 'file_search', name: 'File Search', icon: Search },
   { id: 'agentic_file_search', name: 'Agentic File Search', icon: FileSearch },
   { id: 'function', name: 'Function', icon: Code },
@@ -93,8 +93,8 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
   onEditingAgenticFileSearchChange,
   editingPyFunction,
   onEditingPyFunctionChange,
-  editingLocalTool,
-  onEditingLocalToolChange,
+  editingClientSideTool,
+  onEditingClientSideToolChange,
   onOpenE2BModal,
   getMCPToolByLabel,
   children
@@ -106,7 +106,7 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
   const [agenticFileSearchModalOpen, setAgenticFileSearchModalOpen] = useState(false);
   const [pyFunctionModalOpen, setPyFunctionModalOpen] = useState(false);
   const [pyFunctionSelectionModalOpen, setPyFunctionSelectionModalOpen] = useState(false);
-  const [localToolModalOpen, setLocalToolModalOpen] = useState(false);
+  const [clientSideToolModalOpen, setClientSideToolModalOpen] = useState(false);
   const [functionDefinition, setFunctionDefinition] = useState('');
   const [editingMCPConfig, setEditingMCPConfig] = useState<any>(null);
   
@@ -150,12 +150,12 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
     }
   }, [editingPyFunction]);
 
-  // Handle editing existing Local tool
+  // Handle editing existing Client-side tool
   React.useEffect(() => {
-    if (editingLocalTool && editingLocalTool.id === 'local_tool') {
-      setLocalToolModalOpen(true);
+    if (editingClientSideTool && editingClientSideTool.id === 'client_side_tool') {
+      setClientSideToolModalOpen(true);
     }
-  }, [editingLocalTool]);
+  }, [editingClientSideTool]);
 
   const handleToolSelect = (tool: Tool) => {
     if (tool.id === 'function') {
@@ -173,9 +173,9 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
     } else if (tool.id === 'py_fun_tool') {
       setIsOpen(false);
       setPyFunctionSelectionModalOpen(true);
-    } else if (tool.id === 'local_tool') {
+    } else if (tool.id === 'client_side_tool') {
       setIsOpen(false);
-      setLocalToolModalOpen(true);
+      setClientSideToolModalOpen(true);
     } else {
       onToolSelect(tool);
       setIsOpen(false);
@@ -370,33 +370,33 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
     }
   };
 
-  const handleLocalToolSave = (config: any) => {
-    // Create Local tool with config
-    const localTool: Tool = {
-      id: 'local_tool',
-      name: config.name || 'Local Function',
+  const handleClientSideToolSave = (config: any) => {
+    // Create Client-side tool with config
+    const clientSideTool: Tool = {
+      id: 'client_side_tool',
+      name: config.name || 'Client-Side Function',
       icon: Puzzle,
-      localToolConfig: config
+      clientSideToolConfig: config
     };
 
-    // If editing, remove the old Local tool first
-    if (editingLocalTool && onEditingLocalToolChange) {
-      // The parent component will handle removing the old Local tool and adding the new one
-      onEditingLocalToolChange(null);
+    // If editing, remove the old Client-side tool first
+    if (editingClientSideTool && onEditingClientSideToolChange) {
+      // The parent component will handle removing the old Client-side tool and adding the new one
+      onEditingClientSideToolChange(null);
     }
 
-    onToolSelect(localTool);
-    setLocalToolModalOpen(false);
+    onToolSelect(clientSideTool);
+    setClientSideToolModalOpen(false);
     
     // Clear editing state
-    if (onEditingLocalToolChange) {
-      onEditingLocalToolChange(null);
+    if (onEditingClientSideToolChange) {
+      onEditingClientSideToolChange(null);
     }
   };
 
   const isToolSelected = (toolId: string) => {
-    // Allow multiple functions, MCP servers, PyFunction tools, and Local tools to be added
-    if (toolId === 'function' || toolId === 'mcp_server' || toolId === 'py_fun_tool' || toolId === 'local_tool') {
+    // Allow multiple functions, MCP servers, PyFunction tools, and Client-side tools to be added
+    if (toolId === 'function' || toolId === 'mcp_server' || toolId === 'py_fun_tool' || toolId === 'client_side_tool') {
       return false;
     }
     return selectedTools.some(tool => tool.id === toolId);
@@ -433,8 +433,8 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
       };
     }
 
-    // Enable Local tool
-    if (tool.id === 'local_tool') {
+    // Enable Client-side tool
+    if (tool.id === 'client_side_tool') {
       return {
         isDisabled: false,
         tooltipMessage: null
@@ -641,18 +641,18 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
       />
 
       <LocalToolModal
-        open={localToolModalOpen}
+        open={clientSideToolModalOpen}
         onOpenChange={(open) => {
-          setLocalToolModalOpen(open);
+          setClientSideToolModalOpen(open);
           if (!open) {
             // Clear editing state when modal closes
-            if (onEditingLocalToolChange) {
-              onEditingLocalToolChange(null);
+            if (onEditingClientSideToolChange) {
+              onEditingClientSideToolChange(null);
             }
           }
         }}
-        onSave={handleLocalToolSave}
-        initialTool={editingLocalTool?.localToolConfig || null}
+        onSave={handleClientSideToolSave}
+        initialTool={editingClientSideTool?.clientSideToolConfig || null}
       />
     </>
   );

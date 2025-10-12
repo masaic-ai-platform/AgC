@@ -31,6 +31,7 @@ interface LocalTool {
     additionalProperties: boolean;
   };
   strict: boolean;
+  stream?: boolean;
 }
 
 interface PropertyDefinition {
@@ -58,6 +59,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
   const [requiredFields, setRequiredFields] = useState<string[]>([]);
   const [strict, setStrict] = useState(true);
   const [additionalProperties, setAdditionalProperties] = useState(false);
+  const [stream, setStream] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   
   // Execution specs state
@@ -80,6 +82,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
         setDescription(initialTool.description || '');
         setStrict(initialTool.strict ?? true);
         setAdditionalProperties(initialTool.parameters?.additionalProperties ?? false);
+        setStream(initialTool.stream ?? false);
         
         // Load parameters
         if (initialTool.parameters?.properties) {
@@ -102,7 +105,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
           }
         }
         
-        // Load required fields (exclude execution_specs)
+        // Load required fields (exclude execution_specs as it's always included)
         if (initialTool.parameters?.required) {
           setRequiredFields(initialTool.parameters.required.filter(f => f !== 'execution_specs'));
         }
@@ -121,6 +124,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     setRequiredFields([]);
     setStrict(true);
     setAdditionalProperties(false);
+    setStream(false);
     setIsEditing(false);
     setPropertyName('');
     setPropertyType('string');
@@ -221,26 +225,24 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     // Build parameters object
     const finalParameters = { ...parameters };
     
-    // Add execution_specs if enabled
-    if (includeExecutionSpecs) {
-      finalParameters.execution_specs = {
-        type: 'object',
-        properties: {
-          type: {
-            type: 'string',
-            enum: [executionType],
-          },
-          maxRetryAttempts: {
-            type: 'number',
-            enum: [maxRetryAttempts],
-          },
-          waitTimeInMillis: {
-            type: 'number',
-            enum: [waitTimeInMillis],
-          },
+    // Always add execution_specs with default values (regardless of UI toggle)
+    finalParameters.execution_specs = {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          enum: [executionType],
         },
-      };
-    }
+        maxRetryAttempts: {
+          type: 'number',
+          enum: [maxRetryAttempts],
+        },
+        waitTimeInMillis: {
+          type: 'number',
+          enum: [waitTimeInMillis],
+        },
+      },
+    };
 
     // Create tool object
     const tool: LocalTool = {
@@ -254,10 +256,11 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
         additionalProperties: additionalProperties,
       },
       strict: strict,
+      stream: stream,
     };
 
     // Save to localStorage
-    const existingTools = localStorage.getItem('platform_local_tools');
+    const existingTools = localStorage.getItem('platform_client_side_tools');
     let toolsMap: { [key: string]: LocalTool } = {};
     
     if (existingTools) {
@@ -283,9 +286,9 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     }
     
     toolsMap[tool.name] = tool;
-    localStorage.setItem('platform_local_tools', JSON.stringify(toolsMap));
+    localStorage.setItem('platform_client_side_tools', JSON.stringify(toolsMap));
     
-    toast.success(`Local tool "${name.trim()}" saved successfully!`);
+    toast.success(`Client-side tool "${name.trim()}" saved successfully!`);
     onSave(tool);
     onOpenChange(false);
   };
@@ -311,25 +314,24 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
   const getJsonPreview = () => {
     const finalParameters = { ...parameters };
     
-    if (includeExecutionSpecs) {
-      finalParameters.execution_specs = {
-        type: 'object',
-        properties: {
-          type: {
-            type: 'string',
-            enum: [executionType],
-          },
-          maxRetryAttempts: {
-            type: 'number',
-            enum: [maxRetryAttempts],
-          },
-          waitTimeInMillis: {
-            type: 'number',
-            enum: [waitTimeInMillis],
-          },
+    // Always include execution_specs in preview (regardless of UI toggle)
+    finalParameters.execution_specs = {
+      type: 'object',
+      properties: {
+        type: {
+          type: 'string',
+          enum: [executionType],
         },
-      } as any;
-    }
+        maxRetryAttempts: {
+          type: 'number',
+          enum: [maxRetryAttempts],
+        },
+        waitTimeInMillis: {
+          type: 'number',
+          enum: [waitTimeInMillis],
+        },
+      },
+    } as any;
 
     const tool = {
       type: 'function',
@@ -354,7 +356,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
           <div className="flex items-center justify-center space-x-3">
             <Plus className="h-6 w-6 text-foreground" />
             <DialogTitle className="text-xl font-semibold">
-              {isEditing ? 'Edit Local Tool' : 'Create Local Tool'}
+              {isEditing ? 'Edit Client-Side Tool' : 'Create Client-Side Tool'}
             </DialogTitle>
           </div>
         </DialogHeader>
@@ -586,6 +588,17 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
                   id="additionalProps"
                   checked={additionalProperties}
                   onCheckedChange={setAdditionalProperties}
+                />
+              </div>
+              
+              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
+                <Label htmlFor="stream" className="text-sm font-medium cursor-pointer">
+                  Enable Streaming
+                </Label>
+                <Switch
+                  id="stream"
+                  checked={stream}
+                  onCheckedChange={setStream}
                 />
               </div>
             </div>

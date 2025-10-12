@@ -147,7 +147,7 @@ export function useResponsesChat(config: UseResponsesChatConfig): UseResponsesCh
       max_output_tokens: 2048,
       top_p: 1.0,
       store: true,
-      stream: true
+      stream: config.stream ?? true // Use config.stream if provided, otherwise default to true
     };
     
     // Tools handling - simplified for now

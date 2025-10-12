@@ -64,7 +64,7 @@ interface Tool {
   fileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[] }; // For file search tools
   agenticFileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[]; iterations: number; maxResults: number }; // For agentic file search tools
   pyFunctionConfig?: any; // For Py function tools
-  localToolConfig?: any; // For Local tools
+  clientSideToolConfig?: any; // For Client-side tools
 }
 
 const getProviderApiKey = (provider: string): string => {
@@ -312,7 +312,7 @@ const AiPlayground: React.FC = () => {
     const savedFileSearchTools = loadFileSearchToolsFromStorage();
     const savedAgenticFileSearchTools = loadAgenticFileSearchToolsFromStorage();
     const savedPyFunctionTools = loadPyFunctionToolsFromStorage();
-    const savedLocalTools = loadLocalToolsFromStorage();
+    const savedClientSideTools = loadClientSideToolsFromStorage();
     
     // Don't load apiKey from localStorage - it's managed by getProviderApiKey function
     setBaseUrl(savedBaseUrl);
@@ -330,7 +330,7 @@ const AiPlayground: React.FC = () => {
     setTextFormat(savedTextFormat);
     setToolChoice(savedToolChoice);
     setPromptMessages(savedPromptMessages);
-    setSelectedTools([...savedOtherTools, ...savedMCPTools, ...savedFileSearchTools, ...savedAgenticFileSearchTools, ...savedPyFunctionTools, ...savedLocalTools]);
+    setSelectedTools([...savedOtherTools, ...savedMCPTools, ...savedFileSearchTools, ...savedAgenticFileSearchTools, ...savedPyFunctionTools, ...savedClientSideTools]);
   }, []);
 
   // Save settings to localStorage whenever they change
@@ -357,20 +357,20 @@ const AiPlayground: React.FC = () => {
     const fileSearchTools = selectedTools.filter(tool => tool.id === 'file_search');
     const agenticFileSearchTools = selectedTools.filter(tool => tool.id === 'agentic_file_search');
     const pyFunctionTools = selectedTools.filter(tool => tool.id === 'py_fun_tool');
-    const localTools = selectedTools.filter(tool => tool.id === 'local_tool');
+    const clientSideTools = selectedTools.filter(tool => tool.id === 'client_side_tool');
     const otherTools = selectedTools.filter(tool => 
       tool.id !== 'mcp_server' && 
       tool.id !== 'file_search' && 
       tool.id !== 'agentic_file_search' &&
       tool.id !== 'py_fun_tool' &&
-      tool.id !== 'local_tool'
+      tool.id !== 'client_side_tool'
     );
     
     saveMCPToolsToStorage(mcpTools);
     saveFileSearchToolsToStorage(fileSearchTools);
     saveAgenticFileSearchToolsToStorage(agenticFileSearchTools);
     savePyFunctionToolsToStorage(pyFunctionTools);
-    saveLocalToolsToStorage(localTools);
+    saveClientSideToolsToStorage(clientSideTools);
     localStorage.setItem('aiPlayground_otherTools', JSON.stringify(otherTools));
   }, [apiKey, baseUrl, modelProvider, modelName, imageModelProvider, imageModelName, imageProviderKey, selectedVectorStore, instructions, temperature, maxTokens, topP, storeLogs, textFormat, toolChoice, promptMessages, selectedTools]);
 
@@ -640,54 +640,54 @@ const AiPlayground: React.FC = () => {
     localStorage.setItem('platform_py_fun_tools', JSON.stringify(pyFunctionToolsMap));
   };
 
-  // Local tools persistence
-  const loadLocalToolsFromStorage = (): Tool[] => {
+  // Client-side tools persistence
+  const loadClientSideToolsFromStorage = (): Tool[] => {
     try {
-      const stored = localStorage.getItem('platform_local_tools');
+      const stored = localStorage.getItem('platform_client_side_tools');
       if (!stored) return [];
       
-      const localToolsMap = JSON.parse(stored);
-      const localTools: Tool[] = [];
+      const clientSideToolsMap = JSON.parse(stored);
+      const clientSideTools: Tool[] = [];
       
       // Handle both array and object formats for backward compatibility
-      if (Array.isArray(localToolsMap)) {
-        localToolsMap.forEach((tool: any) => {
-          localTools.push({
-            id: 'local_tool',
+      if (Array.isArray(clientSideToolsMap)) {
+        clientSideToolsMap.forEach((tool: any) => {
+          clientSideTools.push({
+            id: 'client_side_tool',
             name: tool.name,
             icon: Puzzle,
-            localToolConfig: tool
+            clientSideToolConfig: tool
           });
         });
       } else {
         // Object format with function names as keys
-        Object.values(localToolsMap).forEach((tool: any) => {
-          localTools.push({
-            id: 'local_tool',
+        Object.values(clientSideToolsMap).forEach((tool: any) => {
+          clientSideTools.push({
+            id: 'client_side_tool',
             name: tool.name,
             icon: Puzzle,
-            localToolConfig: tool
+            clientSideToolConfig: tool
           });
         });
       }
       
-      return localTools;
+      return clientSideTools;
     } catch (error) {
-      console.error('Failed to load local tools from storage:', error);
+      console.error('Failed to load client-side tools from storage:', error);
       return [];
     }
   };
 
-  const saveLocalToolsToStorage = (tools: Tool[]) => {
-    const localTools = tools.filter(tool => tool.id === 'local_tool' && tool.localToolConfig);
-    const localToolsMap: Record<string, any> = {};
+  const saveClientSideToolsToStorage = (tools: Tool[]) => {
+    const clientSideTools = tools.filter(tool => tool.id === 'client_side_tool' && tool.clientSideToolConfig);
+    const clientSideToolsMap: Record<string, any> = {};
     
-    localTools.forEach(tool => {
-      const functionName = tool.localToolConfig!.name;
-      localToolsMap[functionName] = tool.localToolConfig;
+    clientSideTools.forEach(tool => {
+      const functionName = tool.clientSideToolConfig!.name;
+      clientSideToolsMap[functionName] = tool.clientSideToolConfig;
     });
     
-    localStorage.setItem('platform_local_tools', JSON.stringify(localToolsMap));
+    localStorage.setItem('platform_client_side_tools', JSON.stringify(clientSideToolsMap));
   };
 
   // REMOVED: Old chat generateResponse function (was ~900 lines of legacy code)
@@ -1683,7 +1683,14 @@ const AiPlayground: React.FC = () => {
                 : modelTestMode && modelTestAgentData && Array.isArray(modelTestAgentData.tools) ? modelTestAgentData.tools
                 : selectedTools.length > 0 ? buildToolsPayload(selectedTools, modelSettings ? { settingsType: modelSettings.settingsType as 'RUNTIME' | 'PLATFORM' } : undefined) : undefined,
               store: storeLogs,
-              stream: true,
+              stream: (() => {
+                // Check if any client-side tool has stream disabled
+                const clientSideTool = selectedTools.find(tool => tool.id === 'client_side_tool');
+                if (clientSideTool?.clientSideToolConfig?.stream !== undefined) {
+                  return clientSideTool.clientSideToolConfig.stream;
+                }
+                return true; // Default to true
+              })(),
               headers: modelTestMode && modelTestApiKey ? {
                 'Authorization': `Bearer ${modelTestApiKey}`
               } : undefined,
