@@ -30,6 +30,20 @@ Supports any model, stateful responses, and tool/function calling — lightweigh
 🎯 **Agentic Orchestration**  
 Multi-agent workflows, collaboration, and agent-to-agent messaging capabilities built-in.
 
+## 📦 Module Architecture
+
+The platform is organized into modular components, each serving a specific purpose:
+
+| Module | Description                                                                                                                                  |
+|--------|----------------------------------------------------------------------------------------------------------------------------------------------|
+| **open-responses-core** | Core implementation of MODEL interaction layer like Completions API, Responses API including tool execution, RAG, and MCP client integration |
+| **open-responses-rest** | REST API controllers for OpenAI-compatible endpoints (responses, completions, files, vector stores, evals)                                   |
+| **open-responses-server** | Executable server module for the Model API layer                                                                                             |
+| **agc-platform-core** | Core business logic and services for the AgC platform including MCP server implementation, tools, and orchestration capabilities             |
+| **agc-platform-rest** | REST API controllers and endpoints specific to AgC platform features                                                                         |
+| **agc-platform-server** | Main executable server module that bootstraps the entire AgC platform                                                                        |
+| **agc-test-regression-server** | Regression testing server with Playwright integration for automated E2E testing                                                              |
+
 ## 🚀 Getting Started
 
 Get up and running in **2 steps** — an agentic orchestration API with tool calling, RAG, memory, and remote MCP, powered by **your models**.
