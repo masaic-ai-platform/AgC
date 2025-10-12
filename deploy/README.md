@@ -198,9 +198,6 @@ All variables are set in `env.example` (copy to `.env` and edit as needed):
 | Variable | Description |
 |----------|-------------|
 | `VITE_DASHBOARD_API_URL` | Dashboard API URL for the UI (default: http://localhost:6644) |
-| `SPRING_PROFILES_ACTIVE` | Spring profile for open-responses (default: platform) |
-| `OPEN_RESPONSES_VERSION` | AgC open-responses image version (default: 0.5.1) |
-| `PLATFORM_UI_VERSION` | AgC platform-ui image version (default: 0.5.1) |
 | `MONGO_VERSION` | MongoDB image version (default: latest) |
 
 ### Vector Search (Qdrant)

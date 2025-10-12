@@ -17,9 +17,9 @@ object ActivityWorkerMain {
     @JvmStatic
     fun main(args: Array<String>) {
         // ---- Temporal Cloud connection (API-key + TLS) ----
-        val target = System.getenv("TEMPORAL_TARGET") ?: "<region>.<cloud_provider>.api.temporal.io:7233"
-        val namespace = System.getenv("TEMPORAL_NAMESPACE") ?: "<namespace_id>.<account_id>"
-        val apiKey = System.getenv("TEMPORAL_API_KEY") ?: error("TEMPORAL_API_KEY is not set")
+        val target = System.getenv("PLATFORM_DEPLOYMENT_TEMPORAL_TARGET")
+        val namespace = System.getenv("PLATFORM_DEPLOYMENT_TEMPORAL_NAMESPACE")
+        val apiKey = System.getenv("PLATFORM_DEPLOYMENT_TEMPORAL_API-KEY")
 
         val tokenSupplier = AuthorizationTokenSupplier { "Bearer $apiKey" }
         val serviceOptions =

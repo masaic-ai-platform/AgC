@@ -11,6 +11,6 @@ import org.springframework.context.annotation.Primary
 class PlatformPlugableToolConfig {
     @Bean
     @Primary
-    @ConditionalOnProperty(name = ["platform.deployment.multiplug.enabled"], havingValue = "true", matchIfMissing = true)
+    @ConditionalOnProperty(name = ["platform.deployment.multiplug.enabled"], havingValue = "true")
     fun simpleMultiplugAdapter(adapters: List<PlugableToolAdapter>) = SimpleMultiPlugAdapter(adapters)
 }

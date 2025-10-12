@@ -65,6 +65,14 @@ class ClientSideToolAdapter(
 class TemporalToolExecutor(
     private val temporalConfig: TemporalConfig,
 ) {
+    init {
+        require(
+            !temporalConfig.target.isNullOrBlank() &&
+                !temporalConfig.namespace.isNullOrBlank() &&
+                !temporalConfig.apiKey.isNullOrBlank(),
+        ) { "Temporal is not configured: set platform.deployment.temporal.*" }
+    }
+
     private val log = KotlinLogging.logger { }
     private lateinit var workflowClient: WorkflowClient
     private val workflowFactories = mutableMapOf<String, WorkerFactory>()
@@ -154,9 +162,9 @@ fun kotlinJacksonDataConverter(): DataConverter {
 
 @ConfigurationProperties("platform.deployment.temporal")
 data class TemporalConfig(
-    val target: String,
-    val namespace: String,
-    val apiKey: String,
+    val target: String? = null,
+    val namespace: String? = null,
+    val apiKey: String? = null,
 )
 
 @ActivityInterface
