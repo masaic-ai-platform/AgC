@@ -30,7 +30,7 @@ class EventUtils {
          * @return A ServerSentEvent containing the event data
          * @throws IllegalArgumentException if the event type is unknown
          */
-        fun convertEvent(
+        suspend fun convertEvent(
             event: ResponseStreamEvent,
             payloadFormatter: PayloadFormatter,
             objectMapper: ObjectMapper,

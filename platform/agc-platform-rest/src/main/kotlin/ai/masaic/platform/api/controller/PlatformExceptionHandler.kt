@@ -1,6 +1,7 @@
 package ai.masaic.platform.api.controller
 
 import ai.masaic.platform.api.service.AgentRunException
+import ai.masaic.platform.api.tools.MultiPlugAdapterException
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
 import mu.KotlinLogging
 import org.springframework.http.HttpStatus
@@ -8,7 +9,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 
-@RestControllerAdvice(basePackages = ["ai.masaic.platform.api.controller"])
+@RestControllerAdvice
 class PlatformExceptionHandler {
     private val logger = KotlinLogging.logger {}
 
@@ -24,7 +25,7 @@ class PlatformExceptionHandler {
         }
     }
 
-    @ExceptionHandler(exception = [AgentRunException::class])
+    @ExceptionHandler(exception = [AgentRunException::class, MultiPlugAdapterException::class])
     fun handleResponseProcessingException(ex: Exception): ResponseEntity<ErrorResponse> {
         val status = HttpStatus.INTERNAL_SERVER_ERROR
         logError(status, ex, "Error processing response: ${ex.message}")

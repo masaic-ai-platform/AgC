@@ -111,10 +111,11 @@ class ToolServiceTest {
      * Verifies that a tool with a specific name can be found in the repository.
      */
     @Test
-    fun `get available tool`() {
-        val tool = toolService.getAvailableTool("search_repositories")
-        assert(tool?.name == "search_repositories") { "Tool with name 'search_repositories' should be available" }
-    }
+    fun `get available tool`() =
+        runTest {
+            val tool = toolService.getAvailableTool("search_repositories")
+            assert(tool?.name == "search_repositories") { "Tool with name 'search_repositories' should be available" }
+        }
 
     /**
      * Tests that a tool can be retrieved as a function tool.

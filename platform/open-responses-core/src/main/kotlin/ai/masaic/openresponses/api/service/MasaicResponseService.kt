@@ -12,7 +12,6 @@ import ai.masaic.openresponses.api.utils.PayloadFormatter
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.client.okhttp.OpenAIOkHttpClient
-import com.openai.core.http.AsyncStreamResponse
 import com.openai.core.http.Headers
 import com.openai.core.http.QueryParams
 import com.openai.credential.BearerTokenCredential
@@ -24,13 +23,9 @@ import com.openai.models.responses.ResponseStreamEvent
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.StatusCode
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.onCompletion
-import kotlinx.coroutines.future.await
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Value
@@ -303,45 +298,6 @@ class MasaicResponseService(
             throw ResponseStreamingException("Failed to create streaming response: ${e.message}", e)
         }
     }
-
-    /**
-     * Creates a flow of server-sent events from a streaming response.
-     *
-     * @param response The streaming response from the OpenAI API
-     * @return A flow of server-sent events
-     */
-    private fun streamOpenAiResponse(response: AsyncStreamResponse<ResponseStreamEvent>): Flow<ServerSentEvent<String>> =
-        callbackFlow {
-            val subscription =
-                response.subscribe { completion ->
-                    try {
-                        val event = EventUtils.convertEvent(completion, payloadFormatter, objectMapper)
-                        if (!trySend(event).isSuccess) {
-                            logger.warn { "Failed to send streaming event to client" }
-                        }
-                    } catch (e: Exception) {
-                        logger.error { "Error processing streaming event" }
-                    }
-                }
-
-            launch {
-                try {
-                    subscription.onCompleteFuture().await()
-                    logger.debug { "Streaming response completed successfully" }
-                } catch (e: Exception) {
-                    logger.error { "Error in streaming response completion" }
-                }
-            }
-
-            awaitClose {
-                try {
-                    logger.debug { "Cancelling streaming subscription" }
-                    subscription.onCompleteFuture().cancel(false)
-                } catch (e: Exception) {
-                    logger.warn { "Error cancelling streaming subscription" }
-                }
-            }
-        }
 
     /**
      * Creates a headers builder with authorization headers.

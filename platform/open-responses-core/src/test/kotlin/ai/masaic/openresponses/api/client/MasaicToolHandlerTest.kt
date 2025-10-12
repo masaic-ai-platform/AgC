@@ -153,10 +153,10 @@ class MasaicToolHandlerTest {
         every { toolService.buildAliasMap(any()) } returns emptyMap()
 
         val functionToolMock = mockk<ToolMetadata>(relaxed = true)
-        every { toolService.getAvailableTool("myToolFunction") } returns functionToolMock
+        coEvery { toolService.getAvailableTool("myToolFunction") } returns functionToolMock
         every { functionToolMock.protocol } returns ToolProtocol.NATIVE
         // Let's pretend the toolService recognizes and executes "myToolFunction"
-        every { toolService.getFunctionTool("myToolFunction", ofType<ToolRequestContext>()) } returns mockk()
+        coEvery { toolService.getFunctionTool("myToolFunction", ofType<ToolRequestContext>()) } returns mockk()
         coEvery {
             toolService.executeTool(
                 "myToolFunction",
@@ -245,7 +245,7 @@ class MasaicToolHandlerTest {
         val params = mockk<ResponseCreateParams>()
         every { params.input().isResponse() } returns false
         every { params.input().asText() } returns "User message"
-        every { toolService.getFunctionTool("errorTool") } returns mockk()
+        coEvery { toolService.getFunctionTool("errorTool") } returns mockk()
 
         // Setup direct exception throw when the tool executes
         coEvery { toolService.executeTool("errorTool", any(), ofType<ResponseCreateParams>(), mockk(), any(), any(), any()) } throws RuntimeException("Tool execution failed")
@@ -382,10 +382,10 @@ class MasaicToolHandlerTest {
         every { toolService.buildAliasMap(any()) } returns emptyMap()
 
         val functionToolMock = mockk<ToolMetadata>(relaxed = true)
-        every { toolService.getAvailableTool("myToolFunction") } returns functionToolMock
+        coEvery { toolService.getAvailableTool("myToolFunction") } returns functionToolMock
 
         // Let's pretend the toolService recognizes and executes "myToolFunction"
-        every { toolService.getFunctionTool("myToolFunction", ofType<ToolRequestContext>()) } returns mockk()
+        coEvery { toolService.getFunctionTool("myToolFunction", ofType<ToolRequestContext>()) } returns mockk()
         coEvery {
             toolService.executeTool(
                 "myToolFunction",
@@ -473,7 +473,7 @@ class MasaicToolHandlerTest {
             every { params.tools() } returns Optional.empty()
             every { params.input().asText() } returns "User message"
             // Return null to indicate unsupported tool
-            every { toolService.getFunctionTool("unsupportedTool", ofType<ToolRequestContext>()) } returns null
+            coEvery { toolService.getFunctionTool("unsupportedTool", ofType<ToolRequestContext>()) } returns null
             every { toolService.buildAliasMap(any()) } returns emptyMap()
 
             // When
@@ -552,12 +552,12 @@ class MasaicToolHandlerTest {
         every { params.input().asText() } returns "User message"
         every { params.tools() } returns Optional.empty()
 
-        every { toolService.getAvailableTool("toolOne") } returns mockk<ToolMetadata>(relaxed = true)
-        every { toolService.getAvailableTool("toolTwo") } returns mockk<ToolMetadata>(relaxed = true)
+        coEvery { toolService.getAvailableTool("toolOne") } returns mockk<ToolMetadata>(relaxed = true)
+        coEvery { toolService.getAvailableTool("toolTwo") } returns mockk<ToolMetadata>(relaxed = true)
 
         // Configure tools
-        every { toolService.getFunctionTool("toolOne", ofType<ToolRequestContext>()) } returns mockk()
-        every { toolService.getFunctionTool("toolTwo", ofType<ToolRequestContext>()) } returns mockk()
+        coEvery { toolService.getFunctionTool("toolOne", ofType<ToolRequestContext>()) } returns mockk()
+        coEvery { toolService.getFunctionTool("toolTwo", ofType<ToolRequestContext>()) } returns mockk()
         every { toolService.buildAliasMap(any()) } returns emptyMap()
         coEvery { toolService.executeTool("toolOne", "{\"param\":\"value1\"}", ofType<ResponseCreateParams>(), any(), any(), any(), any()) } returns "Result from tool one"
         coEvery { toolService.executeTool("toolTwo", "{\"param\":\"value2\"}", ofType<ResponseCreateParams>(), any(), any(), any(), any()) } returns "Result from tool two"
@@ -636,9 +636,9 @@ class MasaicToolHandlerTest {
         every { params.input().asText() } returns "User message"
         every { params.tools() } returns Optional.empty()
 
-        every { toolService.getAvailableTool("nullResultTool") } returns mockk<ToolMetadata>(relaxed = true)
+        coEvery { toolService.getAvailableTool("nullResultTool") } returns mockk<ToolMetadata>(relaxed = true)
         // Return null from tool execution
-        every { toolService.getFunctionTool("nullResultTool", ofType<ToolRequestContext>()) } returns mockk()
+        coEvery { toolService.getFunctionTool("nullResultTool", ofType<ToolRequestContext>()) } returns mockk()
         every { toolService.buildAliasMap(any()) } returns emptyMap()
         coEvery { toolService.executeTool("nullResultTool", any(), ofType<ResponseCreateParams>(), any(), any(), any(), any()) } returns null
 
@@ -720,9 +720,9 @@ class MasaicToolHandlerTest {
         every { inputMock.asResponse() } returns existingItems
         every { params.tools() } returns Optional.empty()
 
-        every { toolService.getAvailableTool("newFunction") } returns mockk<ToolMetadata>(relaxed = true)
+        coEvery { toolService.getAvailableTool("newFunction") } returns mockk<ToolMetadata>(relaxed = true)
         // Let's pretend the toolService recognizes and executes "newFunction"
-        every { toolService.getFunctionTool("newFunction", ofType<ToolRequestContext>()) } returns mockk()
+        coEvery { toolService.getFunctionTool("newFunction", ofType<ToolRequestContext>()) } returns mockk()
         every { toolService.buildAliasMap(any()) } returns emptyMap()
         coEvery {
             toolService.executeTool(
@@ -837,9 +837,9 @@ class MasaicToolHandlerTest {
 
         // Mock tool service
         val mockToolMetadata = mockk<ToolMetadata>()
-        every { toolService.getAvailableTool("mixedContentTool") } returns mockToolMetadata
+        coEvery { toolService.getAvailableTool("mixedContentTool") } returns mockToolMetadata
         every { mockToolMetadata.description } returns "mixedContentTool"
-        every { toolService.getFunctionTool("mixedContentTool", ofType<ToolRequestContext>()) } returns mockk()
+        coEvery { toolService.getFunctionTool("mixedContentTool", ofType<ToolRequestContext>()) } returns mockk()
         every { toolService.buildAliasMap(any()) } returns emptyMap()
         coEvery {
             toolService.executeTool(
@@ -978,9 +978,9 @@ class MasaicToolHandlerTest {
         every { params.input().asText() } returns "User message"
 
         val mockToolMetadata = mockk<ToolMetadata>()
-        every { toolService.getAvailableTool("parentObsTool") } returns mockToolMetadata
+        coEvery { toolService.getAvailableTool("parentObsTool") } returns mockToolMetadata
         every { mockToolMetadata.description } returns "parentObsTool"
-        every { toolService.getFunctionTool("parentObsTool", ofType<ToolRequestContext>()) } returns mockk()
+        coEvery { toolService.getFunctionTool("parentObsTool", ofType<ToolRequestContext>()) } returns mockk()
         every { toolService.buildAliasMap(any()) } returns emptyMap()
 
         every { params.tools() } returns Optional.empty()
@@ -1060,9 +1060,9 @@ class MasaicToolHandlerTest {
         every { params.input().asText() } returns "User message"
 
         val mockToolMetadata = mockk<ToolMetadata>()
-        every { toolService.getAvailableTool("malformedArgsTool") } returns mockToolMetadata
+        coEvery { toolService.getAvailableTool("malformedArgsTool") } returns mockToolMetadata
         every { mockToolMetadata.description } returns "malformedArgsTool"
-        every { toolService.getFunctionTool("malformedArgsTool", ofType<ToolRequestContext>()) } returns mockk()
+        coEvery { toolService.getFunctionTool("malformedArgsTool", ofType<ToolRequestContext>()) } returns mockk()
         every { toolService.buildAliasMap(any()) } returns emptyMap()
         every { params.tools() } returns Optional.empty()
 
@@ -1143,11 +1143,11 @@ class MasaicToolHandlerTest {
 
         // Tool configuration
         val mockToolMetadata = mockk<ToolMetadata>()
-        every { toolService.getAvailableTool("preserveFunction") } returns mockToolMetadata
+        coEvery { toolService.getAvailableTool("preserveFunction") } returns mockToolMetadata
         every { mockToolMetadata.description } returns "preserveFunction"
         every { mockToolMetadata.protocol } returns ToolProtocol.NATIVE
         every { mockToolMetadata.eventMeta } returns null
-        every { toolService.getFunctionTool("preserveFunction", ofType<ToolRequestContext>()) } returns mockk()
+        coEvery { toolService.getFunctionTool("preserveFunction", ofType<ToolRequestContext>()) } returns mockk()
         every { toolService.buildAliasMap(any()) } returns emptyMap()
 
         coEvery {

@@ -1,5 +1,9 @@
 package ai.masaic.platform.api.user
 
+import ai.masaic.openresponses.api.utils.AgCLoopContext
+import ai.masaic.openresponses.api.utils.AgCLoopContext.Key.loopId
+import ai.masaic.openresponses.api.utils.LoopContextInfo
+
 data class UserInfo(
     val userId: String,
 )
@@ -16,9 +20,11 @@ interface UserInfoProvider {
             UserInfoProvider.infoProvider = infoProvider
         }
 
-        suspend fun userId(): String? = infoProvider.userId()
+        suspend fun userId(): String? = infoProvider.userId() ?: AgCLoopContext.userId()
 
-        suspend fun sessionId(): String? = infoProvider.sessionId()
+        suspend fun sessionId(): String? = infoProvider.sessionId() ?: AgCLoopContext.sessionId()
+
+        suspend fun toLoopContextInfo(loopId: String?) = LoopContextInfo(userId(), sessionId(), loopId)
     }
 }
 

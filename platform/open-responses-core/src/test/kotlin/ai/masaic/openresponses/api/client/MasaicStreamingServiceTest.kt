@@ -61,7 +61,7 @@ class MasaicStreamingServiceTest {
         objectMapper = ObjectMapper()
         payloadFormatter =
             mockk {
-                every { formatResponseStreamEvent(any()) } answers {
+                coEvery { formatResponseStreamEvent(any()) } answers {
                     objectMapper.valueToTree<JsonNode>(firstArg()) as ObjectNode
                 }
             }
@@ -429,7 +429,7 @@ class MasaicStreamingServiceTest {
             coEvery { parameterConverter.prepareCompletion(any()) } returns mockedPreparedCompletion
 
             // We'll say toolService recognizes \"my_function\"
-            every { toolService.getFunctionTool("my_function", ofType<ToolRequestContext>()) } returns FunctionTool(name = "my_function")
+            coEvery { toolService.getFunctionTool("my_function", ofType<ToolRequestContext>()) } returns FunctionTool(name = "my_function")
             every { toolService.buildAliasMap(any()) } returns emptyMap<String, String>()
 
             // Now stub the openAIClient usage

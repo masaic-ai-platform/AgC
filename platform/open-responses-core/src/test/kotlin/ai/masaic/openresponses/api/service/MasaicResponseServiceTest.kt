@@ -54,7 +54,7 @@ class MasaicResponseServiceTest {
         objectMapper = jacksonObjectMapper()
         payloadFormatter =
             mockk {
-                every { formatResponse(any()) } answers {
+                coEvery { formatResponse(any()) } answers {
                     objectMapper.valueToTree<JsonNode>(firstArg()) as ObjectNode
                 }
             }

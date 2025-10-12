@@ -571,7 +571,7 @@ class MasaicStreamingService(
     /**
      * Processes the accumulated text, sending events and storing final text output.
      */
-    private fun ProducerScope<ServerSentEvent<String>>.handleTextCompletion(
+    private suspend fun ProducerScope<ServerSentEvent<String>>.handleTextCompletion(
         textAccumulator: MutableMap<Long, MutableList<ResponseStreamEvent>>,
         responseOutputItemAccumulator: MutableList<ResponseOutputItem>,
         prepend: Boolean = false,
@@ -633,7 +633,7 @@ class MasaicStreamingService(
     /**
      * Converts incoming chunk into appropriate [ResponseStreamEvent]s and sends them.
      */
-    private fun ProducerScope<ServerSentEvent<String>>.convertAndPublish(
+    private suspend fun ProducerScope<ServerSentEvent<String>>.convertAndPublish(
         completion: ChatCompletionChunk,
         functionCallAccumulator: MutableMap<Long, MutableList<ResponseStreamEvent>>,
         textAccumulator: MutableMap<Long, MutableList<ResponseStreamEvent>>,
@@ -682,7 +682,7 @@ class MasaicStreamingService(
         }
     }
 
-    private fun ProducerScope<ServerSentEvent<String>>.handleFunctionCallDelta(
+    private suspend fun ProducerScope<ServerSentEvent<String>>.handleFunctionCallDelta(
         event: ResponseStreamEvent,
         functionCallAccumulator: MutableMap<Long, MutableList<ResponseStreamEvent>>,
         internalToolItemIds: MutableSet<String>,
@@ -697,7 +697,7 @@ class MasaicStreamingService(
         }
     }
 
-    private fun ProducerScope<ServerSentEvent<String>>.handleOutputItemAdded(
+    private suspend fun ProducerScope<ServerSentEvent<String>>.handleOutputItemAdded(
         event: ResponseStreamEvent,
         functionNameAccumulator: MutableMap<Long, Pair<String, String>>,
         responseOutputItemAccumulator: MutableList<ResponseOutputItem>,
@@ -739,7 +739,7 @@ class MasaicStreamingService(
         trySend(EventUtils.convertEvent(event, payloadFormatter, objectMapper))
     }
 
-    private fun ProducerScope<ServerSentEvent<String>>.handleOutputTextDelta(
+    private suspend fun ProducerScope<ServerSentEvent<String>>.handleOutputTextDelta(
         event: ResponseStreamEvent,
         textAccumulator: MutableMap<Long, MutableList<ResponseStreamEvent>>,
     ) {
@@ -748,7 +748,7 @@ class MasaicStreamingService(
         trySend(EventUtils.convertEvent(event, payloadFormatter, objectMapper))
     }
 
-    private fun ProducerScope<ServerSentEvent<String>>.handleFunctionCallDone(
+    private suspend fun ProducerScope<ServerSentEvent<String>>.handleFunctionCallDone(
         functionCallAccumulator: MutableMap<Long, MutableList<ResponseStreamEvent>>,
         functionNameAccumulator: MutableMap<Long, Pair<String, String>>,
         responseOutputItemAccumulator: MutableList<ResponseOutputItem>,

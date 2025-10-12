@@ -24,7 +24,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.io.ResourceLoader
 import org.springframework.http.codec.ServerSentEvent
-import org.springframework.stereotype.Service
 import java.nio.charset.Charset
 
 /**
@@ -36,8 +35,8 @@ import java.nio.charset.Charset
  * @property mcpToolRegistry Registry that manages tool definitions
  * @property mcpToolExecutor Executor that handles tool execution
  */
-@Service
-class ToolService(
+
+open class ToolService(
     private val mcpToolRegistry: MCPToolRegistry,
     private val mcpToolExecutor: MCPToolExecutor,
     private val resourceLoader: ResourceLoader,
@@ -92,7 +91,7 @@ class ToolService(
      * @param name Name of the tool to retrieve
      * @return Tool metadata if found, null otherwise
      */
-    fun getAvailableTool(name: String): ToolMetadata? {
+    suspend fun getAvailableTool(name: String): ToolMetadata? {
         val tool = nativeToolRegistry.findByName(name) ?: mcpToolRegistry.findByName(name) ?: plugableToolAdapter.plugIn(name) ?: return null
         val toolName =
             if (tool.hosting == ToolHosting.REMOTE) {
@@ -160,7 +159,7 @@ class ToolService(
      * @param context The tool request context
      * @return FunctionTool representation if found, null otherwise
      */
-    fun getFunctionTool(
+    suspend fun getFunctionTool(
         name: String,
         context: ToolRequestContext,
     ): FunctionTool? {
@@ -360,7 +359,7 @@ class ToolService(
     /**
      * Finds a tool by its name.
      */
-    fun findToolByName(name: String): ToolDefinition? = nativeToolRegistry.findByName(name) ?: mcpToolRegistry.findByName(name) ?: plugableToolAdapter.plugIn(name)
+    suspend fun findToolByName(name: String): ToolDefinition? = nativeToolRegistry.findByName(name) ?: mcpToolRegistry.findByName(name) ?: plugableToolAdapter.plugIn(name)
 
     fun invalidateMcpTool(tool: ToolDefinition) = mcpToolRegistry.invalidateTool(tool as McpToolDefinition)
 

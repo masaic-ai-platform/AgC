@@ -10,7 +10,6 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.models.responses.*
 import io.mockk.coEvery
 import io.mockk.coVerify
-import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -30,7 +29,7 @@ class ResponseStoreServiceTest {
         objectMapper = jacksonObjectMapper()
         payloadFormatter =
             mockk {
-                every { formatResponse(any()) } answers {
+                coEvery { formatResponse(any()) } answers {
                     objectMapper.valueToTree<JsonNode>(firstArg()) as ObjectNode
                 }
             }
