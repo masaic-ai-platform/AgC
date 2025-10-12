@@ -157,13 +157,13 @@ export function buildToolsPayload(
         code: tool.pyFunctionConfig.code,
         code_interpreter: codeInterpreter
       };
-    } else if (tool.id === 'local_tool' && tool.localToolConfig) {
+    } else if (tool.id === 'client_side_tool' && tool.clientSideToolConfig) {
       return {
-        type: tool.localToolConfig.type || 'function',
-        name: tool.localToolConfig.name,
-        description: tool.localToolConfig.description,
-        parameters: tool.localToolConfig.parameters,
-        strict: tool.localToolConfig.strict
+        type: tool.clientSideToolConfig.type || 'function',
+        name: tool.clientSideToolConfig.name,
+        description: tool.clientSideToolConfig.description,
+        parameters: tool.clientSideToolConfig.parameters,
+        strict: tool.clientSideToolConfig.strict
       };
     }
     
