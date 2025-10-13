@@ -41,8 +41,8 @@ class GoogleTokenVerifier(
                     var userInfo =
                         UserInfo(
                             userId = payload.email,
-                            fullName = if(payload["name"] is String) payload["name"] as String else "User",
-                            firstName = if(payload["given_name"] is String) payload["given_name"] as String else "User",
+                            fullName = if (payload["name"] is String) payload["name"] as String else "User",
+                            firstName = if (payload["given_name"] is String) payload["given_name"] as String else "User",
                         )
 
                     whitelistedUsers?.let {
@@ -54,8 +54,9 @@ class GoogleTokenVerifier(
                     }
 
                     adminUsers?.let {
-                        if(adminUsers.isNotEmpty() && !adminUsers.contains(userInfo.userId))
-                            userInfo = userInfo.copy(scope = Scope.RESTRICTED)
+                        if (adminUsers.isNotEmpty() && !adminUsers.contains(userInfo.userId)) {
+                            userInfo = userInfo.copy(grantedScope = Scope.RESTRICTED)
+                        }
                     }
                     userInfo
                 },

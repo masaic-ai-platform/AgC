@@ -2,12 +2,18 @@ package ai.masaic.platform.api.config
 
 import ai.masaic.openresponses.api.model.ModelSettings
 import ai.masaic.openresponses.api.model.SystemSettingsType
+import ai.masaic.platform.api.repository.InMemoryUserLoginAuditRepository
+import ai.masaic.platform.api.repository.MongoUserLoginAuditRepository
+import ai.masaic.platform.api.repository.UserLoginAuditRepository
 import ai.masaic.platform.api.security.AuthConfigProperties
+import ai.masaic.platform.api.service.UserLoginAuditService
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.info.BuildProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.data.mongodb.core.ReactiveMongoTemplate
 import java.net.URI
 
 @Configuration
@@ -46,5 +52,22 @@ class AgCPlatformServerConfig {
             partners = partners,
             oAuthRedirectSpecs = oAuthRedirectSpecs,
         )
+    }
+
+    @Configuration
+    @ConditionalOnProperty(name = ["platform.deployment.auth.enabled"], havingValue = "true")
+    class UserLoginAuditConfiguration {
+        @Bean
+        @ConditionalOnProperty(name = ["open-responses.store.type"], havingValue = "mongodb")
+        fun mongoUserLoginAuditRepository(mongoTemplate: ReactiveMongoTemplate): UserLoginAuditRepository =
+            MongoUserLoginAuditRepository(mongoTemplate)
+
+        @Bean
+        @ConditionalOnProperty(name = ["open-responses.store.type"], havingValue = "in-memory", matchIfMissing = true)
+        fun inMemoryUserLoginAuditRepository(): UserLoginAuditRepository = InMemoryUserLoginAuditRepository()
+
+        @Bean
+        fun userLoginAuditService(userLoginAuditRepository: UserLoginAuditRepository) =
+            UserLoginAuditService(userLoginAuditRepository)
     }
 }

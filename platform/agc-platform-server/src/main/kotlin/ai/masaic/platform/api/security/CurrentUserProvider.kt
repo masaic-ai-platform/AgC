@@ -24,8 +24,9 @@ class CurrentUserProvider : UserInfoProvider {
 
     override suspend fun userInfo(): UserInfo? {
         val fromPrincipal = getPrincipalUserInfo()
-        return if(fromPrincipal != null) fromPrincipal
-        else {
+        return if (fromPrincipal != null) {
+            fromPrincipal
+        } else {
             val userId = getFromContext(USER_ID_KEY)
             userId?.let { UserInfo(userId = userId) }
         }
