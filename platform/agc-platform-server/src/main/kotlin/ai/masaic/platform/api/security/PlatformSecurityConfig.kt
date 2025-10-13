@@ -41,11 +41,9 @@ class PlatformSecurityConfig {
                 .cors { it.configurationSource(corsConfigurationSource()) }
                 .authorizeExchange { authorizeExchange ->
                     authorizeExchange
-                        .pathMatchers("/v1/dashboard/platform/info", "/v1/dashboard/platform/auth/verify", "/v1/dashboard/oauth/callback")
+                        .pathMatchers("/v1/dashboard/platform/info", "/v1/dashboard/platform/auth/verify", "/v1/dashboard/oauth/callback",)
                         .permitAll()
-                        .pathMatchers("/v1/dashboard/**")
-                        .authenticated()
-                        .pathMatchers("/v1/agents/**")
+                        .pathMatchers("/v1/dashboard/**", "/v1/agents/**", "/v1/files/**", "/v1/vector_stores/**")
                         .authenticated()
                         .anyExchange()
                         .permitAll()
@@ -89,7 +87,7 @@ class PlatformSecurityConfig {
         }
 
     @Bean
-    fun googleTokenVerifier(authConfigProperties: AuthConfigProperties) = GoogleTokenVerifier(authConfigProperties.google, authConfigProperties.whitelistedUsers)
+    fun googleTokenVerifier(authConfigProperties: AuthConfigProperties) = GoogleTokenVerifier(authConfigProperties.google, authConfigProperties.whitelistedUsers, authConfigProperties.adminUsers)
 
     private fun googleAuthFilter(googleTokenVerifier: GoogleTokenVerifier): AuthenticationWebFilter {
         val manager =
@@ -209,6 +207,7 @@ data class AuthConfigProperties(
     val enabled: Boolean = false,
     val google: GoogleAuthConfig = GoogleAuthConfig(),
     val whitelistedUsers: Set<String>? = null,
+    val adminUsers: Set<String>? = null,
 )
 
 data class GoogleAuthConfig(

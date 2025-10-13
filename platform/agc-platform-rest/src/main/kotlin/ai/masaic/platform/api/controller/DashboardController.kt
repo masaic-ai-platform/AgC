@@ -5,6 +5,8 @@ import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.*
 import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
+import ai.masaic.platform.api.config.Partner
+import ai.masaic.platform.api.config.Partners
 import ai.masaic.platform.api.config.PlatformCoreConfig
 import ai.masaic.platform.api.config.PlatformInfo
 import ai.masaic.platform.api.interpreter.CodeExecResult
@@ -17,6 +19,9 @@ import ai.masaic.platform.api.service.createCompletion
 import ai.masaic.platform.api.service.messages
 import ai.masaic.platform.api.tools.FunDefGenerationTool
 import ai.masaic.platform.api.tools.SystemPromptGeneratorTool
+import ai.masaic.platform.api.user.Scope
+import ai.masaic.platform.api.user.UserInfo
+import ai.masaic.platform.api.user.UserInfoProvider
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import mu.KotlinLogging
@@ -222,7 +227,17 @@ ${request.description}
     }
 
     @GetMapping("/platform/info", produces = [MediaType.APPLICATION_JSON_VALUE])
-    fun getPlatformInfo() = platformInfo
+    suspend fun getPlatformInfo() = platformInfo.copy(partners = Partners(emptyList()))
+
+    @GetMapping("/platform/features", produces = [MediaType.APPLICATION_JSON_VALUE])
+    suspend fun getFeatures(): PlatformInfo {
+        val userInfo = UserInfoProvider.userInfo()
+        log.info { "UserInfo::: $userInfo" }
+        return UserInfoProvider.userInfo()?.let {
+            if(it.scope == Scope.RESTRICTED) platformInfo.copy(partners = Partners(emptyList()))
+            else platformInfo
+        }?: platformInfo
+    }
 
     @PostMapping("/agc/functions:suggest")
     suspend fun configureFunction(

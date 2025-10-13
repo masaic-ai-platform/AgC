@@ -2,6 +2,7 @@ package ai.masaic.platform.api.security.auth.google
 
 import ai.masaic.platform.api.security.GoogleAuthConfig
 import ai.masaic.platform.api.security.PlatformAccessForbiddenException
+import ai.masaic.platform.api.user.Scope
 import ai.masaic.platform.api.user.UserInfo
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier
 import com.google.api.client.http.javanet.NetHttpTransport
@@ -18,6 +19,7 @@ import java.util.concurrent.CompletableFuture
 class GoogleTokenVerifier(
     private val googleAuthConfig: GoogleAuthConfig,
     private val whitelistedUsers: Set<String>? = null,
+    private val adminUsers: Set<String>? = null,
 ) {
     private val log = KotlinLogging.logger { }
     private val verifier =
@@ -36,9 +38,11 @@ class GoogleTokenVerifier(
                             ?: throw BadCredentialsException("Invalid Google token")
 
                     val payload = idToken.payload
-                    val userInfo =
+                    var userInfo =
                         UserInfo(
                             userId = payload.email,
+                            fullName = if(payload["name"] is String) payload["name"] as String else "User",
+                            firstName = if(payload["given_name"] is String) payload["given_name"] as String else "User",
                         )
 
                     whitelistedUsers?.let {
@@ -47,6 +51,11 @@ class GoogleTokenVerifier(
                             log.error { error }
                             throw PlatformAccessForbiddenException(error)
                         }
+                    }
+
+                    adminUsers?.let {
+                        if(adminUsers.isNotEmpty() && !adminUsers.contains(userInfo.userId))
+                            userInfo = userInfo.copy(scope = Scope.RESTRICTED)
                     }
                     userInfo
                 },
