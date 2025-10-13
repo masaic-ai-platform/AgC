@@ -19,6 +19,9 @@ dependencies {
         exclude(group = "org.bouncycastle") // -17M if using JVM crypto
     }
     implementation("com.fasterxml.jackson.core:jackson-databind:2.15.2")
+
+    //JB...
+    implementation("io.temporal:temporal-sdk:1.31.0")
 }
 
 application {
