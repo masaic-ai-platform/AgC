@@ -31,7 +31,6 @@ interface LocalTool {
     additionalProperties: boolean;
   };
   strict: boolean;
-  stream?: boolean;
 }
 
 interface PropertyDefinition {
@@ -53,13 +52,15 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
   onSave,
   initialTool,
 }) => {
+  // Nudge links (customize as needed)
+  const CLIENT_TOOL_DOWNLOAD_URL = '/client_side_tool.zip';
+  const [howToUseOpen, setHowToUseOpen] = useState(false);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [parameters, setParameters] = useState<Record<string, PropertyDefinition>>({});
   const [requiredFields, setRequiredFields] = useState<string[]>([]);
   const [strict, setStrict] = useState(true);
   const [additionalProperties, setAdditionalProperties] = useState(false);
-  const [stream, setStream] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   
   // Execution specs state
@@ -82,7 +83,6 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
         setDescription(initialTool.description || '');
         setStrict(initialTool.strict ?? true);
         setAdditionalProperties(initialTool.parameters?.additionalProperties ?? false);
-        setStream(initialTool.stream ?? false);
         
         // Load parameters
         if (initialTool.parameters?.properties) {
@@ -124,7 +124,6 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     setRequiredFields([]);
     setStrict(true);
     setAdditionalProperties(false);
-    setStream(false);
     setIsEditing(false);
     setPropertyName('');
     setPropertyType('string');
@@ -256,7 +255,6 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
         additionalProperties: additionalProperties,
       },
       strict: strict,
-      stream: stream,
     };
 
     // Save to localStorage
@@ -350,6 +348,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
   };
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-5xl max-h-[90vh] overflow-y-auto">
         <DialogHeader className="text-center pb-2">
@@ -360,6 +359,32 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
             </DialogTitle>
           </div>
         </DialogHeader>
+
+        {/* Nudge: Download + How to Use */}
+        <div className="mb-4 p-3 rounded-md border border-border bg-muted/30 flex items-center justify-between">
+          <div className="pr-3">
+            <div className="text-sm font-semibold text-foreground">Client‑Side Tool Runtime</div>
+            <div className="text-xs text-muted-foreground">Supercharge your local tools — download the runtime and integrate in minutes.</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={() => window.open(CLIENT_TOOL_DOWNLOAD_URL, '_blank', 'noopener,noreferrer')}
+              className="whitespace-nowrap bg-positive-trend text-white hover:bg-positive-trend/90"
+            >
+              Download
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setHowToUseOpen(true)}
+              className="whitespace-nowrap text-positive-trend hover:text-white hover:bg-positive-trend/90"
+            >
+              How to Use
+            </Button>
+          </div>
+        </div>
 
         <div className="grid grid-cols-2 gap-6">
           {/* Left Column - Configuration */}
@@ -536,9 +561,10 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
                     <Input
                       id="executionType"
                       value={executionType}
-                      onChange={(e) => setExecutionType(e.target.value)}
+                      readOnly
+                      disabled
                       placeholder="client_side"
-                      className="bg-background text-sm"
+                      className="bg-background text-sm opacity-70 cursor-not-allowed"
                     />
                   </div>
                   
@@ -590,17 +616,6 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
                   onCheckedChange={setAdditionalProperties}
                 />
               </div>
-              
-              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
-                <Label htmlFor="stream" className="text-sm font-medium cursor-pointer">
-                  Enable Streaming
-                </Label>
-                <Switch
-                  id="stream"
-                  checked={stream}
-                  onCheckedChange={setStream}
-                />
-              </div>
             </div>
           </div>
 
@@ -644,6 +659,12 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* How To Use Modal - intentionally empty with only close icon */}
+    <Dialog open={howToUseOpen} onOpenChange={setHowToUseOpen}>
+      <DialogContent className="w-full max-w-3xl"></DialogContent>
+    </Dialog>
+  </>
   );
 };
 

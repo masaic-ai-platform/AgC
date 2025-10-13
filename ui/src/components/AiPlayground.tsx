@@ -1683,14 +1683,7 @@ const AiPlayground: React.FC = () => {
                 : modelTestMode && modelTestAgentData && Array.isArray(modelTestAgentData.tools) ? modelTestAgentData.tools
                 : selectedTools.length > 0 ? buildToolsPayload(selectedTools, modelSettings ? { settingsType: modelSettings.settingsType as 'RUNTIME' | 'PLATFORM' } : undefined) : undefined,
               store: storeLogs,
-              stream: (() => {
-                // Check if any client-side tool has stream disabled
-                const clientSideTool = selectedTools.find(tool => tool.id === 'client_side_tool');
-                if (clientSideTool?.clientSideToolConfig?.stream !== undefined) {
-                  return clientSideTool.clientSideToolConfig.stream;
-                }
-                return true; // Default to true
-              })(),
+              stream: true,
               headers: modelTestMode && modelTestApiKey ? {
                 'Authorization': `Bearer ${modelTestApiKey}`
               } : undefined,
