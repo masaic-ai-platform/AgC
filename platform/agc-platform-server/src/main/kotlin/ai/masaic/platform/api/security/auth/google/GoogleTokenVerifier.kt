@@ -54,8 +54,8 @@ class GoogleTokenVerifier(
                     }
 
                     adminUsers?.let {
-                        if (adminUsers.isNotEmpty() && !adminUsers.contains(userInfo.userId)) {
-                            userInfo = userInfo.copy(grantedScope = Scope.RESTRICTED)
+                        if (adminUsers.isNotEmpty() && adminUsers.contains(userInfo.userId)) {
+                            userInfo = userInfo.copy(grantedScope = Scope.FULL)
                         }
                     }
                     userInfo

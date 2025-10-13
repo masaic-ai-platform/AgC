@@ -7,7 +7,7 @@ data class UserInfo(
     val userId: String,
     val fullName: String = "User",
     val firstName: String = "User",
-    val grantedScope: Scope = Scope.FULL,
+    val grantedScope: Scope = Scope.RESTRICTED,
 )
 
 enum class Scope {

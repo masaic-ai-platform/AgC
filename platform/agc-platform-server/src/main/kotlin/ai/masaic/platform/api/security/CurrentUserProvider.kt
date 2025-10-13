@@ -1,5 +1,6 @@
 package ai.masaic.platform.api.security
 
+import ai.masaic.platform.api.user.Scope
 import ai.masaic.platform.api.user.UserInfo
 import ai.masaic.platform.api.user.UserInfoProvider
 import kotlinx.coroutines.reactor.awaitSingleOrNull
@@ -28,7 +29,7 @@ class CurrentUserProvider : UserInfoProvider {
             fromPrincipal
         } else {
             val userId = getFromContext(USER_ID_KEY)
-            userId?.let { UserInfo(userId = userId) }
+            userId?.let { UserInfo(userId = userId, grantedScope = Scope.FULL) }
         }
     }
 
