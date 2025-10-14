@@ -4,6 +4,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,7 +56,9 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
   // Nudge links (customize as needed)
   const CLIENT_TOOL_DOWNLOAD_URL = '/client_side_tool.zip';
   const [howToUseOpen, setHowToUseOpen] = useState(false);
+  const [showDownloadButton, setShowDownloadButton] = useState(false);
   const [name, setName] = useState('');
+  const [nameError, setNameError] = useState('');
   const [description, setDescription] = useState('');
   const [parameters, setParameters] = useState<Record<string, PropertyDefinition>>({});
   const [requiredFields, setRequiredFields] = useState<string[]>([]);
@@ -71,6 +74,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
 
   // Property editing state
   const [propertyName, setPropertyName] = useState('');
+  const [propertyNameError, setPropertyNameError] = useState('');
   const [propertyType, setPropertyType] = useState('string');
   const [propertyDescription, setPropertyDescription] = useState('');
   const [editingPropertyName, setEditingPropertyName] = useState<string | null>(null);
@@ -80,6 +84,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     if (open) {
       if (initialTool) {
         setName(initialTool.name || '');
+        setNameError('');
         setDescription(initialTool.description || '');
         setStrict(initialTool.strict ?? true);
         setAdditionalProperties(initialTool.parameters?.additionalProperties ?? false);
@@ -88,22 +93,12 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
         if (initialTool.parameters?.properties) {
           const { execution_specs, ...otherProps } = initialTool.parameters.properties;
           setParameters(otherProps);
-          
-          // Check if execution_specs exists
-          if (execution_specs) {
-            setIncludeExecutionSpecs(true);
-            // Extract execution specs values if they exist as enums
-            if (execution_specs.properties) {
-              const typeEnum = execution_specs.properties.type?.enum;
-              const maxRetryEnum = execution_specs.properties.maxRetryAttempts?.enum;
-              const waitTimeEnum = execution_specs.properties.waitTimeInMillis?.enum;
-              
-              if (typeEnum && typeEnum.length > 0) setExecutionType(typeEnum[0]);
-              if (maxRetryEnum && maxRetryEnum.length > 0) setMaxRetryAttempts(maxRetryEnum[0]);
-              if (waitTimeEnum && waitTimeEnum.length > 0) setWaitTimeInMillis(waitTimeEnum[0]);
-            }
-          }
+        } else {
+          setParameters({});
         }
+        
+        // Always set execution specs toggle to false when editing
+        setIncludeExecutionSpecs(false);
         
         // Load required fields (exclude execution_specs as it's always included)
         if (initialTool.parameters?.required) {
@@ -117,8 +112,53 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     }
   }, [open, initialTool]);
 
+  // Validate function name (only alphanumeric and underscores, must start with letter)
+  const validateFunctionName = (value: string) => {
+    if (!value.trim()) {
+      return 'Function name is required';
+    }
+    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(value)) {
+      return 'Function name must start with a letter and can only contain letters, numbers, and underscores (e.g., add_two_numbers)';
+    }
+    return '';
+  };
+
+  const handleNameChange = (value: string) => {
+    setName(value);
+    const error = validateFunctionName(value);
+    setNameError(error);
+  };
+
+  // Validate property name (same rules as function name)
+  const validatePropertyName = (value: string) => {
+    if (!value.trim()) {
+      return 'Property name is required';
+    }
+    if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(value)) {
+      return 'Property name must start with a letter and can only contain letters, numbers, and underscores';
+    }
+    return '';
+  };
+
+  const handlePropertyNameChange = (value: string) => {
+    setPropertyName(value);
+    const error = validatePropertyName(value);
+    setPropertyNameError(error);
+  };
+
+  // Check if form is valid for enabling/disabling save button
+  const isFormValid = () => {
+    const nameValidationError = validateFunctionName(name);
+    const hasValidName = !nameValidationError && name.trim();
+    const hasValidDescription = description.trim();
+    const hasValidPropertyName = !propertyName.trim() || !validatePropertyName(propertyName);
+    
+    return hasValidName && hasValidDescription && hasValidPropertyName;
+  };
+
   const resetForm = () => {
     setName('');
+    setNameError('');
     setDescription('');
     setParameters({});
     setRequiredFields([]);
@@ -126,6 +166,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     setAdditionalProperties(false);
     setIsEditing(false);
     setPropertyName('');
+    setPropertyNameError('');
     setPropertyType('string');
     setPropertyDescription('');
     setEditingPropertyName(null);
@@ -136,8 +177,10 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
   };
 
   const handleAddProperty = () => {
-    if (!propertyName.trim()) {
-      toast.error('Please enter a property name');
+    const propertyNameValidationError = validatePropertyName(propertyName);
+    if (propertyNameValidationError) {
+      setPropertyNameError(propertyNameValidationError);
+      toast.error(propertyNameValidationError);
       return;
     }
 
@@ -178,6 +221,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
   const handleEditProperty = (propName: string) => {
     const property = parameters[propName];
     setPropertyName(propName);
+    setPropertyNameError('');
     setPropertyType(property.type);
     setPropertyDescription(property.description || '');
     setEditingPropertyName(propName);
@@ -185,6 +229,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
 
   const handleCancelEdit = () => {
     setPropertyName('');
+    setPropertyNameError('');
     setPropertyType('string');
     setPropertyDescription('');
     setEditingPropertyName(null);
@@ -212,8 +257,10 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
 
   const handleSave = () => {
     // Validation
-    if (!name.trim()) {
-      toast.error('Please enter a function name');
+    const nameValidationError = validateFunctionName(name);
+    if (nameValidationError) {
+      setNameError(nameValidationError);
+      toast.error(nameValidationError);
       return;
     }
     if (!description.trim()) {
@@ -287,6 +334,10 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     localStorage.setItem('platform_client_side_tools', JSON.stringify(toolsMap));
     
     toast.success(`Client-side tool "${name.trim()}" saved successfully!`);
+    
+    // Show download button after successful save
+    setShowDownloadButton(true);
+    
     onSave(tool);
     onOpenChange(false);
   };
@@ -367,19 +418,21 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
             <div className="text-xs text-muted-foreground">Supercharge your local tools — download the runtime and integrate in minutes.</div>
           </div>
           <div className="flex items-center gap-2">
+            {showDownloadButton && !isEditing && (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => window.open(CLIENT_TOOL_DOWNLOAD_URL, '_blank', 'noopener,noreferrer')}
+                className="whitespace-nowrap bg-positive-trend text-white hover:bg-positive-trend/90"
+              >
+                Download
+              </Button>
+            )}
             <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => window.open(CLIENT_TOOL_DOWNLOAD_URL, '_blank', 'noopener,noreferrer')}
-              className="whitespace-nowrap bg-positive-trend text-white hover:bg-positive-trend/90"
-            >
-              Download
-            </Button>
-            <Button
-              variant="ghost"
+              variant="outline"
               size="sm"
               onClick={() => setHowToUseOpen(true)}
-              className="whitespace-nowrap text-positive-trend hover:text-white hover:bg-positive-trend/90"
+              className="whitespace-nowrap bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 border-blue-200 hover:border-blue-300"
             >
               How to Use
             </Button>
@@ -397,10 +450,15 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
               <Input
                 id="name"
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="add_two_numbers"
-                className="bg-muted/50 border border-border focus:border-positive-trend/60"
+                className={`bg-muted/50 border focus:border-positive-trend/60 ${
+                  nameError ? 'border-red-500 focus:border-red-500' : 'border-border'
+                }`}
               />
+              {nameError && (
+                <p className="text-xs text-red-500 mt-1">{nameError}</p>
+              )}
             </div>
 
             {/* Description */}
@@ -436,13 +494,20 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
               </div>
               
               <div className="grid grid-cols-2 gap-2">
-                <Input
-                  value={propertyName}
-                  onChange={(e) => setPropertyName(e.target.value)}
-                  placeholder="Property name (e.g., 'a')"
-                  className="bg-background"
-                  disabled={editingPropertyName !== null}
-                />
+                <div className="space-y-1">
+                  <Input
+                    value={propertyName}
+                    onChange={(e) => handlePropertyNameChange(e.target.value)}
+                    placeholder="Property name (e.g., 'a')"
+                    className={`bg-background ${
+                      propertyNameError ? 'border-red-500 focus:border-red-500' : ''
+                    }`}
+                    disabled={editingPropertyName !== null}
+                  />
+                  {propertyNameError && (
+                    <p className="text-xs text-red-500">{propertyNameError}</p>
+                  )}
+                </div>
                 <select
                   value={propertyType}
                   onChange={(e) => setPropertyType(e.target.value)}
@@ -652,7 +717,12 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
           </Button>
           <Button
             onClick={handleSave}
-            className="bg-positive-trend hover:bg-positive-trend/90 text-white"
+            disabled={!isFormValid()}
+            className={`${
+              isFormValid() 
+                ? 'bg-positive-trend hover:bg-positive-trend/90 text-white' 
+                : 'bg-gray-400 text-gray-200 cursor-not-allowed'
+            }`}
           >
             {isEditing ? 'Update Tool' : 'Create Tool'}
           </Button>
@@ -660,9 +730,140 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
       </DialogContent>
     </Dialog>
 
-    {/* How To Use Modal - intentionally empty with only close icon */}
+    {/* How To Use Modal - Comprehensive flow explanation */}
     <Dialog open={howToUseOpen} onOpenChange={setHowToUseOpen}>
-      <DialogContent className="w-full max-w-3xl"></DialogContent>
+      <DialogContent className="w-full max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-xl font-bold text-center mb-2">
+            How to Use Client-Side Tools
+          </DialogTitle>
+          <DialogDescription className="text-center text-muted-foreground mb-4 text-sm">
+            Follow these simple steps to get your client-side tool up and running
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-6">
+          {/* Flow Steps */}
+          <div className="space-y-4">
+            {/* Step 1 */}
+            <div className="flex items-start space-x-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+              <div className="flex-shrink-0 w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center font-bold text-xs">
+                1
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-semibold text-green-800 mb-1">Create Your Tool</h3>
+                <p className="text-green-700 mb-2 text-sm">
+                  Design your client-side tool using the form above. Define parameters, set execution specs, and configure all necessary settings.
+                </p>
+                <div className="bg-white p-2 rounded border border-green-200">
+                  <code className="text-xs text-gray-700">
+                    ✓ Fill in tool name and description<br/>
+                    ✓ Add required parameters<br/>
+                    ✓ Configure execution settings<br/>
+                    ✓ Click "Create Tool"
+                  </code>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="flex items-start space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="flex-shrink-0 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-xs">
+                2
+              </div>
+              <div className="flex-1">
+                <div className="flex items justify-between mb-2">
+                  <h3 className="text-base font-semibold text-blue-800">Download Client Runtime</h3>
+                </div>
+                <div className="space-y-2">
+                  <p className="text-blue-700 text-sm">
+                    Download the Java SDK client runtime to execute your tools locally.
+                  </p>
+                  <div className="bg-white p-2 rounded border border-blue-200">
+                    <div className="pt-1">
+                      <Button
+                        size="sm"
+                        onClick={() => window.open(CLIENT_TOOL_DOWNLOAD_URL, '_blank')}
+                        className="bg-blue-600 text-white hover:bg-blue-700 text-xs"
+                      >
+                        Download Java SDK
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div className="flex items-start space-x-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+              <div className="flex-shrink-0 w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center font-bold text-xs">
+                3
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-semibold text-purple-800 mb-1">Run the Runtime</h3>
+                <p className="text-purple-700 mb-2 text-sm">
+                  Execute the Gradle wrapper to start your client-side tool runtime.
+                </p>
+                <div className="bg-white p-2 rounded border border-purple-200">
+                  <div className="text-xs text-gray-700 font-medium">Run on Unix/Mac:</div>
+                  <div className="bg-gray-900 text-green-400 p-2 mt-1 rounded font-mono text-xs">
+                    <div className="flex items-center space-x-2">
+                      <span className="text-gray-400">$</span>
+                      <span>./gradlew run</span>
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-700 font-medium mt-2">Run on Windows:</div>
+                  <div className="bg-gray-900 text-green-400 p-2 mt-1 rounded font-mono text-xs">
+                    <span className="text-gray-300">gradlew.bat run</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Step 4 */}
+            <div className="flex items-start space-x-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+              <div className="flex-shrink-0 w-6 h-6 bg-emerald-500 text-white rounded-full flex items-center justify-center font-bold text-xs">
+                4
+              </div>
+              <div className="flex-1">
+                <h3 className="text-base font-semibold text-emerald-800 mb-1">Done! 🎉</h3>
+                <p className="text-emerald-700 mb-2 text-sm">
+                  Your client-side tool is now running and ready to execute. The runtime will handle all the heavy lifting.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Resources */}
+          <div className="border-t pt-4">
+            <h3 className="text-base font-semibold mb-3 text-center">Additional Resources</h3>
+            <div className="flex justify-center">
+              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg max-w-md w-full">
+                <h4 className="font-medium text-gray-800 mb-1 text-sm">📖 README</h4>
+                <p className="text-xs text-gray-600 mb-2">
+                  Quick start guide and examples
+                </p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => window.open('#', '_blank')}
+                  className="w-full text-xs"
+                  disabled
+                >
+                  README Link (Coming Soon)
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          {/* Footer */}
+          <div className="text-center pt-3 border-t">
+            <p className="text-xs text-muted-foreground">
+              Need help? Check our documentation or contact support.
+            </p>
+          </div>
+        </div>
+      </DialogContent>
     </Dialog>
   </>
   );
