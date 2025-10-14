@@ -436,13 +436,14 @@ object PartnerGroup {
             deploymentLink = "https://cloud.langfuse.com/",
         )
 
-    val e2B = Partner(
-        code = "e2b",
-        name = "AgC Macro",
-        category = PartnerCategory.COMPUTE,
-        enabled = true,
-        deploymentLink = "",
-    )
+    val e2B =
+        Partner(
+            code = "e2b",
+            name = "AgC Macro",
+            category = PartnerCategory.COMPUTE,
+            enabled = true,
+            deploymentLink = "",
+        )
 }
 
 @Configuration
@@ -514,7 +515,7 @@ data class ProviderApiKeysProperties(
 data class PyInterpreterSettings(
     val systemSettingsType: SystemSettingsType = SystemSettingsType.RUNTIME,
     val pyInterpreterServer: PyInterpreterServer? = null,
-    val isEnabled: Boolean = true
+    val isEnabled: Boolean = true,
 ) {
     fun mcpTool(): MCPTool {
         require(pyInterpreterServer != null) { "pyInterpreterServer can't be null" }

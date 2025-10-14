@@ -160,7 +160,7 @@ open class AgentBootstrapService(
                     try {
                         agentService.saveAgent(agentToSave, false)
                         log.info { "saved agent: ${agentToSave.name}" }
-                    }catch (ex: ResponseProcessingException) {
+                    } catch (ex: ResponseProcessingException) {
                         agentService.saveAgent(agentToSave, true)
                         log.info { "updated agent: ${agentToSave.name}" }
                     }

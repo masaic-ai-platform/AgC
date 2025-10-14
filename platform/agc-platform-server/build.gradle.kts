@@ -24,9 +24,12 @@ repositories {
 }
 
 dependencies {
-    api(project(":agc-platform-core"))
+    api(project(":agc-platform-core")) {
+        exclude(group = "io.temporal:temporal-sdk", module = "temporal-sdk")
+    }
     api(project(":open-responses-rest"))
     api(project(":agc-platform-rest"))
+    implementation("io.temporal:temporal-spring-boot-starter:1.31.0")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-security")
