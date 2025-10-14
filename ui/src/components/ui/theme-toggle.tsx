@@ -3,14 +3,14 @@ import { Button } from '@/components/ui/button';
 import { Moon, Sun } from 'lucide-react';
 
 const ThemeToggle: React.FC = () => {
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
   useEffect(() => {
-    // Check for saved theme preference, default to light mode
+    // Check for saved theme preference, default to dark mode
     const savedTheme = localStorage.getItem('theme') as 'light' | 'dark' | null;
 
-    // Always default to light mode, only use saved preference as fallback
-    const initialTheme = savedTheme || 'light';
+    // Always default to dark mode, only use saved preference as fallback
+    const initialTheme = savedTheme || 'dark';
     setTheme(initialTheme);
     applyTheme(initialTheme);
   }, []);
