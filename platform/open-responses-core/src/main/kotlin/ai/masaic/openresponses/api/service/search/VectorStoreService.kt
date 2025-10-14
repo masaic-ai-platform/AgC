@@ -9,11 +9,13 @@ import ai.masaic.openresponses.api.repository.VectorStoreRepository
 import ai.masaic.openresponses.api.service.VectorStoreFileManager
 import ai.masaic.openresponses.api.support.service.OpenResponsesObsAttributes
 import ai.masaic.openresponses.api.support.service.TelemetryService
+import ai.masaic.openresponses.api.user.AccessManager
 import ai.masaic.openresponses.api.utils.IdGenerator
 import io.micrometer.core.instrument.Timer
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import java.io.InputStream
+import java.nio.file.AccessDeniedException
 import java.time.Instant
 
 /**
@@ -119,6 +121,9 @@ open class VectorStoreService(
      */
     suspend fun createVectorStore(request: CreateVectorStoreRequest): VectorStore =
         withContext(Dispatchers.IO) {
+            // Compute access control for the vector store
+            val accessControl = AccessManager.computeAccessControl()
+            
             // Create a new vector store using the IdGenerator utility
             val vectorStoreId = IdGenerator.generateVectorStoreId()
             val createdAt = Instant.now().epochSecond
@@ -144,6 +149,7 @@ open class VectorStoreService(
                             cancelled = 0,
                             total = 0,
                         ),
+                    accessControl = accessControl,
                 )
 
             // Apply expiration policy if provided
@@ -247,18 +253,26 @@ open class VectorStoreService(
         before: String? = null,
     ): VectorStoreListResponse =
         withContext(Dispatchers.IO) {
-            // Get vector stores from repository
-            val vectorStores = vectorStoreRepository.listVectorStores(limit, order, after, before)
+            // Get vector stores from repository  
+            val vectorStores = vectorStoreRepository.listVectorStores(Int.MAX_VALUE, order, after, before)
 
-            // Check and update expiration status for each vector store
-            val updatedVectorStores = vectorStores.map { checkAndUpdateExpiration(it) }
+            // Filter by access permission
+            val accessibleVectorStores = vectorStores.filter { vectorStore ->
+                AccessManager.isAccessPermitted(vectorStore.accessControl)
+            }
+
+            // Check and update expiration status for each accessible vector store
+            val updatedVectorStores = accessibleVectorStores.map { checkAndUpdateExpiration(it) }
+            
+            // Apply limit after filtering
+            val limitedVectorStores = updatedVectorStores.take(limit)
 
             // Create response
             VectorStoreListResponse(
-                data = updatedVectorStores,
-                firstId = updatedVectorStores.firstOrNull()?.id,
-                lastId = updatedVectorStores.lastOrNull()?.id,
-                hasMore = updatedVectorStores.size >= limit, // If we got exactly the limit, there might be more
+                data = limitedVectorStores,
+                firstId = limitedVectorStores.firstOrNull()?.id,
+                lastId = limitedVectorStores.lastOrNull()?.id,
+                hasMore = limitedVectorStores.size >= limit, // If we got exactly the limit, there might be more
             )
         }
 
@@ -274,6 +288,11 @@ open class VectorStoreService(
             val vectorStore =
                 vectorStoreRepository.findVectorStoreById(vectorStoreId)
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+
+            // Check access permission
+            if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
+                throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
+            }
 
             // Check and update expiration status
             checkAndUpdateExpiration(vectorStore)
@@ -295,6 +314,11 @@ open class VectorStoreService(
             val vectorStore =
                 vectorStoreRepository.findVectorStoreById(vectorStoreId)
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+
+            // Check access permission
+            if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
+                throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
+            }
 
             // Update the vector store
             val updatedVectorStore =
@@ -319,8 +343,13 @@ open class VectorStoreService(
      */
     suspend fun deleteVectorStore(vectorStoreId: String): VectorStoreDeleteResponse =
         withContext(Dispatchers.IO) {
-            vectorStoreRepository.findVectorStoreById(vectorStoreId)
+            val vectorStore = vectorStoreRepository.findVectorStoreById(vectorStoreId)
                 ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+
+            // Check access permission
+            if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
+                throw AccessDeniedException("Access denied to delete vector store: $vectorStoreId")
+            }
 
             // Get all files in the vector store
             val files = vectorStoreRepository.listVectorStoreFiles(vectorStoreId, Int.MAX_VALUE)
@@ -369,8 +398,13 @@ open class VectorStoreService(
                 vectorStoreId = vectorStoreId,
             ) {
                 // Check if the vector store exists
-                vectorStoreRepository.findVectorStoreById(vectorStoreId)
+                val vectorStore = vectorStoreRepository.findVectorStoreById(vectorStoreId)
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+                
+                // Check access permission
+                if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
+                    throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
+                }
 
                 // Check if the file exists
                 val fileId = request.fileId
@@ -434,8 +468,12 @@ open class VectorStoreService(
     ): VectorStoreFileListResponse =
         withContext(Dispatchers.IO) {
             // Check if the vector store exists
-            if (vectorStoreRepository.findVectorStoreById(vectorStoreId) == null) {
-                throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+            val vectorStore = vectorStoreRepository.findVectorStoreById(vectorStoreId)
+                ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+
+            // Check access permission
+            if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
+                throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
             }
 
             // Get all files in the vector store from repository
@@ -466,8 +504,12 @@ open class VectorStoreService(
     ): VectorStoreFile =
         withContext(Dispatchers.IO) {
             // Check if the vector store exists
-            if (vectorStoreRepository.findVectorStoreById(vectorStoreId) == null) {
-                throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+            val vectorStore = vectorStoreRepository.findVectorStoreById(vectorStoreId)
+                ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+
+            // Check access permission
+            if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
+                throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
             }
 
             // Get the file from repository
@@ -506,8 +548,12 @@ open class VectorStoreService(
     ): VectorStoreFile =
         withContext(Dispatchers.IO) {
             // Check if the vector store exists
-            if (vectorStoreRepository.findVectorStoreById(vectorStoreId) == null) {
-                throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+            val vectorStore = vectorStoreRepository.findVectorStoreById(vectorStoreId)
+                ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+
+            // Check access permission
+            if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
+                throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
             }
 
             // Get the file from repository
@@ -660,6 +706,11 @@ open class VectorStoreService(
                     vectorStoreRepository.findVectorStoreById(vectorStoreId)
                         ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
 
+                // Check access permission
+                if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
+                    throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
+                }
+
                 // Get all files in the vector store
                 val files = vectorStoreRepository.listVectorStoreFiles(vectorStoreId, Int.MAX_VALUE)
 
@@ -783,6 +834,11 @@ open class VectorStoreService(
             val vectorStore =
                 vectorStoreRepository.findVectorStoreById(vectorStoreId)
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+
+            // Check access permission
+            if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
+                throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
+            }
 
             // Get the file from repository
             val file =
