@@ -257,9 +257,10 @@ open class VectorStoreService(
             val vectorStores = vectorStoreRepository.listVectorStores(Int.MAX_VALUE, order, after, before)
 
             // Filter by access permission
-            val accessibleVectorStores = vectorStores.filter { vectorStore ->
-                AccessManager.isAccessPermitted(vectorStore.accessControl)
-            }
+            val accessibleVectorStores =
+                vectorStores.filter { vectorStore ->
+                    AccessManager.isAccessPermitted(vectorStore.accessControl)
+                }
 
             // Check and update expiration status for each accessible vector store
             val updatedVectorStores = accessibleVectorStores.map { checkAndUpdateExpiration(it) }
@@ -343,8 +344,9 @@ open class VectorStoreService(
      */
     suspend fun deleteVectorStore(vectorStoreId: String): VectorStoreDeleteResponse =
         withContext(Dispatchers.IO) {
-            val vectorStore = vectorStoreRepository.findVectorStoreById(vectorStoreId)
-                ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+            val vectorStore =
+                vectorStoreRepository.findVectorStoreById(vectorStoreId)
+                    ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
 
             // Check access permission
             if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
@@ -398,8 +400,9 @@ open class VectorStoreService(
                 vectorStoreId = vectorStoreId,
             ) {
                 // Check if the vector store exists
-                val vectorStore = vectorStoreRepository.findVectorStoreById(vectorStoreId)
-                    ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+                val vectorStore =
+                    vectorStoreRepository.findVectorStoreById(vectorStoreId)
+                        ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
                 
                 // Check access permission
                 if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
@@ -468,8 +471,9 @@ open class VectorStoreService(
     ): VectorStoreFileListResponse =
         withContext(Dispatchers.IO) {
             // Check if the vector store exists
-            val vectorStore = vectorStoreRepository.findVectorStoreById(vectorStoreId)
-                ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+            val vectorStore =
+                vectorStoreRepository.findVectorStoreById(vectorStoreId)
+                    ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
 
             // Check access permission
             if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
@@ -504,8 +508,9 @@ open class VectorStoreService(
     ): VectorStoreFile =
         withContext(Dispatchers.IO) {
             // Check if the vector store exists
-            val vectorStore = vectorStoreRepository.findVectorStoreById(vectorStoreId)
-                ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+            val vectorStore =
+                vectorStoreRepository.findVectorStoreById(vectorStoreId)
+                    ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
 
             // Check access permission
             if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
@@ -548,8 +553,9 @@ open class VectorStoreService(
     ): VectorStoreFile =
         withContext(Dispatchers.IO) {
             // Check if the vector store exists
-            val vectorStore = vectorStoreRepository.findVectorStoreById(vectorStoreId)
-                ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
+            val vectorStore =
+                vectorStoreRepository.findVectorStoreById(vectorStoreId)
+                    ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
 
             // Check access permission
             if (!AccessManager.isAccessPermitted(vectorStore.accessControl)) {
