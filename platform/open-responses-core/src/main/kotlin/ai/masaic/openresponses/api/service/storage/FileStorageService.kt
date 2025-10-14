@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.api.service.storage
 
+import ai.masaic.openresponses.api.user.AccessControl
 import kotlinx.coroutines.flow.Flow
 import org.springframework.core.io.Resource
 import org.springframework.http.codec.multipart.FilePart
@@ -15,11 +16,13 @@ interface FileStorageService {
      *
      * @param file The file to store
      * @param purpose The file's purpose
+     * @param accessControl The access control for the file
      * @return The stored file's ID
      */
     suspend fun store(
         file: FilePart,
         purpose: String,
+        accessControl: AccessControl? = null,
     ): String
 
     /**

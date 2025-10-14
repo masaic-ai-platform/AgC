@@ -1,6 +1,6 @@
 package ai.masaic.platform.api.security
 
-import ai.masaic.platform.api.user.Scope
+import ai.masaic.openresponses.api.user.Scope
 import ai.masaic.platform.api.user.UserInfo
 import ai.masaic.platform.api.user.UserInfoProvider
 import kotlinx.coroutines.reactor.awaitSingleOrNull

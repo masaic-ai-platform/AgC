@@ -59,15 +59,13 @@ class AgCPlatformServerConfig {
     class UserLoginAuditConfiguration {
         @Bean
         @ConditionalOnProperty(name = ["open-responses.store.type"], havingValue = "mongodb")
-        fun mongoUserLoginAuditRepository(mongoTemplate: ReactiveMongoTemplate): UserLoginAuditRepository =
-            MongoUserLoginAuditRepository(mongoTemplate)
+        fun mongoUserLoginAuditRepository(mongoTemplate: ReactiveMongoTemplate): UserLoginAuditRepository = MongoUserLoginAuditRepository(mongoTemplate)
 
         @Bean
         @ConditionalOnProperty(name = ["open-responses.store.type"], havingValue = "in-memory", matchIfMissing = true)
         fun inMemoryUserLoginAuditRepository(): UserLoginAuditRepository = InMemoryUserLoginAuditRepository()
 
         @Bean
-        fun userLoginAuditService(userLoginAuditRepository: UserLoginAuditRepository) =
-            UserLoginAuditService(userLoginAuditRepository)
+        fun userLoginAuditService(userLoginAuditRepository: UserLoginAuditRepository) = UserLoginAuditService(userLoginAuditRepository)
     }
 }

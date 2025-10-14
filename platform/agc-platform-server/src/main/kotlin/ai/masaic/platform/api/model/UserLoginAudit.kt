@@ -17,4 +17,3 @@ data class UserLoginAudit(
     val loginTime: Instant = Instant.now(),
     val authProvider: String = "Google",
 )
-

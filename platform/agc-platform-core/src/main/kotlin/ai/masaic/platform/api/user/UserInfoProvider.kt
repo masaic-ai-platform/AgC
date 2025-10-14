@@ -1,5 +1,6 @@
 package ai.masaic.platform.api.user
 
+import ai.masaic.openresponses.api.user.Scope
 import ai.masaic.openresponses.api.utils.AgCLoopContext
 import ai.masaic.openresponses.api.utils.LoopContextInfo
 
@@ -9,11 +10,6 @@ data class UserInfo(
     val firstName: String = "User",
     val grantedScope: Scope = Scope.RESTRICTED,
 )
-
-enum class Scope {
-    RESTRICTED,
-    FULL,
-}
 
 interface UserInfoProvider {
     suspend fun userId(): String? = null

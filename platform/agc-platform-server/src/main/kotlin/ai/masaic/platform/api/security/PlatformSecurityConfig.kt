@@ -1,9 +1,11 @@
 package ai.masaic.platform.api.security
 
 import ai.masaic.openresponses.api.exception.HttpStatusCodeException
+import ai.masaic.openresponses.api.user.AccessManager
 import ai.masaic.platform.api.security.auth.google.GoogleAuthentication
 import ai.masaic.platform.api.security.auth.google.GooglePreAuthToken
 import ai.masaic.platform.api.security.auth.google.GoogleTokenVerifier
+import ai.masaic.platform.api.user.UserAccessControlManager
 import ai.masaic.platform.api.user.UserInfoProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -27,6 +29,7 @@ import reactor.core.publisher.Mono
 class PlatformSecurityConfig {
     init {
         UserInfoProvider.init(CurrentUserProvider())
+        AccessManager.initialise(UserAccessControlManager())
     }
 
     @Bean
@@ -143,6 +146,7 @@ class PlatformSecurityConfig {
 class PlatformNoOpSecurityConfig {
     init {
         UserInfoProvider.init(CurrentUserProvider())
+        AccessManager.initialise(UserAccessControlManager())
     }
 
     @Bean

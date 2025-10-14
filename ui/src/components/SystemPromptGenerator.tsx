@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Sparkles } from 'lucide-react';
-import { API_URL } from '@/config';
+import { apiClient } from '@/lib/api';
 import { usePlatformInfo } from '@/contexts/PlatformContext';
 
 interface SystemPromptGeneratorProps {
@@ -66,9 +66,7 @@ const SystemPromptGenerator: React.FC<SystemPromptGeneratorProps> = ({
       const savedModelName = localStorage.getItem('platform_modelName') || 'gpt-4o';
       
       // Prepare headers and payload based on platform settings
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
+      const headers: Record<string, string> = {};
       
       const requestBody: any = {
         description: generatePrompt.trim(),
@@ -90,18 +88,12 @@ const SystemPromptGenerator: React.FC<SystemPromptGeneratorProps> = ({
         };
       }
 
-      const response = await fetch(`${API_URL}/v1/dashboard/generate/prompt`, {
+      const data = await apiClient.jsonRequest<{ prompt: string }>('/v1/dashboard/generate/prompt', {
         method: 'POST',
         headers,
         body: JSON.stringify(requestBody)
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to generate prompt');
-      }
-
-      const data = await response.json();
       onGenerate(data.prompt);
     } catch (error) {
       console.error('Error generating prompt:', error);

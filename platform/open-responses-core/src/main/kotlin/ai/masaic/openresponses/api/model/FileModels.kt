@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.api.model
 
+import ai.masaic.openresponses.api.user.AccessControl
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import java.time.Instant
@@ -51,6 +52,11 @@ data class File(
     @Deprecated("This field is deprecated")
     @JsonProperty("status_details")
     val statusDetails: String? = null,
+    /**
+     * Access control for the file.
+     */
+    @JsonProperty("access_control")
+    val accessControl: AccessControl? = null,
 )
 
 /**

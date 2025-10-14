@@ -66,4 +66,3 @@ class UserLoginAuditService(
         endTime: Instant,
     ): List<UserLoginAudit> = userLoginAuditRepository.findByTimeRange(startTime, endTime)
 }
-

@@ -2,6 +2,7 @@ package ai.masaic.platform.api.controller
 
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.ResponseProcessingException
+import ai.masaic.openresponses.api.user.Scope
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.*
 import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
@@ -18,7 +19,6 @@ import ai.masaic.platform.api.service.createCompletion
 import ai.masaic.platform.api.service.messages
 import ai.masaic.platform.api.tools.FunDefGenerationTool
 import ai.masaic.platform.api.tools.SystemPromptGeneratorTool
-import ai.masaic.platform.api.user.Scope
 import ai.masaic.platform.api.user.UserInfoProvider
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue

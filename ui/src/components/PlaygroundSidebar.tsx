@@ -20,7 +20,7 @@ import {
   Brain,
   Zap
 } from 'lucide-react';
-import { API_URL } from '@/config';
+import { apiClient } from '@/lib/api';
 
 interface PlaygroundSidebarProps {
   activeTab: string;
@@ -80,29 +80,26 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
     const fetchPlatformInfo = async () => {
       try {
         setIsLoadingPartners(true);
-        const response = await fetch(`${API_URL}/v1/dashboard/platform/info`);
-        if (response.ok) {
-          const data = await response.json();
-          setPlatformInfo(data);
-          
-          // Handle userId based on auth config
-          if (data.authConfig?.enabled === false) {
-            // Auth is disabled, ensure we have a userId
-            let userId = localStorage.getItem('platform_userId');
-            if (!userId) {
-              // Generate new random userId: user_ + 9 alphanumeric chars
-              const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-              const randomId = 'user_' + Array.from({length: 9}, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
-              localStorage.setItem('platform_userId', randomId);
-              console.log('Generated new userId:', randomId);
-            }
-          } else if (data.authConfig?.enabled === true) {
-            // Auth is enabled, clear userId if it exists
-            const existingUserId = localStorage.getItem('platform_userId');
-            if (existingUserId) {
-              localStorage.removeItem('platform_userId');
-              console.log('Auth enabled, cleared userId');
-            }
+        const data = await apiClient.jsonRequest<any>('/v1/dashboard/platform/info');
+        setPlatformInfo(data);
+        
+        // Handle userId based on auth config
+        if (data.authConfig?.enabled === false) {
+          // Auth is disabled, ensure we have a userId
+          let userId = localStorage.getItem('platform_userId');
+          if (!userId) {
+            // Generate new random userId: user_ + 9 alphanumeric chars
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            const randomId = 'user_' + Array.from({length: 9}, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+            localStorage.setItem('platform_userId', randomId);
+            console.log('Generated new userId:', randomId);
+          }
+        } else if (data.authConfig?.enabled === true) {
+          // Auth is enabled, clear userId if it exists
+          const existingUserId = localStorage.getItem('platform_userId');
+          if (existingUserId) {
+            localStorage.removeItem('platform_userId');
+            console.log('Auth enabled, cleared userId');
           }
         }
       } catch (error) {

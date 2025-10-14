@@ -1,8 +1,8 @@
 package ai.masaic.platform.api.security.auth.google
 
+import ai.masaic.openresponses.api.user.Scope
 import ai.masaic.platform.api.security.GoogleAuthConfig
 import ai.masaic.platform.api.security.PlatformAccessForbiddenException
-import ai.masaic.platform.api.user.Scope
 import ai.masaic.platform.api.user.UserInfo
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier
 import com.google.api.client.http.javanet.NetHttpTransport

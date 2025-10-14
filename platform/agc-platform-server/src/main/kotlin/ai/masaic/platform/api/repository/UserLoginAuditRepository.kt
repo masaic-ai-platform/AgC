@@ -104,4 +104,3 @@ class InMemoryUserLoginAuditRepository : UserLoginAuditRepository {
             .filter { it.loginTime >= startTime && it.loginTime <= endTime }
             .sortedByDescending { it.loginTime }
 }
-
