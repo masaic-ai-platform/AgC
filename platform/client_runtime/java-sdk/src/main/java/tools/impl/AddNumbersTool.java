@@ -1,20 +1,22 @@
 package tools.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import tools.ClientSideTool;
 
 public class AddNumbersTool implements ClientSideTool {
-
-    AddNumbersTool() {
-        ClientSideToolRegistration.registerTool(new AddNumbersTool());
-    }
+    private static final Logger logger = LoggerFactory.getLogger(AddNumbersTool.class);
+    private static String TOOL_NAME = "add_two_number_new";
+    private static String PROFILE_ID = "user_yWrOnKu6n";
 
     @Override
     public String toolId() {
-        return ""; //can be autp populated .... because this is queueName
+        return PROFILE_ID + "." + TOOL_NAME;
     }
 
     @Override
     public String executeTool(String argumentsJson) {
+        logger.debug("Executing AddNumbersTool with arguments: {}", argumentsJson);
         //implement your code....
         return "";
     }
