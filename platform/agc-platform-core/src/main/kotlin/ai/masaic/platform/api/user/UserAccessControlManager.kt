@@ -14,8 +14,8 @@ class UserAccessControlManager : AllowAllAccessManager() {
             when {
                 assignedControl?.grantedScope == Scope.FULL -> true
                 userInfo == null -> false
+                !userInfo.loggedIn && userInfo.grantedScope == Scope.FULL -> true
                 assignedControl == null -> userInfo.grantedScope == Scope.FULL
-                userInfo.grantedScope == Scope.FULL -> true
                 assignedControl is UserAccessControl -> userInfo.userId == assignedControl.userId
                 assignedControl is NoAccessControl -> true
                 else -> false

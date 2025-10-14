@@ -69,7 +69,7 @@ data class VectorStore(
      * Access control for the vector store.
      */
     @JsonProperty("access_control")
-    val accessControl: AccessControl? = null,
+    val accessControl: String? = null,
 )
 
 /**
