@@ -646,41 +646,7 @@ const FileSearchModal: React.FC<FileSearchModalProps> = ({
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-full max-h-[calc(80vh-180px)]">
               {/* Vector Stores Section */}
               <div className="flex flex-col space-y-3 h-full min-h-0">
-                <div className="flex-shrink-0">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Vector Stores</Label>
-                    <Select value={vectorStoreType} onValueChange={setVectorStoreType}>
-                      <SelectTrigger className="w-48 h-8 focus:ring-0 focus:ring-offset-0 focus:border-border">
-                        <SelectValue>
-                          {vectorStoreType === 'qdrant-cloud' ? (
-                            <div className="flex items-center space-x-2">
-                              <img src="/qdrant icon.png" alt="Qdrant" className="w-3 h-3" />
-                              <span>Qdrant Cloud</span>
-                            </div>
-                          ) : (
-                            <span>Bring your own vector store</span>
-                          )}
-                        </SelectValue>
-                                              </SelectTrigger>
-                        <SelectContent 
-                          side="bottom" 
-                          align="start" 
-                          sideOffset={8}
-                          className="z-[9999] pt-2"
-                        >
-                          <SelectItem value="qdrant-cloud">
-                          <div className="flex items-center space-x-2">
-                            <img src="/qdrant icon.png" alt="Qdrant" className="w-4 h-4" />
-                            <span>Qdrant Cloud</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="bring-your-own">Bring your own vector store</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
-                {/* Embedding Model Dropdown - now below Vector Stores dropdown */}
+                {/* Embedding Model Dropdown */}
                 {useRuntimeModelSettings && (
                   <div className="space-y-2 flex-shrink-0">
                     <Label className="text-sm font-medium">Embedding Model</Label>

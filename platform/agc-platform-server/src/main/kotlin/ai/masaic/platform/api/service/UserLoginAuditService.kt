@@ -35,7 +35,7 @@ class UserLoginAuditService(
                 )
 
             val savedAudit = userLoginAuditRepository.save(audit)
-            log.info {
+            log.debug {
                 "User login audit logged: userId=${savedAudit.userId}, " +
                     "fullName=${savedAudit.fullName}, " +
                     "loginTime=${savedAudit.loginTime}, " +

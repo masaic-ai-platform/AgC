@@ -14,10 +14,17 @@ interface VectorStoreInfo {
   isEnabled: boolean;
 }
 
+interface PyInterpreterSettings {
+  systemSettingsType: string;
+  pyInterpreterServer: any;
+  isEnabled: boolean;
+}
+
 interface PlatformInfo {
   version: string;
   modelSettings: ModelSettings;
   vectorStoreInfo: VectorStoreInfo;
+  pyInterpreterSettings?: PyInterpreterSettings;
 }
 
 interface PlatformContextType {
@@ -37,6 +44,11 @@ const defaultPlatformInfo: PlatformInfo = {
     qualifiedModelName: ''
   },
   vectorStoreInfo: {
+    isEnabled: true
+  },
+  pyInterpreterSettings: {
+    systemSettingsType: 'RUNTIME',
+    pyInterpreterServer: null,
     isEnabled: true
   }
 };
@@ -70,7 +82,7 @@ export const PlatformProvider: React.FC<PlatformProviderProps> = ({ children }) 
     setError(null);
     
     try {
-      const response = await apiClient.rawRequest('/v1/dashboard/platform/info');
+      const response = await apiClient.rawRequest('/v1/dashboard/platform/features');
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

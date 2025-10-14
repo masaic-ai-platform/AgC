@@ -33,7 +33,7 @@ interface PlaygroundSidebarProps {
 interface Partner {
   code: string;
   name: string;
-  category: 'VECTOR_DB' | 'EVALS' | 'OBSERVABILITY';
+  category: 'VECTOR_DB' | 'EVALS' | 'OBSERVABILITY' | 'COMPUTE';
   enabled: boolean;
   deploymentLink: string;
 }
@@ -70,6 +70,8 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
         return Brain;
       case 'OBSERVABILITY':
         return BarChart3;
+      case 'COMPUTE':
+        return Zap;
       default:
         return Activity; // fallback icon
     }
@@ -80,7 +82,7 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
     const fetchPlatformInfo = async () => {
       try {
         setIsLoadingPartners(true);
-        const data = await apiClient.jsonRequest<any>('/v1/dashboard/platform/info');
+        const data = await apiClient.jsonRequest<any>('/v1/dashboard/platform/features');
         setPlatformInfo(data);
         
         // Handle userId based on auth config
@@ -120,7 +122,10 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
       label: partner.name,
       icon: getPartnerIcon(partner.category),
       link: partner.deploymentLink,
-      category: partner.category
+      category: partner.category,
+      code: partner.code,
+      // Special handling for E2B: if it's E2B and has no link, make it clickable internally
+      clickable: partner.code === 'e2b' && !partner.deploymentLink
     })) || [];
 
   // Static options that appear under Completions
@@ -130,7 +135,6 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
     // New clickable option directly below partner links
     { id: 'masaic-mocky', label: 'Mocky', icon: Sparkles, clickable: true },
     { id: 'add-model', label: 'Add Model', icon: Plus, clickable: true },
-    { id: 'e2b-server', label: 'E2B Server', icon: Server, clickable: true },
     { id: 'compliance', label: 'Compliance', icon: Shield },
   ];
 
@@ -214,7 +218,7 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
             staticCompletionOptions.map((option) => {
               const Icon = option.icon;
 
-              // External link behaviour for partner links
+              // External link behaviour for partner links (only if they have a link)
               if ('link' in option && option.link) {
                 return (
                   <Button
@@ -229,18 +233,21 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
                 );
               }
 
-              // Clickable internal option (e.g., Masaic Mocky)
+              // Clickable internal option (e.g., Masaic Mocky, E2B)
               if ('clickable' in option && option.clickable) {
+                // Special handling for E2B partner - open E2B modal
+                const tabId = 'code' in option && option.code === 'e2b' ? 'e2b-server' : option.id;
+                
                 return (
                   <Button
                     key={option.id}
-                    variant={activeTab === option.id ? 'secondary' : 'ghost'}
+                    variant={activeTab === tabId ? 'secondary' : 'ghost'}
                     className={`w-full justify-start text-xs h-8 ${
-                      activeTab === option.id
+                      activeTab === tabId
                         ? 'bg-accent text-accent-foreground'
                         : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
                     }`}
-                    onClick={() => onTabChange(option.id)}
+                    onClick={() => onTabChange(tabId)}
                   >
                     <Icon className="h-3 w-3 mr-2" />
                     {option.label}

@@ -6,9 +6,7 @@ import ai.masaic.openresponses.api.user.Scope
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.*
 import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
-import ai.masaic.platform.api.config.Partners
-import ai.masaic.platform.api.config.PlatformCoreConfig
-import ai.masaic.platform.api.config.PlatformInfo
+import ai.masaic.platform.api.config.*
 import ai.masaic.platform.api.interpreter.CodeExecResult
 import ai.masaic.platform.api.interpreter.CodeExecuteReq
 import ai.masaic.platform.api.interpreter.CodeRunnerService
@@ -225,15 +223,23 @@ ${request.description}
     }
 
     @GetMapping("/platform/info", produces = [MediaType.APPLICATION_JSON_VALUE])
-    suspend fun getPlatformInfo() = platformInfo.copy(partners = Partners(emptyList()))
+    suspend fun getPlatformInfo() = platformInfo
 
     @GetMapping("/platform/features", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun getFeatures(): PlatformInfo {
         val userInfo = UserInfoProvider.userInfo()
-        log.info { "UserInfo::: $userInfo" }
         return UserInfoProvider.userInfo()?.let {
             if (it.grantedScope == Scope.RESTRICTED) {
-                platformInfo.copy(partners = Partners(emptyList()))
+                val partners = platformInfo.partners.details.map { partner ->
+                    when(partner.category) {
+                        PartnerCategory.EVALS,
+                        PartnerCategory.VECTOR_DB,
+                        PartnerCategory.OBSERVABILITY,
+                        PartnerCategory.COMPUTE -> partner.copy(enabled = false)
+                        else -> partner
+                    }
+                }
+                platformInfo.copy(partners = Partners(details = partners), pyInterpreterSettings = PyInterpreterSettings(isEnabled = false))
             } else {
                 platformInfo
             }
