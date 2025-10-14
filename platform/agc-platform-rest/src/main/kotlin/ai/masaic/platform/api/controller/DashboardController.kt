@@ -21,12 +21,15 @@ import ai.masaic.platform.api.user.UserInfoProvider
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import mu.KotlinLogging
+import org.springframework.core.io.ByteArrayResource
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import java.net.URI
 import java.util.*
+import ai.masaic.platform.api.util.DownloadPackagingUtil
 
 @RestController
 @RequestMapping("/v1/dashboard")
@@ -403,6 +406,24 @@ ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF
             )
         return ResponseEntity.ok(funDetails)
     }
+
+    @PostMapping("/download", produces = [MediaType.APPLICATION_OCTET_STREAM_VALUE])
+    suspend fun downloadFile(
+        @RequestBody request: DownloadRequest,
+    ): ResponseEntity<ByteArrayResource> {
+        val zipBytes = DownloadPackagingUtil.buildZip(request)
+        val resource = ByteArrayResource(zipBytes)
+        val fileName = "download.zip"
+        val headers = HttpHeaders()
+        headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$fileName\"")
+        headers.add("X-Download-Metadata", mapper.writeValueAsString(request.downloadMetadata ?: emptyMap<String, Any>()))
+        return ResponseEntity
+            .ok()
+            .headers(headers)
+            .contentLength(zipBytes.size.toLong())
+            .contentType(MediaType.parseMediaType(MediaType.APPLICATION_OCTET_STREAM_VALUE))
+            .body(resource)
+    }
 }
 
 data class SuggestPyFunDetailsRequest(
@@ -424,4 +445,12 @@ data class SuggestPyFunDetailsResponse(
     val isCodeValid: Boolean,
     val codeProblem: String? = null,
     val code: String? = null,
+)
+
+data class DownloadRequest(
+    val functionName: String?,
+    val profile: String?,
+    val type: String?,
+    val format: String?,
+    val downloadMetadata: Map<String, Any>? = null,
 )

@@ -6,7 +6,7 @@ import tools.ClientSideTool;
 
 public class AddNumbersTool implements ClientSideTool {
     private static final Logger logger = LoggerFactory.getLogger(AddNumbersTool.class);
-    private static String TOOL_NAME = "add_two_number_new";
+    private static String TOOL_NAME = "add_two_numbers";
     private static String PROFILE_ID = "user_yWrOnKu6n";
 
     @Override

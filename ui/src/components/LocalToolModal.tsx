@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Loader2, Plus, Trash2, Copy, Wand2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
+import { apiClient } from '@/lib/api';
 
 interface LocalToolModalProps {
   open: boolean;
@@ -56,6 +57,8 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
   // Nudge links (customize as needed)
   const CLIENT_TOOL_DOWNLOAD_URL = '/client_side_tool.zip';
   const [howToUseOpen, setHowToUseOpen] = useState(false);
+  const [lastCreatedToolName, setLastCreatedToolName] = useState('');
+  const [downloadModalOpen, setDownloadModalOpen] = useState(false);
   const [showDownloadButton, setShowDownloadButton] = useState(false);
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState('');
@@ -339,7 +342,65 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     setShowDownloadButton(true);
     
     onSave(tool);
+    // Preserve the created tool name for the download modal (form resets on close)
+    setLastCreatedToolName(tool.name);
     onOpenChange(false);
+    
+    // Open download modal after creating a new tool (not when editing)
+    if (!isEditing) {
+      setDownloadModalOpen(true);
+    }
+  };
+
+  const handleDownloadClientRuntime = async () => {
+    try {
+      const effectiveName = (name && name.trim()) || (lastCreatedToolName && lastCreatedToolName.trim()) || '';
+      if (!effectiveName) {
+        toast.error('Please provide a valid function name before downloading');
+        return;
+      }
+
+      const profileId =
+        localStorage.getItem('platform_userId') ||
+        localStorage.getItem('platform_sessionId') ||
+        '';
+
+      const response = await apiClient.rawRequest('/v1/dashboard/download', {
+        method: 'POST',
+        body: JSON.stringify({
+          functionName: effectiveName,
+          profile: profileId,
+          type: 'download_code_snippet',
+          format: 'zip',
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Download failed (HTTP ${response.status})`);
+      }
+
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('content-disposition') || '';
+      const filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/);
+      const filename =
+        (filenameMatch && (decodeURIComponent(filenameMatch[1] || filenameMatch[2])) ) ||
+        `${effectiveName}_client_runtime.zip`;
+
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      toast.success('Download started');
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to download';
+      toast.error(message);
+    }
   };
 
   // Reset form when modal closes
@@ -418,16 +479,6 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
             <div className="text-xs text-muted-foreground">Supercharge your local tools — download the runtime and integrate in minutes.</div>
           </div>
           <div className="flex items-center gap-2">
-            {showDownloadButton && !isEditing && (
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => window.open(CLIENT_TOOL_DOWNLOAD_URL, '_blank', 'noopener,noreferrer')}
-                className="whitespace-nowrap bg-positive-trend text-white hover:bg-positive-trend/90"
-              >
-                Download
-              </Button>
-            )}
             <Button
               variant="outline"
               size="sm"
@@ -452,9 +503,11 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
                 value={name}
                 onChange={(e) => handleNameChange(e.target.value)}
                 placeholder="add_two_numbers"
+                readOnly={isEditing}
+                disabled={isEditing}
                 className={`bg-muted/50 border focus:border-positive-trend/60 ${
                   nameError ? 'border-red-500 focus:border-red-500' : 'border-border'
-                }`}
+                } ${isEditing ? 'opacity-70 cursor-not-allowed' : ''}`}
               />
               {nameError && (
                 <p className="text-xs text-red-500 mt-1">{nameError}</p>
@@ -779,17 +832,6 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
                   <p className="text-blue-700 text-sm">
                     Download the Java SDK client runtime to execute your tools locally.
                   </p>
-                  <div className="bg-white p-2 rounded border border-blue-200">
-                    <div className="pt-1">
-                      <Button
-                        size="sm"
-                        onClick={() => window.open(CLIENT_TOOL_DOWNLOAD_URL, '_blank')}
-                        className="bg-blue-600 text-white hover:bg-blue-700 text-xs"
-                      >
-                        Download Java SDK
-                      </Button>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -861,6 +903,32 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
             <p className="text-xs text-muted-foreground">
               Need help? Check our documentation or contact support.
             </p>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+
+    {/* Download Modal - Simple modal after tool creation */}
+    <Dialog open={downloadModalOpen} onOpenChange={setDownloadModalOpen}>
+      <DialogContent className="w-full max-w-md">
+        <DialogHeader>
+          <DialogTitle className="text-lg font-bold text-center">
+            Client‑Side Tool Runtime
+          </DialogTitle>
+          <DialogDescription className="text-center text-muted-foreground text-sm">
+            Download the runtime to execute your tool locally
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          <div className="flex justify-center">
+            <Button
+              size="lg"
+              onClick={handleDownloadClientRuntime}
+              className="bg-positive-trend hover:bg-positive-trend/90 text-white"
+            >
+              Download Runtime
+            </Button>
           </div>
         </div>
       </DialogContent>
