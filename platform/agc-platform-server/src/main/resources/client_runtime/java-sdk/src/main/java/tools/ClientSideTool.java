@@ -8,5 +8,5 @@ public interface ClientSideTool {
     String toolId();
 
     @ActivityMethod
-    String executeTool(String argumentsJson);
+    String executeTool(ToolRequest request);
 }
