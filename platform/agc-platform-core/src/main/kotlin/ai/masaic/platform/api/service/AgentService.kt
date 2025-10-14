@@ -2,6 +2,7 @@ package ai.masaic.platform.api.service
 
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.ResponseProcessingException
+import ai.masaic.openresponses.api.user.AccessManager
 import ai.masaic.openresponses.tool.*
 import ai.masaic.openresponses.tool.mcp.nativeToolDefinition
 import ai.masaic.platform.api.model.*
@@ -14,6 +15,7 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.client.OpenAIClient
 import org.slf4j.LoggerFactory
 import org.springframework.http.codec.ServerSentEvent
+import java.nio.file.AccessDeniedException
 
 class AgentService(
     private val agentRepository: AgentRepository,
@@ -37,6 +39,21 @@ class AgentService(
             throw ResponseProcessingException("Agent '${updatedAgent.name}' already exists.")
         }
 
+        // For updates, check access permission
+        if (isUpdate && existingAgent != null) {
+            if (!AccessManager.isAccessPermitted(existingAgent.accessControlJson)) {
+                throw AccessDeniedException("Access denied to agent: ${updatedAgent.name}")
+            }
+        }
+
+        // Compute access control for new agents, preserve for updates
+        val accessControl =
+            if (isUpdate) {
+                existingAgent?.accessControlJson?.let { AccessManager.fromString(it) }
+            } else {
+                AccessManager.computeAccessControl()
+            }
+
         // Transform agent.tools to ToolMeta
         val toolMeta = transformToolsToToolMeta(updatedAgent.tools)
         
@@ -58,6 +75,7 @@ class AgentService(
                 stream = updatedAgent.stream,
                 modelInfo = updatedAgent.model?.let { ModelInfoMeta(it) },
                 kind = updatedAgent.kind,
+                accessControlJson = accessControl?.let { AccessManager.toString(accessControl) },
             )
 
         // Save the agent meta to database (upsert will handle create/update automatically)
@@ -74,6 +92,11 @@ class AgentService(
         // Then check persisted agents
         val persistedAgentMeta = agentRepository.findByName(PlatformAgent.persistenceName(agentName)) ?: return null
         
+        // Check access permission
+        if (!AccessManager.isAccessPermitted(persistedAgentMeta.accessControlJson)) {
+            throw AccessDeniedException("Access denied to agent: $agentName")
+        }
+        
         // Convert meta to PlatformAgent
         return convertToPlatformAgent(persistedAgentMeta)
     }
@@ -81,7 +104,14 @@ class AgentService(
     suspend fun getAllAgents(): List<PlatformAgent> {
         // Only return persisted agents (not SYSTEM agents)
         val persistedAgentMetas = agentRepository.findAll()
-        return persistedAgentMetas.map {
+        
+        // Filter by access permission
+        val accessibleAgentMetas =
+            persistedAgentMetas.filter { agentMeta ->
+                AccessManager.isAccessPermitted(agentMeta.accessControlJson)
+            }
+        
+        return accessibleAgentMetas.map {
             val agent = convertToPlatformAgent(it)
             PlatformAgent(model = agent.model, name = agent.name, description = agent.description, systemPrompt = agent.systemPrompt)
         }
@@ -92,6 +122,14 @@ class AgentService(
         val updatedAgentName = PlatformAgent.persistenceName(agentName)
         if (getBuiltInAgent(updatedAgentName) != null) {
             return false
+        }
+        
+        // Check access permission before deletion
+        val existingAgent = agentRepository.findByName(updatedAgentName)
+        if (existingAgent != null) {
+            if (!AccessManager.isAccessPermitted(existingAgent.accessControlJson)) {
+                throw AccessDeniedException("Access denied to delete agent: $agentName")
+            }
         }
         
         // Delete persisted agent

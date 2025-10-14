@@ -23,6 +23,11 @@ interface AccessManager {
         suspend fun toString(accessControl: AccessControl) = accessManager.toString(accessControl)
 
         suspend fun fromString(accessControl: String) = accessManager.fromString(accessControl)
+
+        suspend fun isAccessPermitted(assignedControlStr: String?): Boolean {
+            val accessControl = assignedControlStr?.let { fromString(assignedControlStr) }
+            return isAccessPermitted(accessControl)
+        }
     }
 }
 

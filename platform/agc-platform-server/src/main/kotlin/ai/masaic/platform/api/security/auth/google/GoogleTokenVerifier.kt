@@ -3,7 +3,6 @@ package ai.masaic.platform.api.security.auth.google
 import ai.masaic.openresponses.api.user.Scope
 import ai.masaic.platform.api.security.GoogleAuthConfig
 import ai.masaic.platform.api.security.PlatformAccessForbiddenException
-import ai.masaic.platform.api.user.UserAccessControl
 import ai.masaic.platform.api.user.UserInfo
 import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier
 import com.google.api.client.http.javanet.NetHttpTransport
@@ -44,7 +43,7 @@ class GoogleTokenVerifier(
                             userId = payload.email,
                             fullName = if (payload["name"] is String) payload["name"] as String else "User",
                             firstName = if (payload["given_name"] is String) payload["given_name"] as String else "User",
-                            loggedIn = true
+                            loggedIn = true,
                         )
 
                     whitelistedUsers?.let {

@@ -1,7 +1,5 @@
 package ai.masaic.platform.api.user
 
-import ai.masaic.openresponses.api.user.AccessControl
-import ai.masaic.openresponses.api.user.NoAccessControl
 import ai.masaic.openresponses.api.user.Scope
 import ai.masaic.openresponses.api.utils.AgCLoopContext
 import ai.masaic.openresponses.api.utils.LoopContextInfo
@@ -11,7 +9,7 @@ data class UserInfo(
     val fullName: String = "User",
     val firstName: String = "User",
     val loggedIn: Boolean = false,
-    val grantedScope: Scope = Scope.RESTRICTED
+    val grantedScope: Scope = Scope.RESTRICTED,
 )
 
 interface UserInfoProvider {

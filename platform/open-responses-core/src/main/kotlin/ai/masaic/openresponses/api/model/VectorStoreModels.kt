@@ -1,6 +1,5 @@
 package ai.masaic.openresponses.api.model
 
-import ai.masaic.openresponses.api.user.AccessControl
 import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
