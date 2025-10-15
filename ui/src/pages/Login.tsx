@@ -2,7 +2,8 @@ import React, { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { GoogleLogin as GoogleLoginButton } from '@react-oauth/google';
 import { useNavigate, useLocation } from 'react-router-dom';
-import Silk from '@/components/backgrounds/Silk';
+import { Button } from '@/components/ui/button';
+import { Github, MessageCircle } from 'lucide-react';
 
 const Login: React.FC = () => {
   const { login, isAuthenticated } = useAuth();
@@ -38,12 +39,31 @@ const Login: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex bg-black lg:bg-transparent">
-      {/* Left Side - Silk Background with Text (60% width) - Desktop Only */}
-      <div className="hidden lg:flex lg:w-[60%] relative items-end justify-start p-16 pb-20 overflow-hidden">
-        <div className="absolute inset-0">
-          <Silk speed={2.8} scale={0.9} color="#525252" noiseIntensity={1.5} rotation={0} />
-        </div>
+    <div className="min-h-screen flex bg-black lg:bg-transparent relative">
+      {/* Social Links - Top Right (Absolute Position) */}
+      <div className="absolute top-6 right-6 z-20 flex gap-3">
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-12 w-12 bg-white/5 border-2 border-white/20 text-white hover:bg-white/10 hover:border-white/40 hover:scale-110 transition-all duration-200 shadow-lg backdrop-blur-sm"
+          onClick={() => window.open('https://github.com/masaic-ai-platform/AgC', '_blank')}
+          title="GitHub"
+        >
+          <Github className="h-7 w-7 stroke-[2.5]" />
+        </Button>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-12 w-12 bg-white/5 border-2 border-white/20 text-white hover:bg-white/10 hover:border-white/40 hover:scale-110 transition-all duration-200 shadow-lg backdrop-blur-sm"
+          onClick={() => window.open('https://discord.com/channels/1335132819260702723/1354795442004820068', '_blank')}
+          title="Discord"
+        >
+          <MessageCircle className="h-7 w-7 stroke-[2.5]" />
+        </Button>
+      </div>
+
+      {/* Left Side - Gradient Background with Text (60% width) - Desktop Only */}
+      <div className="hidden lg:flex lg:w-[60%] relative items-end justify-start p-16 pb-20 overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-black">
         <div className="relative z-10 max-w-2xl">
           <h1 className="text-5xl lg:text-6xl font-bold text-white leading-tight">
             The Platform

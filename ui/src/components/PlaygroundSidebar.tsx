@@ -140,8 +140,6 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
 
   const bottomOptions = [
     { id: 'api-keys', label: 'API Keys', icon: Key },
-    { id: 'github', label: 'GitHub', icon: Github, link: 'https://github.com/masaic-ai-platform' },
-    { id: 'discord', label: 'Discord', icon: MessageCircle, link: 'https://discord.com/channels/1335132819260702723/1354795442004820068' },
   ];
 
   // Add Sign Out option if authentication is enabled and user is authenticated
@@ -276,21 +274,6 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
       <div className="p-2 border-t border-border space-y-1">
         {bottomOptions.map((option) => {
           const Icon = option.icon;
-          const hasLink = 'link' in option && option.link;
-          
-          if (hasLink) {
-            return (
-              <Button
-                key={option.id}
-                variant="ghost"
-                className="w-full justify-start text-xs h-8 text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                onClick={() => window.open(option.link, '_blank')}
-              >
-                <Icon className="h-3 w-3 mr-2" />
-                {option.label}
-              </Button>
-            );
-          }
           
           return (
             <Button
