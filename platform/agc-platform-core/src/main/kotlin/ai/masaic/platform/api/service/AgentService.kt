@@ -266,8 +266,8 @@ class AgentService(
                             vectorStoreIds = tool.vectorStoreIds ?: emptyList(),
                             modelInfo =
                                 tool.modelInfo?.let { modelInfo ->
-                                    ModelInfoMeta(modelInfo.model ?: throw ResponseProcessingException("Model name is required for FileSearchTool"))
-                                } ?: throw ResponseProcessingException("ModelInfo is required for FileSearchTool"),
+                                    ModelInfoMeta(modelInfo.model ?: throw ResponseProcessingException("Filesearch tool is missing embedding model selection. Select embeddings model."))
+                                } ?: throw ResponseProcessingException("Filesearch tool is missing embedding model selection. Select embeddings model."),
                         ),
                     )
                 }
@@ -285,8 +285,8 @@ class AgentService(
                             enableTopPTuning = tool.enableTopPTuning,
                             modelInfo =
                                 tool.modelInfo?.let { modelInfo ->
-                                    ModelInfoMeta(modelInfo.model ?: throw ResponseProcessingException("Model name is required for AgenticSearchTool"))
-                                } ?: throw ResponseProcessingException("ModelInfo is required for AgenticSearchTool"),
+                                    ModelInfoMeta(modelInfo.model ?: throw ResponseProcessingException("AgenticSearch tool is missing embedding model selection. Select embeddings model."))
+                                } ?: throw ResponseProcessingException("AgenticSearch tool is missing embedding model selection. Select embeddings model."),
                         ),
                     )
                 }
