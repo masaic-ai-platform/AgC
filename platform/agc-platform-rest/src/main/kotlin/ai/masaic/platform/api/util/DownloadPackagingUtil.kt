@@ -59,10 +59,10 @@ package tools.impl;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import tools.ClientSideTool;
+import tools.AgcRuntimeTool;
 import tools.ToolRequest;
 
-public class $className implements ClientSideTool {
+public class $className implements AgcRuntimeTool {
     private static final Logger logger = LoggerFactory.getLogger($className.class);
     private static String TOOL_NAME = "$toolName";
     private static String PROFILE_ID = "$profileId";
