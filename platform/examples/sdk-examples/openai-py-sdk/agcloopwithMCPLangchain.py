@@ -1,10 +1,65 @@
 import os
 import sys
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Literal
 from langchain_openai import ChatOpenAI
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
+from pydantic import BaseModel, Field
+
+
+class AllbirdsMCPToolInput(BaseModel):
+    """Input schema for Allbirds MCP tool with strict validation."""
+    
+    type: Literal["mcp"] = Field(
+        description="Tool type identifier for MCP server communication",
+        default="mcp"
+    )
+    server_label: Literal["allbirds"] = Field(
+        description="Unique identifier for the Allbirds MCP server",
+        default="allbirds"
+    )
+    server_url: Literal["https://allbirds.com/api/mcp"] = Field(
+        description="Endpoint URL for the Allbirds MCP server API",
+        default="https://allbirds.com/api/mcp"
+    )
+
+
+@tool(args_schema=AllbirdsMCPToolInput)
+def allbirds_mcp_tool_action_YWxsYmlyZH(
+    type: Literal["mcp"] = "mcp",
+    server_label: Literal["allbirds"] = "allbirds",
+    server_url: Literal["https://allbirds.com/api/mcp"] = "https://allbirds.com/api/mcp"
+) -> Dict[str, Any]:
+    """Allbirds MCP server tool for e-commerce operations.
+    
+    This tool connects to the Allbirds Model Context Protocol (MCP) server
+    to perform e-commerce operations including:
+    - Product search and discovery
+    - Shopping cart management
+    - Checkout link generation
+    
+    Use this tool when you need to:
+    - Search for Allbirds products (shoes, apparel, accessories)
+    - Add items to shopping cart
+    - Retrieve checkout URLs for customers
+    - Get product details, pricing, and availability
+    
+    Args:
+        type: MCP protocol type identifier (always "mcp")
+        server_label: Server identifier for routing (always "allbirds")
+        server_url: API endpoint for the Allbirds MCP server
+        
+    Returns:
+        Dictionary containing the tool execution result from the MCP server
+    """
+    # This function signature is required for AgC platform integration
+    # The actual execution is handled by the AgC platform MCP middleware
+    return {
+        "type": type,
+        "server_label": server_label,
+        "server_url": server_url
+    }
 
 
 class AgCLoopWithMCPLangChainExample:
@@ -30,35 +85,6 @@ class AgCLoopWithMCPLangChainExample:
             callbacks=[StreamingStdOutCallbackHandler()]
         )
     
-    def create_allbirds_mcp_tool(self) -> Dict[str, Any]:
-        """Create the Allbirds MCP tool configuration for LangChain."""
-        return {
-            "type": "function",
-            "function": {
-                "name": "allbirds_mcp_tool_action_YWxsYmlyZH",
-                "description": "Allbirds MCP server tool",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "type": {
-                            "type": "string",
-                            "enum": ["mcp"]
-                        },
-                        "server_label": {
-                            "type": "string",
-                            "enum": ["allbirds"]
-                        },
-                        "server_url": {
-                            "type": "string",
-                            "enum": ["https://allbirds.com/api/mcp"]
-                        }
-                    },
-                    "required": ["type", "server_label", "server_url"],
-                    "additionalProperties": False
-                }
-            }
-        }
-    
     def create_messages(self) -> List[Any]:
         """Create the conversation messages for the ecommerce assistant."""
         system_content = (
@@ -79,11 +105,14 @@ class AgCLoopWithMCPLangChainExample:
         
         try:
             messages = self.create_messages()
-            tools = [self.create_allbirds_mcp_tool()]
+            
+            # Convert LangChain tool to OpenAI function format for proper serialization
+            from langchain_core.utils.function_calling import convert_to_openai_tool
+            tool_definition = convert_to_openai_tool(allbirds_mcp_tool_action_YWxsYmlyZH)
             
             # Bind tools to the LLM
             llm_with_tools = self.llm.bind(
-                tools=tools,
+                tools=[tool_definition],
                 tool_choice=None
             )
             
