@@ -119,12 +119,11 @@ class AgCLoopWithMCPLangChainExample:
             print(f"🤖 Model: {self.MODEL}")
             print("--- 🌊 Streaming Response ---")
             
-            # Stream the response
-            response = llm_with_tools.stream(messages)
-            
-            # Process streaming chunks
-            for chunk in response:
-                self.process_stream_chunk(chunk)
+            # Stream the response - StreamingStdOutCallbackHandler prints automatically
+            # Note: AgC platform handles MCP tool execution server-side and returns
+            # results as content, so no tool calls will appear in the stream
+            for chunk in llm_with_tools.stream(messages):
+                pass  # StreamingStdOutCallbackHandler handles output
             
             print("\n--- ✅ Streaming Complete ---")
             
@@ -132,23 +131,6 @@ class AgCLoopWithMCPLangChainExample:
             print(f"\n❌ Error: {e}")
             import traceback
             traceback.print_exc()
-
-    def process_stream_chunk(self, chunk) -> None:
-        """Process each streaming chunk and display relevant information."""
-        # Display tool call information if present
-        if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
-            print(f"\n🔧 [Tool calls detected]")
-            for tool_call in chunk.tool_calls:
-                print(f"   ⚙️  {tool_call.get('name', 'Unknown tool')}")
-        
-        # Display additional tool call info if present in kwargs
-        if hasattr(chunk, 'additional_kwargs') and 'tool_calls' in chunk.additional_kwargs:
-            tool_calls = chunk.additional_kwargs['tool_calls']
-            if tool_calls:
-                print(f"\n🔧 [Tool calls detected]")
-                for tool_call in tool_calls:
-                    if 'function' in tool_call:
-                        print(f"   ⚙️  {tool_call['function'].get('name', 'Unknown')}")
 
     def run(self) -> None:
         """Run the AgC example."""
