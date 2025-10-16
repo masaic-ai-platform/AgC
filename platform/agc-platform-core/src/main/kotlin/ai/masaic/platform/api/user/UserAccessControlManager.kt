@@ -52,7 +52,6 @@ class UserAccessControlManager : AllowAllAccessManager() {
     override suspend fun toString(accessControl: AccessControl): String =
         when (accessControl) {
             is UserAccessControl -> mapper.writeValueAsString(mapOf("userInfo" to accessControl.userId, "grantedScope" to accessControl.grantedScope.name, "deletionScope" to accessControl.deletionScope.name))
-//            is SystemLevelAccessControl -> mapper.writeValueAsString(mapOf("accessControlType" to SystemLevelAccessControl::class.qualifiedName, "grantedScope" to accessControl.grantedScope.name))
             is NoAccessControl -> super.toString(accessControl)
             else -> throw IllegalStateException("unknown access control type.")
         }
