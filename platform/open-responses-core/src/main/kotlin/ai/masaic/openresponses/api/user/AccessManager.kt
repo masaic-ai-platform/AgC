@@ -3,7 +3,7 @@ package ai.masaic.openresponses.api.user
 interface AccessManager {
     suspend fun computeAccessControl(): AccessControl = NoAccessControl()
 
-    suspend fun isAccessPermitted(assignedControl: AccessControl?): Boolean = true
+    suspend fun isAccessPermitted(assignedControl: AccessControl?): Rights = Rights()
 
     suspend fun toString(accessControl: AccessControl): String
 
@@ -24,7 +24,7 @@ interface AccessManager {
 
         suspend fun fromString(accessControl: String) = accessManager.fromString(accessControl)
 
-        suspend fun isAccessPermitted(assignedControlStr: String?): Boolean {
+        suspend fun isAccessPermitted(assignedControlStr: String?): Rights {
             val accessControl = assignedControlStr?.let { fromString(assignedControlStr) }
             return isAccessPermitted(accessControl)
         }
@@ -49,3 +49,10 @@ enum class Scope {
     RESTRICTED,
     FULL,
 }
+
+data class Rights(
+    val read: Boolean = true,
+    val write: Boolean = true,
+    val update: Boolean = true,
+    val delete: Boolean = true,
+)

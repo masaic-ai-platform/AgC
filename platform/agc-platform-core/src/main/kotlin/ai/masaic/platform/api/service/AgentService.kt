@@ -1,6 +1,7 @@
 package ai.masaic.platform.api.service
 
 import ai.masaic.openresponses.api.model.*
+import ai.masaic.openresponses.api.service.AccessDeniedException
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.api.user.AccessManager
 import ai.masaic.openresponses.tool.*
@@ -15,7 +16,6 @@ import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.client.OpenAIClient
 import org.slf4j.LoggerFactory
 import org.springframework.http.codec.ServerSentEvent
-import java.nio.file.AccessDeniedException
 
 class AgentService(
     private val agentRepository: AgentRepository,
@@ -41,7 +41,7 @@ class AgentService(
 
         // For updates, check access permission
         if (isUpdate && existingAgent != null) {
-            if (!AccessManager.isAccessPermitted(existingAgent.accessControlJson)) {
+            if (!AccessManager.isAccessPermitted(existingAgent.accessControlJson).update) {
                 throw AccessDeniedException("Access denied to agent: ${updatedAgent.name}")
             }
         }
@@ -93,7 +93,7 @@ class AgentService(
         val persistedAgentMeta = agentRepository.findByName(PlatformAgent.persistenceName(agentName)) ?: return null
         
         // Check access permission
-        if (!AccessManager.isAccessPermitted(persistedAgentMeta.accessControlJson)) {
+        if (!AccessManager.isAccessPermitted(persistedAgentMeta.accessControlJson).read) {
             throw AccessDeniedException("Access denied to agent: $agentName")
         }
         
@@ -108,7 +108,7 @@ class AgentService(
         // Filter by access permission
         val accessibleAgentMetas =
             persistedAgentMetas.filter { agentMeta ->
-                AccessManager.isAccessPermitted(agentMeta.accessControlJson)
+                AccessManager.isAccessPermitted(agentMeta.accessControlJson).read
             }
         
         return accessibleAgentMetas.map {
@@ -127,7 +127,7 @@ class AgentService(
         // Check access permission before deletion
         val existingAgent = agentRepository.findByName(updatedAgentName)
         if (existingAgent != null) {
-            if (!AccessManager.isAccessPermitted(existingAgent.accessControlJson)) {
+            if (!AccessManager.isAccessPermitted(existingAgent.accessControlJson).delete) {
                 throw AccessDeniedException("Access denied to delete agent: $agentName")
             }
         }

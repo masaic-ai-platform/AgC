@@ -2,18 +2,23 @@ package ai.masaic.platform.api.service
 
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.ResponseProcessingException
+import ai.masaic.openresponses.api.user.AccessManager
+import ai.masaic.openresponses.api.utils.AgCLoopContext
 import ai.masaic.platform.api.model.PlatformAgent
 import ai.masaic.platform.api.registry.functions.FunctionCreate
 import ai.masaic.platform.api.registry.functions.FunctionRegistryService
 import ai.masaic.platform.api.repository.MockFunctionRepository
 import ai.masaic.platform.api.repository.MocksRepository
 import ai.masaic.platform.api.tools.*
+import ai.masaic.platform.api.user.SYSTEM_USER
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.core.io.ClassPathResource
+import java.util.*
 
 /**
  * Service responsible for bootstrapping pre-built agents from JSON configuration
@@ -37,25 +42,22 @@ open class AgentBootstrapService(
      */
     @EventListener(ApplicationReadyEvent::class)
     open suspend fun bootstrapAgentsOnStartup() {
-        try {
-            log.info("Starting agent bootstrapping process...")
-            val agents = loadAgentDefinitions()
-            val mockFunctions = loadMockFunctions()
-            if (agents.isEmpty()) {
-                log.warn("No agent definitions found in classpath resource: $agentDefFileName")
-                return
+        val ctx = AgCLoopContext(userId = SYSTEM_USER)
+        withContext(ctx) {
+            try {
+                log.info("Starting agent bootstrapping process...")
+                val agents = loadAgentDefinitions()
+                val mockFunctions = loadMockFunctions()
+                if (agents.isEmpty()) {
+                    log.warn("No agent definitions found in classpath resource: $agentDefFileName")
+                    return@withContext
+                }
+
+                val bootstrappedCount = bootstrapAgents(agents, mockFunctions)
+                log.info("Agent bootstrapping completed.")
+            } catch (e: Exception) {
+                log.error("Failed to bootstrap agents: ${e.message}", e)
             }
-
-            // Check if we should skip bootstrapping entirely
-//            if (agentService.getAllAgents().isNotEmpty()) {
-//                log.info("Skipping agent bootstrapping because agent(s) exist in the store")
-//                return
-//            }
-
-            val bootstrappedCount = bootstrapAgents(agents, mockFunctions)
-            log.info("Agent bootstrapping completed.")
-        } catch (e: Exception) {
-            log.error("Failed to bootstrap agents: ${e.message}", e)
         }
     }
 
@@ -92,7 +94,7 @@ open class AgentBootstrapService(
         log.info("Loaded ${functions.size} functions from $mockFunFileName")
         val functionMap = mutableMapOf<String, BootstrapMockFunction>()
         functions.map { function ->
-            val mockFunctionDef = MockFunctionDefinition(functionBody = function.function, outputSchem = "")
+            val mockFunctionDef = MockFunctionDefinition(id = function.function.id ?: UUID.randomUUID().toString(), functionBody = function.function, outputSchem = "", accessControlJson = AccessManager.toString(AccessManager.computeAccessControl()))
             val mocks = Mocks(refFunctionId = mockFunctionDef.id, mockJsons = function.mocks.map { mapper.writeValueAsString(it) })
             functionMap[function.function.name] = BootstrapMockFunction(function = mockFunctionDef, mocks = mocks)
         }
@@ -136,12 +138,12 @@ open class AgentBootstrapService(
                                             } ?: return@mapNotNull null
 
                                         log.info("Saving mock function $name for ${agent.name}")
-                                        val def = mockFunctionRepository.upsert(boot.function)
+                                        val def = mockFunctionRepository.upsert(boot.function.copy(accessControlJson = AccessManager.toString(AccessManager.computeAccessControl())))
                                         mocksRepository.upsert(boot.mocks.copy(refFunctionId = def.id))
                                         def
                                     }
 
-                                val mockServer = platformMcpService.createMockServer(CreateMockMcpServerRequest(tool.serverLabel, mocks.map { it.id }))
+                                val mockServer = platformMcpService.createMockServer(CreateMockMcpServerRequest(id = tool.serverLabel, serverLabel = tool.serverLabel, toolIds = mocks.map { it.id }))
                                 agentTools.remove(tool)
                                 val mcpServer = MCPTool(type = "mcp", serverLabel = mockServer.serverLabel, serverUrl = mockServer.url).toMCPServerInfo()
                                 agentTools += MCPTool(type = "mcp", serverLabel = mockServer.serverLabel, serverUrl = mockServer.url, allowedTools = mocks.map { it.functionBody.name })
@@ -160,7 +162,7 @@ open class AgentBootstrapService(
                     try {
                         agentService.saveAgent(agentToSave, false)
                         log.info { "saved agent: ${agentToSave.name}" }
-                    }catch (ex: ResponseProcessingException) {
+                    } catch (ex: ResponseProcessingException) {
                         agentService.saveAgent(agentToSave, true)
                         log.info { "updated agent: ${agentToSave.name}" }
                     }

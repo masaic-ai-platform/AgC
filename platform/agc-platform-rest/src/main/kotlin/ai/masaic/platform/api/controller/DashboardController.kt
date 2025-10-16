@@ -230,15 +230,17 @@ ${request.description}
         val userInfo = UserInfoProvider.userInfo()
         return UserInfoProvider.userInfo()?.let {
             if (it.grantedScope == Scope.RESTRICTED) {
-                val partners = platformInfo.partners.details.map { partner ->
-                    when(partner.category) {
-                        PartnerCategory.EVALS,
-                        PartnerCategory.VECTOR_DB,
-                        PartnerCategory.OBSERVABILITY,
-                        PartnerCategory.COMPUTE -> partner.copy(enabled = false)
-                        else -> partner
+                val partners =
+                    platformInfo.partners.details.map { partner ->
+                        when (partner.category) {
+                            PartnerCategory.EVALS,
+                            PartnerCategory.VECTOR_DB,
+                            PartnerCategory.OBSERVABILITY,
+                            PartnerCategory.COMPUTE,
+                            -> partner.copy(enabled = false)
+                            else -> partner
+                        }
                     }
-                }
                 platformInfo.copy(partners = Partners(details = partners), pyInterpreterSettings = PyInterpreterSettings(isEnabled = false))
             } else {
                 platformInfo

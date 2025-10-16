@@ -12,6 +12,8 @@ data class UserInfo(
     val grantedScope: Scope = Scope.RESTRICTED,
 )
 
+const val SYSTEM_USER = "agc_system_user"
+
 interface UserInfoProvider {
     suspend fun userId(): String? = null
 
@@ -28,7 +30,15 @@ interface UserInfoProvider {
 
         suspend fun userId(): String? = infoProvider.userId() ?: AgCLoopContext.userId()
 
-        suspend fun userInfo(): UserInfo? = infoProvider.userInfo() ?: AgCLoopContext.userId()?.let { UserInfo(userId = AgCLoopContext.userId() ?: "") }
+        suspend fun userInfo(): UserInfo? =
+            infoProvider.userInfo() ?: AgCLoopContext.userId()?.let {
+                val userId = AgCLoopContext.userId() ?: return@let null
+                if (SYSTEM_USER == userId) {
+                    UserInfo(userId = userId, grantedScope = Scope.FULL, fullName = userId, firstName = userId)
+                } else {
+                    UserInfo(userId = AgCLoopContext.userId() ?: "")
+                }
+            }
 
         suspend fun sessionId(): String? = infoProvider.sessionId() ?: AgCLoopContext.sessionId()
 
