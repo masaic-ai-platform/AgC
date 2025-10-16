@@ -99,8 +99,7 @@ SCHEMA DESCRIPTION
 ${request.description}
             """.trimIndent()
 
-        val applicableSettings =
-            modelSettings.resolveSystemSettings(ModelInfo.fromApiKey(authHeader, request.modelInfo?.model))
+        val applicableSettings = modelSettings.resolveSystemSettings(ModelInfo.fromApiKey(authHeader, request.modelInfo?.model))
         val createCompletionRequest =
             CreateCompletionRequest(
                 messages =
@@ -122,8 +121,7 @@ ${request.description}
         @RequestBody request: FunctionGenerationRequest,
         @RequestHeader("Authorization") authHeader: String? = null,
     ): ResponseEntity<FunctionGenerationResponse> {
-        val finalSettings =
-            modelSettings.resolveSystemSettings(ModelInfo.fromApiKey(authHeader, request.modelInfo?.model))
+        val finalSettings = modelSettings.resolveSystemSettings(ModelInfo.fromApiKey(authHeader, request.modelInfo?.model))
         val response = funDefGenerationTool.executeTool(request, finalSettings)
         return ResponseEntity.ok(response)
     }
@@ -133,8 +131,7 @@ ${request.description}
         @RequestBody request: PromptGenerationRequest,
         @RequestHeader("Authorization") authHeader: String? = null,
     ): ResponseEntity<PromptGenerationResponse> {
-        val finalSettings =
-            modelSettings.resolveSystemSettings(ModelInfo.fromApiKey(authHeader, request.modelInfo?.model))
+        val finalSettings = modelSettings.resolveSystemSettings(ModelInfo.fromApiKey(authHeader, request.modelInfo?.model))
         val systemPrompt = systemPromptGeneratorTool.generatePrompt(request, finalSettings)
         return ResponseEntity.ok(PromptGenerationResponse(systemPrompt))
     }
@@ -163,13 +160,11 @@ ${request.description}
         }
 
         if (beginOAuthFlow) {
-            val redirectUri =
-                URI("${platformInfo.oAuthRedirectSpecs.agcPlatformRedirectUri}/v1/dashboard/oauth/callback")
+            val redirectUri = URI("${platformInfo.oAuthRedirectSpecs.agcPlatformRedirectUri}/v1/dashboard/oauth/callback")
             log.info { "Redirect URI for oAuth login will be $redirectUri" }
             val oAuthUri = mcpoAuthService.beginOAuthFlow(mcpTool, redirectUri)
             log.info { "oAuthUri for mcp is $oAuthUri" }
-            return ResponseEntity.ok()
-                .body(mapOf("statusCode" to HttpStatus.UNAUTHORIZED, "location" to oAuthUri.toString()))
+            return ResponseEntity.ok().body(mapOf("statusCode" to HttpStatus.UNAUTHORIZED, "location" to oAuthUri.toString()))
         }
 
         return ResponseEntity.ok(geTools(mcpListToolsRequest))
@@ -209,8 +204,7 @@ ${request.description}
         @RequestParam state: String,
     ): ResponseEntity<Any> {
         val mcpTool = mcpoAuthService.handleCallback(code, state)
-        val finalUrl =
-            "${platformInfo.oAuthRedirectSpecs.agcUiHost}?screen=playground&modal=mcp&serverUrl=${mcpTool.serverUrl}&serverLabel=${mcpTool.serverLabel}&accessToken=${mcpTool.headers["accessToken"]}"
+        val finalUrl = "${platformInfo.oAuthRedirectSpecs.agcUiHost}?screen=playground&modal=mcp&serverUrl=${mcpTool.serverUrl}&serverLabel=${mcpTool.serverLabel}&accessToken=${mcpTool.headers["accessToken"]}"
         log.info { "finalUrl: $finalUrl" }
         return ResponseEntity.status(HttpStatus.FOUND).location(URI(finalUrl)).build()
     }
@@ -219,17 +213,10 @@ ${request.description}
     suspend fun executeMCPTool(
         @RequestBody toolRequest: ExecuteToolRequest,
     ): String {
-        val toolDefinition = toolService.findToolByName(toolRequest.name)
-            ?: throw ResponseProcessingException("Tool ${toolRequest.name} not found.")
+        val toolDefinition = toolService.findToolByName(toolRequest.name) ?: throw ResponseProcessingException("Tool ${toolRequest.name} not found.")
         val toolResponse =
             try {
-                mcpToolExecutor.executeTool(
-                    toolDefinition,
-                    mapper.writeValueAsString(toolRequest.arguments),
-                    null,
-                    null,
-                    null
-                ) ?: throw ResponseProcessingException("no response returned by tool ${toolRequest.name}")
+                mcpToolExecutor.executeTool(toolDefinition, mapper.writeValueAsString(toolRequest.arguments), null, null, null) ?: throw ResponseProcessingException("no response returned by tool ${toolRequest.name}")
             } catch (ex: McpUnAuthorizedException) {
                 mcpToolRegistry.invalidateTool(toolDefinition as McpToolDefinition)
                 log.error("Received ${ex.javaClass}, while running ${toolDefinition.name}, error: ${ex.message}")
@@ -255,15 +242,11 @@ ${request.description}
                             PartnerCategory.VECTOR_DB,
                             PartnerCategory.OBSERVABILITY,
                             PartnerCategory.COMPUTE,
-                                -> partner.copy(enabled = false)
-
+                            -> partner.copy(enabled = false)
                             else -> partner
                         }
                     }
-                platformInfo.copy(
-                    partners = Partners(details = partners),
-                    pyInterpreterSettings = PyInterpreterSettings(isEnabled = false)
-                )
+                platformInfo.copy(partners = Partners(details = partners), pyInterpreterSettings = PyInterpreterSettings(isEnabled = false))
             } else {
                 platformInfo
             }
@@ -354,8 +337,7 @@ Code:
 ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF_8)}
             """.trimIndent()
 
-        val finalSettings =
-            modelSettings.resolveSystemSettings(ModelInfo.fromApiKey(authHeader, request.modelInfo?.model))
+        val finalSettings = modelSettings.resolveSystemSettings(ModelInfo.fromApiKey(authHeader, request.modelInfo?.model))
         val createCompletionRequest =
             CreateCompletionRequest(
                 messages =
@@ -369,25 +351,15 @@ ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF
             )
         var response: SuggestPyFunDetailsResponse? = null
         try {
-            response = modelService.createCompletion<SuggestPyFunDetailsResponse>(
-                createCompletionRequest,
-                finalSettings.apiKey
-            )
+            response = modelService.createCompletion<SuggestPyFunDetailsResponse>(createCompletionRequest, finalSettings.apiKey)
         } catch (ex: Exception) {
             throw ResponseProcessingException("Unable to create suggestions due to error ${ex.message}")
         }
 
         val functionDetails = request.functionDetails
         val suggestedFunctionResponse = response.suggestedFunctionDetails
-        val finalSuggestedFunDetails = ConfigureFunDetails(
-            name = suggestedFunctionResponse?.name,
-            description = functionDetails?.description ?: suggestedFunctionResponse?.description,
-            parameters = suggestedFunctionResponse?.parameters ?: functionDetails?.parameters
-        )
-        val finalResponse = response.copy(
-            suggestedFunctionDetails = finalSuggestedFunDetails,
-            testData = response.testData ?: request.testData
-        )
+        val finalSuggestedFunDetails = ConfigureFunDetails(name = suggestedFunctionResponse?.name, description = functionDetails?.description ?: suggestedFunctionResponse?.description, parameters = suggestedFunctionResponse?.parameters ?: functionDetails?.parameters)
+        val finalResponse = response.copy(suggestedFunctionDetails = finalSuggestedFunDetails, testData = response.testData ?: request.testData)
 
         val funName = finalResponse.suggestedFunctionDetails?.name ?: "not available"
         return ResponseEntity.ok(finalResponse)
@@ -441,14 +413,14 @@ ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF
     suspend fun downloadFile(
         @RequestBody request: DownloadRequest,
     ): ResponseEntity<ByteArrayResource> {
-        val zipBytes = DownloadPackagingUtil.buildZip(request,agcRuntimePath)
+        val zipBytes = DownloadPackagingUtil.buildZip(request, agcRuntimePath)
         val resource = ByteArrayResource(zipBytes)
         val fileName = "agc-runtime.zip"
         val headers = HttpHeaders()
         headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$fileName\"")
         headers.add(
             "X-Download-Metadata",
-            mapper.writeValueAsString(request.downloadMetadata ?: emptyMap<String, Any>())
+            mapper.writeValueAsString(request.downloadMetadata ?: emptyMap<String, Any>()),
         )
         return ResponseEntity
             .ok()

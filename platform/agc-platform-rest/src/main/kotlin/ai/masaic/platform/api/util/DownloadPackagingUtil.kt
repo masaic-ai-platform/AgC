@@ -1,6 +1,7 @@
 package ai.masaic.platform.api.util
 
 import ai.masaic.platform.api.controller.DownloadRequest
+import ai.masaic.platform.api.user.UserInfoProvider
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
@@ -13,13 +14,18 @@ import java.util.zip.ZipOutputStream
 object DownloadPackagingUtil {
     private val logger = LoggerFactory.getLogger(DownloadPackagingUtil::class.java)
 
-    fun buildZip(request: DownloadRequest, agcRuntimePath: String): ByteArray {
+    suspend fun buildZip(
+        request: DownloadRequest,
+        agcRuntimePath: String,
+    ): ByteArray {
         val functionName = request.functionName?.trim().orEmpty()
-        val profileId = request.profile?.trim().orEmpty()
+        val profileId = UserInfoProvider.userId() ?: request.profile?.trim().orEmpty()
         val type = request.type ?: "client_side"
         logger.info(
             "Building zip for download request: functionName={},type={}",
-            functionName, profileId, type
+            functionName,
+            profileId,
+            type,
         )
         val baos = ByteArrayOutputStream()
         ZipOutputStream(baos).use { zos ->
@@ -53,7 +59,11 @@ object DownloadPackagingUtil {
                 part.substring(0, 1).uppercase() + part.substring(1)
             }
 
-    private fun buildJavaClientTool(className: String, toolName: String, profileId: String): String =
+    private fun buildJavaClientTool(
+        className: String,
+        toolName: String,
+        profileId: String,
+    ): String =
         """
 package tools.impl;
 
@@ -83,7 +93,11 @@ public class $className implements AgcRuntimeTool {
 }
         """.trimIndent()
 
-    private fun addDirectoryToZip(zos: ZipOutputStream, baseDir: Path, zipRootPrefix: String) {
+    private fun addDirectoryToZip(
+        zos: ZipOutputStream,
+        baseDir: Path,
+        zipRootPrefix: String,
+    ) {
         Files.walk(baseDir).use { paths ->
             paths.filter { Files.isRegularFile(it) }.forEach { filePath ->
                 val relative = baseDir.relativize(filePath).toString().replace('\\', '/')
