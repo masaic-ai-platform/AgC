@@ -13,7 +13,7 @@ import java.util.zip.ZipOutputStream
 object DownloadPackagingUtil {
     private val logger = LoggerFactory.getLogger(DownloadPackagingUtil::class.java)
 
-    fun buildZip(request: DownloadRequest): ByteArray {
+    fun buildZip(request: DownloadRequest, agcRuntimePath: String): ByteArray {
         val functionName = request.functionName?.trim().orEmpty()
         val profileId = request.profile?.trim().orEmpty()
         val type = request.type ?: "client_side"
@@ -24,7 +24,7 @@ object DownloadPackagingUtil {
         val baos = ByteArrayOutputStream()
         ZipOutputStream(baos).use { zos ->
             // Include the agc-client-runtime/java-sdk project from platform directory first
-            val javaSdkDir: Path = Paths.get("../agc-client-runtime/java-sdk")
+            val javaSdkDir: Path = Paths.get(agcRuntimePath)
             if (Files.exists(javaSdkDir) && Files.isDirectory(javaSdkDir)) {
                 logger.info("Including agc-client-runtime directory: {}", javaSdkDir.toAbsolutePath())
                 addDirectoryToZip(zos, javaSdkDir, "agc-runtime")

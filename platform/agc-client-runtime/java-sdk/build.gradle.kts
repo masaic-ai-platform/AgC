@@ -30,6 +30,7 @@ application {
 }
 
 tasks.named<JavaExec>("run") {
+    dependsOn("build")
     standardInput = System.`in`
 }
 
