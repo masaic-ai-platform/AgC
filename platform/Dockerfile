@@ -7,7 +7,7 @@ USER app
 WORKDIR /app
 
 # Copy the built JAR and configuration file into the image
-COPY open-responses-server/build/libs/openresponses-0.6.1-dev.jar /app/openresponses-0.6.1-dev.jar
+COPY open-responses-server/build/libs/openresponses-0.7.0-dev.jar /app/openresponses-0.7.0-dev.jar
 
 EXPOSE 6644
 # Start the Java application directly
