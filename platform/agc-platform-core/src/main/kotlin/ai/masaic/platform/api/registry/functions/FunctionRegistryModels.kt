@@ -20,6 +20,7 @@ data class FunctionDoc(
     val outputSchema: MutableMap<String, Any> = mutableMapOf(),
     val createdAt: Instant,
     val updatedAt: Instant,
+    val accessControlJson: String? = null,
 )
 
 /**

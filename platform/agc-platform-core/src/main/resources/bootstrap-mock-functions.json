@@ -1,6 +1,7 @@
 [
   {
     "function": {
+      "id": "pre_loaded-get_call_transcript",
       "name": "get_call_transcript",
       "description": "Retrieves the call transcript in markdown format for a given customer name.",
       "parameters": {

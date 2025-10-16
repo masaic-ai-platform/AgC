@@ -1,5 +1,6 @@
 package ai.masaic.platform.api.controller
 
+import ai.masaic.openresponses.api.service.AccessDeniedException
 import ai.masaic.platform.api.service.AgentRunException
 import ai.masaic.platform.api.tools.MultiPlugAdapterException
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties
@@ -25,7 +26,7 @@ class PlatformExceptionHandler {
         }
     }
 
-    @ExceptionHandler(exception = [AgentRunException::class, MultiPlugAdapterException::class])
+    @ExceptionHandler(exception = [AgentRunException::class, MultiPlugAdapterException::class, AccessDeniedException::class])
     fun handleResponseProcessingException(ex: Exception): ResponseEntity<ErrorResponse> {
         val status = HttpStatus.INTERNAL_SERVER_ERROR
         logError(status, ex, "Error processing response: ${ex.message}")

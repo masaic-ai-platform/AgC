@@ -4,6 +4,7 @@ import { GoogleLogin as GoogleLoginButton } from '@react-oauth/google';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Github, MessageCircle } from 'lucide-react';
+import Silk from '@/components/backgrounds/Silk';
 
 const Login: React.FC = () => {
   const { login, isAuthenticated } = useAuth();
@@ -62,8 +63,11 @@ const Login: React.FC = () => {
         </Button>
       </div>
 
-      {/* Left Side - Gradient Background with Text (60% width) - Desktop Only */}
-      <div className="hidden lg:flex lg:w-[60%] relative items-end justify-start p-16 pb-20 overflow-hidden bg-gradient-to-br from-gray-900 via-gray-800 to-black">
+      {/* Left Side - Silk Background with Text (60% width) - Desktop Only */}
+      <div className="hidden lg:flex lg:w-[60%] relative items-end justify-start p-16 pb-20 overflow-hidden">
+        <div className="absolute inset-0">
+          <Silk speed={2.8} scale={0.9} color="#525252" noiseIntensity={1.5} rotation={0} />
+        </div>
         <div className="relative z-10 max-w-2xl">
           <h1 className="text-5xl lg:text-6xl font-bold text-white leading-tight">
             The Platform

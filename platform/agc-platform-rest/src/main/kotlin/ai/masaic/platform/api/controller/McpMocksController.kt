@@ -1,6 +1,5 @@
 package ai.masaic.platform.api.controller
 
-import ai.masaic.platform.api.repository.MockFunctionRepository
 import ai.masaic.platform.api.tools.*
 import org.springframework.http.HttpStatusCode
 import org.springframework.http.MediaType
@@ -12,7 +11,6 @@ import org.springframework.web.bind.annotation.*
 @CrossOrigin("*")
 class McpMocksController(
     private val platformMcpService: PlatformMcpService,
-    private val mockFunctionRepository: MockFunctionRepository,
 ) {
     @PostMapping("/mcp/mock/servers", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun createMockServer(
@@ -30,8 +28,7 @@ class McpMocksController(
 
     @GetMapping("/mcp/mock/functions", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun getMockFunctions(): ResponseEntity<List<FunctionBodyResponse>> {
-        val mockDefinitions = mockFunctionRepository.findAll()
-        val functions = mockDefinitions.map { FunctionBodyResponse.from(it) }
+        val functions = platformMcpService.getAllMockFunctions()
         return ResponseEntity.ok(functions)
     }
 

@@ -65,12 +65,19 @@ const AgentsSelectionModal: React.FC<AgentsSelectionModalProps> = ({
   const handleDeleteAgent = async (agentName: string) => {
     try {
       setDeletingAgent(agentName);
-      await apiClient.agentRequest(`/v1/agents/${agentName}`, { method: 'DELETE' });
+      const response = await apiClient.agentRequest(`/v1/agents/${agentName}`, { method: 'DELETE' });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `Failed to delete agent. Status: ${response.status}`);
+      }
+      
       setAgents(prev => prev.filter(a => a.name !== agentName));
       toast.success(`Deleted agent: ${agentName}`);
     } catch (error) {
       console.error('Error deleting agent:', error);
-      toast.error(`Failed to delete agent: ${agentName}`);
+      const errorMessage = error instanceof Error ? error.message : `Failed to delete agent: ${agentName}`;
+      toast.error(errorMessage);
     } finally {
       setDeletingAgent(null);
     }

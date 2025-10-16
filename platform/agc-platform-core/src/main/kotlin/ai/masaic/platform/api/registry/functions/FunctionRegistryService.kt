@@ -2,7 +2,9 @@ package ai.masaic.platform.api.registry.functions
 
 import ai.masaic.openresponses.api.model.FunctionDetails
 import ai.masaic.openresponses.api.model.PyFunTool
+import ai.masaic.openresponses.api.service.AccessDeniedException
 import ai.masaic.openresponses.api.service.ResponseProcessingException
+import ai.masaic.openresponses.api.user.AccessManager
 import java.time.Instant
 
 /**
@@ -36,6 +38,7 @@ class FunctionRegistryService(
                 outputSchema = mutableMapOf(), // Will be populated by schema inference later
                 createdAt = now,
                 updatedAt = now,
+                accessControlJson = AccessManager.toString(AccessManager.computeAccessControl()),
             )
 
         return repository.save(function)
@@ -47,7 +50,12 @@ class FunctionRegistryService(
      * Retrieves a function by name.
      */
     suspend fun getFunction(name: String): FunctionDoc =
-        repository.findByName(name) 
+        repository.findByName(name)?.let {
+            if (!AccessManager.isAccessPermitted(it.accessControlJson).read) {
+                throw AccessDeniedException("Access denied to function=$name")
+            }
+            it
+        }
             ?: throw FunctionRegistryException(
                 ErrorCodes.FUNCTION_NOT_FOUND,
                 "Function '$name' not found.",
@@ -69,8 +77,12 @@ class FunctionRegistryService(
                 repository.searchByName(query, limit)
             }
 
+        val accessibleFunctions =
+            functions.filter { function ->
+                AccessManager.isAccessPermitted(function.accessControlJson).read
+            }
         val items =
-            functions.map { doc ->
+            accessibleFunctions.map { doc ->
                 if (includeCode) {
                     // Return full function document
                     FunctionListItem.from(doc.copy(code = doc.code))
@@ -107,6 +119,8 @@ class FunctionRegistryService(
             )
         }
 
+        repository.findByName(name)?.let { if (!AccessManager.isAccessPermitted(it.accessControlJson).update) throw AccessDeniedException("Access denied to function=$name") }
+
         // Update the function
         val updatedFunction =
             repository.updateByName(name, request)
@@ -128,6 +142,8 @@ class FunctionRegistryService(
                 "Function '$name' not found.",
             )
         }
+
+        repository.findByName(name)?.let { if (!AccessManager.isAccessPermitted(it.accessControlJson).delete) throw AccessDeniedException("Access denied to function=$name") }
 
         val deleted = repository.deleteByName(name)
         if (!deleted) {
