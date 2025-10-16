@@ -50,6 +50,8 @@ data class PlatformAgentMeta(
     val updatedAt: Instant? = null,
     @JsonIgnore
     val kind: AgentClass = AgentClass(AgentClass.OTHER),
+    @JsonProperty("access_control")
+    val accessControlJson: String? = null,
 )
 
 data class ToolMeta(

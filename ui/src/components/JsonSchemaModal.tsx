@@ -18,7 +18,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Sparkles } from 'lucide-react';
-import { API_URL } from '@/config';
+import { apiClient } from '@/lib/api';
 import { usePlatformInfo } from '@/contexts/PlatformContext';
 
 interface JsonSchemaModalProps {
@@ -73,9 +73,7 @@ const JsonSchemaModal: React.FC<JsonSchemaModalProps> = ({
       const savedModelName = localStorage.getItem('platform_modelName') || 'gpt-4o';
       
       // Prepare headers and payload based on platform settings
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
+      const headers: Record<string, string> = {};
       
       const requestBody: any = {
         description: generatePrompt.trim()
@@ -96,17 +94,11 @@ const JsonSchemaModal: React.FC<JsonSchemaModalProps> = ({
         };
       }
 
-      const response = await fetch(`${API_URL}/v1/dashboard/generate/schema`, {
+      const data = await apiClient.jsonRequest<{ generatedSchema: string }>('/v1/dashboard/generate/schema', {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(requestBody),
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
       
       // Parse and beautify the generated schema
       const generatedSchema = JSON.parse(data.generatedSchema);

@@ -11,6 +11,7 @@ import Layout from "./components/Layout";
 import Chat from "./pages/Chat";
 import AgentBuilder from "./pages/AgentBuilder";
 import NotFound from "./pages/NotFound";
+import Login from "./pages/Login";
 import { AUTH_CONFIG } from "./config/auth";
 
 const queryClient = new QueryClient();
@@ -24,16 +25,24 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <Layout>
-                <ProtectedRoute>
-                  <Routes>
-                    <Route path="/" element={<Chat />} />
-                    <Route path="/agent-builder" element={<AgentBuilder />} />
-                    {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-                    <Route path="*" element={<NotFound />} />
-                  </Routes>
-                </ProtectedRoute>
-              </Layout>
+              <Routes>
+                {/* Public Routes */}
+                <Route path="/login" element={<Login />} />
+                
+                {/* Protected Routes */}
+                <Route path="/*" element={
+                  <Layout>
+                    <ProtectedRoute>
+                      <Routes>
+                        <Route path="/" element={<Chat />} />
+                        <Route path="/agent-builder" element={<AgentBuilder />} />
+                        {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                        <Route path="*" element={<NotFound />} />
+                      </Routes>
+                    </ProtectedRoute>
+                  </Layout>
+                } />
+              </Routes>
             </BrowserRouter>
           </TooltipProvider>
         </AuthProvider>

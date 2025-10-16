@@ -1,9 +1,11 @@
 package ai.masaic.platform.api.security
 
 import ai.masaic.openresponses.api.exception.HttpStatusCodeException
+import ai.masaic.openresponses.api.user.AccessManager
 import ai.masaic.platform.api.security.auth.google.GoogleAuthentication
 import ai.masaic.platform.api.security.auth.google.GooglePreAuthToken
 import ai.masaic.platform.api.security.auth.google.GoogleTokenVerifier
+import ai.masaic.platform.api.user.UserAccessControlManager
 import ai.masaic.platform.api.user.UserInfoProvider
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
@@ -27,6 +29,7 @@ import reactor.core.publisher.Mono
 class PlatformSecurityConfig {
     init {
         UserInfoProvider.init(CurrentUserProvider())
+        AccessManager.initialise(UserAccessControlManager())
     }
 
     @Bean
@@ -43,9 +46,7 @@ class PlatformSecurityConfig {
                     authorizeExchange
                         .pathMatchers("/v1/dashboard/platform/info", "/v1/dashboard/platform/auth/verify", "/v1/dashboard/oauth/callback")
                         .permitAll()
-                        .pathMatchers("/v1/dashboard/**")
-                        .authenticated()
-                        .pathMatchers("/v1/agents/**")
+                        .pathMatchers("/v1/dashboard/**", "/v1/agents/**", "/v1/files/**", "/v1/vector_stores/**")
                         .authenticated()
                         .anyExchange()
                         .permitAll()
@@ -89,7 +90,7 @@ class PlatformSecurityConfig {
         }
 
     @Bean
-    fun googleTokenVerifier(authConfigProperties: AuthConfigProperties) = GoogleTokenVerifier(authConfigProperties.google, authConfigProperties.whitelistedUsers)
+    fun googleTokenVerifier(authConfigProperties: AuthConfigProperties) = GoogleTokenVerifier(authConfigProperties.google, authConfigProperties.whitelistedUsers, authConfigProperties.adminUsers)
 
     private fun googleAuthFilter(googleTokenVerifier: GoogleTokenVerifier): AuthenticationWebFilter {
         val manager =
@@ -145,6 +146,7 @@ class PlatformSecurityConfig {
 class PlatformNoOpSecurityConfig {
     init {
         UserInfoProvider.init(CurrentUserProvider())
+        AccessManager.initialise(UserAccessControlManager())
     }
 
     @Bean
@@ -209,6 +211,7 @@ data class AuthConfigProperties(
     val enabled: Boolean = false,
     val google: GoogleAuthConfig = GoogleAuthConfig(),
     val whitelistedUsers: Set<String>? = null,
+    val adminUsers: Set<String>? = null,
 )
 
 data class GoogleAuthConfig(

@@ -1,6 +1,7 @@
 package ai.masaic.platform.api.service
 
 import ai.masaic.openresponses.api.model.*
+import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.platform.api.model.PlatformAgent
 import ai.masaic.platform.api.registry.functions.FunctionCreate
 import ai.masaic.platform.api.registry.functions.FunctionRegistryService
@@ -46,10 +47,10 @@ open class AgentBootstrapService(
             }
 
             // Check if we should skip bootstrapping entirely
-            if (agentService.getAllAgents().isNotEmpty()) {
-                log.info("Skipping agent bootstrapping because agent(s) exist in the store")
-                return
-            }
+//            if (agentService.getAllAgents().isNotEmpty()) {
+//                log.info("Skipping agent bootstrapping because agent(s) exist in the store")
+//                return
+//            }
 
             val bootstrappedCount = bootstrapAgents(agents, mockFunctions)
             log.info("Agent bootstrapping completed.")
@@ -156,7 +157,13 @@ open class AgentBootstrapService(
                     agentToSave = agent.copy(tools = agentTools)
                 }
                 if (possibleToBootstrap) {
-                    agentService.saveAgent(agentToSave, false)
+                    try {
+                        agentService.saveAgent(agentToSave, false)
+                        log.info { "saved agent: ${agentToSave.name}" }
+                    } catch (ex: ResponseProcessingException) {
+                        agentService.saveAgent(agentToSave, true)
+                        log.info { "updated agent: ${agentToSave.name}" }
+                    }
                     log.info("Agent '${agent.name}' bootstrapped.")
                 }
             } catch (e: Exception) {

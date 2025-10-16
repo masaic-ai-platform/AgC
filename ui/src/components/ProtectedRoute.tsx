@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
-import GoogleLogin from './GoogleLogin';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 
 interface ProtectedRouteProps {
@@ -9,6 +9,15 @@ interface ProtectedRouteProps {
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
   const { isAuthenticated, isLoading, authEnabled, apiError, tokenExpired } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    // If auth is enabled and user is not authenticated, redirect to login
+    if (authEnabled && !isLoading && (!isAuthenticated || tokenExpired)) {
+      navigate('/login', { state: { from: location.pathname, apiError } });
+    }
+  }, [authEnabled, isAuthenticated, isLoading, tokenExpired, navigate, location.pathname, apiError]);
 
   // If auth is disabled, render children directly
   if (!authEnabled) {
@@ -27,9 +36,9 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
     );
   }
 
-  // If not authenticated or token expired, show login (with API error if present)
+  // If not authenticated or token expired, return null (redirect happens in useEffect)
   if (!isAuthenticated || tokenExpired) {
-    return <GoogleLogin showApiError={apiError} />;
+    return null;
   }
 
   // If authenticated, render children

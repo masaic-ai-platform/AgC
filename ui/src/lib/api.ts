@@ -110,14 +110,25 @@ class ApiClient {
   }
 
   async request(endpoint: string, options: RequestInit = {}): Promise<Response> {
-    const headers = { ...await this.getHeaders(), ...options.headers };
+    const baseHeaders = await this.getHeaders();
+    
+    // If body is FormData, don't include Content-Type header (browser will set it with boundary)
+    const headers = options.body instanceof FormData 
+      ? { ...baseHeaders, ...options.headers }
+      : { ...baseHeaders, ...options.headers };
+    
+    // Remove Content-Type if it's FormData to let browser set it with boundary
+    if (options.body instanceof FormData && headers['Content-Type']) {
+      delete headers['Content-Type'];
+    }
 
     // Debug: Log headers being sent (only in development)
     if (process.env.NODE_ENV === 'development') {
       console.log(`API Request to ${endpoint}:`, {
         headers: headers,
         hasAuth: !!headers['Authorization'],
-        hasGoogleToken: !!headers['X-Google-Token']
+        hasGoogleToken: !!headers['X-Google-Token'],
+        isFormData: options.body instanceof FormData
       });
     }
 
@@ -191,8 +202,30 @@ class ApiClient {
       'Content-Type': 'application/json',
     };
 
-    // Only add X-Google-Token if auth is enabled (no Authorization header for agents API)
+    // Add session ID header (always present)
+    const sessionId = localStorage.getItem('platform_sessionId');
+    if (sessionId) {
+      headers['x-session-id'] = sessionId;
+      console.log('Adding x-session-id header (agents):', sessionId);
+    } else {
+      console.warn('No sessionId found in localStorage (agents)');
+    }
+
+    // Add user ID header only when auth is disabled
     const authEnabled = await this.isAuthEnabled();
+    if (!authEnabled) {
+      const userId = localStorage.getItem('platform_userId');
+      if (userId) {
+        headers['x-user-id'] = userId;
+        console.log('Adding x-user-id header (agents, auth disabled):', userId);
+      } else {
+        console.warn('No userId found in localStorage (agents, auth disabled)');
+      }
+    } else {
+      console.log('Auth enabled, not sending x-user-id header (agents)');
+    }
+
+    // Only add X-Google-Token if auth is enabled (no Authorization header for agents API)
     if (authEnabled) {
       const googleToken = this.getGoogleToken();
       if (googleToken) {
@@ -205,14 +238,21 @@ class ApiClient {
 
   // Agent-specific request method (no Authorization header)
   async agentRequest(endpoint: string, options: RequestInit = {}): Promise<Response> {
-    const headers = { ...await this.getAgentsHeaders(), ...options.headers };
+    const baseHeaders = await this.getAgentsHeaders();
+    const headers = { ...baseHeaders, ...options.headers };
+    
+    // Remove Content-Type if it's FormData to let browser set it with boundary
+    if (options.body instanceof FormData && headers['Content-Type']) {
+      delete headers['Content-Type'];
+    }
 
     // Debug: Log headers being sent (only in development)
     if (process.env.NODE_ENV === 'development') {
       console.log(`Agent API Request to ${endpoint}:`, {
         headers: headers,
         hasAuth: !!headers['Authorization'],
-        hasGoogleToken: !!headers['X-Google-Token']
+        hasGoogleToken: !!headers['X-Google-Token'],
+        isFormData: options.body instanceof FormData
       });
     }
 

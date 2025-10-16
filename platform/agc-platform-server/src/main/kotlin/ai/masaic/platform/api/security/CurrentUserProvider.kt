@@ -1,5 +1,6 @@
 package ai.masaic.platform.api.security
 
+import ai.masaic.openresponses.api.user.Scope
 import ai.masaic.platform.api.user.UserInfo
 import ai.masaic.platform.api.user.UserInfoProvider
 import kotlinx.coroutines.reactor.awaitSingleOrNull
@@ -22,6 +23,16 @@ class CurrentUserProvider : UserInfoProvider {
 
     override suspend fun sessionId(): String? = getFromContext(SESSION_ID_KEY)
 
+    override suspend fun userInfo(): UserInfo? {
+        val fromPrincipal = getPrincipalUserInfo()
+        return if (fromPrincipal != null) {
+            fromPrincipal
+        } else {
+            val userId = getFromContext(USER_ID_KEY)
+            userId?.let { UserInfo(userId = userId, grantedScope = Scope.FULL) }
+        }
+    }
+
     private suspend fun getFromContext(key: String): String? =
         Mono
             .deferContextual { ctx ->
@@ -37,6 +48,17 @@ class CurrentUserProvider : UserInfoProvider {
                 when (principal) {
                     is UserInfo -> principal.userId
                     is org.springframework.security.core.userdetails.UserDetails -> principal.username
+                    else -> null
+                }
+            }.awaitSingleOrNull()
+
+    private suspend fun getPrincipalUserInfo(): UserInfo? =
+        ReactiveSecurityContextHolder
+            .getContext()
+            .mapNotNull { it.authentication?.principal }
+            .mapNotNull { principal ->
+                when (principal) {
+                    is UserInfo -> principal
                     else -> null
                 }
             }.awaitSingleOrNull()

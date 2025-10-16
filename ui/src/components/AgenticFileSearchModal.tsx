@@ -9,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Loader2, Upload, FileSearch, Copy, Plus, Check, Search } from 'lucide-react';
 import { useToast } from '../hooks/use-toast';
 import { usePlatformInfo } from '@/contexts/PlatformContext';
-import { API_URL } from '@/config';
 import { apiClient } from '@/lib/api';
 import ApiKeysModal from './ApiKeysModal';
 
@@ -120,7 +119,6 @@ const AgenticFileSearchModal: React.FC<AgenticFileSearchModalProps> = ({
 
   const { toast } = useToast();
   const { platformInfo } = usePlatformInfo();
-  const apiUrl = API_URL;
 
   // Check if we should use runtime model settings
   const useRuntimeModelSettings = platformInfo?.modelSettings?.settingsType === 'RUNTIME';
@@ -269,9 +267,7 @@ const AgenticFileSearchModal: React.FC<AgenticFileSearchModalProps> = ({
   const fetchVectorStores = async () => {
     setLoading(prev => ({ ...prev, stores: true }));
     try {
-      const response = await fetch(`${apiUrl}/v1/vector_stores`);
-      if (!response.ok) throw new Error('Failed to fetch vector stores');
-      const data = await response.json();
+      const data = await apiClient.jsonRequest<{ data: VectorStore[] }>('/v1/vector_stores');
       setVectorStores(data.data || []);
     } catch (error) {
       console.error('Error fetching vector stores:', error);
@@ -285,9 +281,7 @@ const AgenticFileSearchModal: React.FC<AgenticFileSearchModalProps> = ({
   const fetchFiles = async () => {
     setLoading(prev => ({ ...prev, files: true }));
     try {
-      const response = await fetch(`${apiUrl}/v1/files`);
-      if (!response.ok) throw new Error('Failed to fetch files');
-      const data = await response.json();
+      const data = await apiClient.jsonRequest<{ data: FileItem[] }>('/v1/files');
       setFiles(data.data || []);
     } catch (error) {
       console.error('Error fetching files:', error);
@@ -308,7 +302,7 @@ const AgenticFileSearchModal: React.FC<AgenticFileSearchModalProps> = ({
       formData.append('file', file);
       formData.append('purpose', 'assistants');
 
-      const response = await fetch(`${apiUrl}/v1/files`, {
+      const response = await apiClient.rawRequest('/v1/files', {
         method: 'POST',
         body: formData,
       });
@@ -336,18 +330,14 @@ const AgenticFileSearchModal: React.FC<AgenticFileSearchModalProps> = ({
 
     setVectorStoreStatus({ creating: true });
     try {
-      const response = await fetch(`${apiUrl}/v1/vector_stores`, {
+      const newStore = await apiClient.jsonRequest<VectorStore>('/v1/vector_stores', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: newVectorStoreName.trim(),
           file_ids: []
         }),
       });
-
-      if (!response.ok) throw new Error('Failed to create vector store');
       
-      const newStore = await response.json();
       setVectorStores(prev => [newStore, ...prev]);
       setSelectedVectorStores(prev => [...prev, newStore.id]);
       setNewVectorStoreName('');
@@ -363,14 +353,12 @@ const AgenticFileSearchModal: React.FC<AgenticFileSearchModalProps> = ({
 
   // Track file status using the provided API
   const trackFileStatus = async (vectorStoreId: string, fileId: string): Promise<any> => {
-    const response = await fetch(`${apiUrl}/v1/vector_stores/${vectorStoreId}/files/${fileId}`);
-    if (!response.ok) throw new Error('Failed to check file status');
-    return response.json();
+    return await apiClient.jsonRequest(`/v1/vector_stores/${vectorStoreId}/files/${fileId}`);
   };
 
   // Associate file with vector store using the provided API
   const associateFileWithVectorStore = async (vectorStoreId: string, fileId: string): Promise<void> => {
-    const headers: HeadersInit = { 'Content-Type': 'application/json' };
+    const headers: HeadersInit = {};
     
     // Add Authorization header and modelInfo only if runtime model settings enabled
     if (useRuntimeModelSettings && selectedEmbeddingModel) {
@@ -395,7 +383,7 @@ const AgenticFileSearchModal: React.FC<AgenticFileSearchModalProps> = ({
       };
     }
 
-    const response = await fetch(`${apiUrl}/v1/vector_stores/${vectorStoreId}/files`, {
+    const response = await apiClient.rawRequest(`/v1/vector_stores/${vectorStoreId}/files`, {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
@@ -581,9 +569,7 @@ const AgenticFileSearchModal: React.FC<AgenticFileSearchModalProps> = ({
   // Fetch vector store files
   const fetchVectorStoreFiles = async (vectorStoreId: string): Promise<string[]> => {
     try {
-      const response = await fetch(`${apiUrl}/v1/vector_stores/${vectorStoreId}/files`);
-      if (!response.ok) throw new Error('Failed to fetch vector store files');
-      const data = await response.json();
+      const data = await apiClient.jsonRequest<{ data: any[] }>(`/v1/vector_stores/${vectorStoreId}/files`);
       return data.data?.map((file: any) => file.id) || [];
     } catch (error) {
       console.error('Error fetching vector store files:', error);
@@ -653,41 +639,6 @@ const AgenticFileSearchModal: React.FC<AgenticFileSearchModalProps> = ({
               
               {/* Left Column - Vector Stores Section */}
               <div className="flex flex-col space-y-3 h-full min-h-0 overflow-hidden">
-                {/* Vector Stores Dropdown */}
-                <div className="flex-shrink-0">
-                  <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">Vector Stores</Label>
-                    <Select value={vectorStoreType} onValueChange={setVectorStoreType}>
-                      <SelectTrigger className="w-48 h-8 focus:ring-0 focus:ring-offset-0 focus:border-border">
-                        <SelectValue>
-                          {vectorStoreType === 'qdrant-cloud' ? (
-                            <div className="flex items-center space-x-2">
-                              <img src="/qdrant icon.png" alt="Qdrant" className="w-3 h-3" />
-                              <span>Qdrant Cloud</span>
-                            </div>
-                          ) : (
-                            <span>Bring your own vector store</span>
-                          )}
-                        </SelectValue>
-                      </SelectTrigger>
-                      <SelectContent 
-                        side="bottom" 
-                        align="start" 
-                        sideOffset={8}
-                        className="z-[9999] pt-2"
-                      >
-                        <SelectItem value="qdrant-cloud">
-                          <div className="flex items-center space-x-2">
-                            <img src="/qdrant icon.png" alt="Qdrant" className="w-4 h-4" />
-                            <span>Qdrant Cloud</span>
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="bring-your-own">Bring your own vector store</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-
                 {/* Embedding Model Dropdown */}
                 {useRuntimeModelSettings && (
                   <div className="space-y-2 flex-shrink-0">

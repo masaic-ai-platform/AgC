@@ -16,7 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Sparkles } from 'lucide-react';
-import { API_URL } from '@/config';
+import { apiClient } from '@/lib/api';
 import { usePlatformInfo } from '@/contexts/PlatformContext';
 
 interface FunctionModalProps {
@@ -71,9 +71,7 @@ const FunctionModal: React.FC<FunctionModalProps> = ({
       const savedModelName = localStorage.getItem('platform_modelName') || 'gpt-4o';
       
       // Prepare headers and payload based on platform settings
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
+      const headers: Record<string, string> = {};
       
       const requestBody: any = {
         description: generatePrompt.trim()
@@ -94,17 +92,11 @@ const FunctionModal: React.FC<FunctionModalProps> = ({
         };
       }
 
-      const response = await fetch(`${API_URL}/v1/dashboard/generate/function`, {
+      const data = await apiClient.jsonRequest<{ generatedFunction: string }>('/v1/dashboard/generate/function', {
         method: 'POST',
         headers: headers,
         body: JSON.stringify(requestBody),
       });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
       
       // Parse and beautify the generated function
       const generatedFunction = JSON.parse(data.generatedFunction);

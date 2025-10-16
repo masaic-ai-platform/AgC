@@ -1,6 +1,8 @@
 package ai.masaic.openresponses.api.service.storage
 
 import ai.masaic.openresponses.api.config.FileStorageProperties
+import ai.masaic.openresponses.api.user.AccessControl
+import ai.masaic.openresponses.api.user.AccessManager
 import ai.masaic.openresponses.api.utils.IdGenerator
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
@@ -147,21 +149,21 @@ class LocalFileStorageService(
                 val fileName = filePath.fileName.toString()
                 val purpose = filePath.parent.fileName.toString()
                 
-                // Try to load filename from metadata file
+                // Try to load filename and access control from metadata file
                 val metadataPath = filePath.resolveSibling("$fileName.metadata")
-                val originalFilename =
-                    if (Files.exists(metadataPath)) {
-                        try {
-                            val metadataJson = Files.readString(metadataPath)
-                            val metadata: Map<String, String> = objectMapper.readValue(metadataJson)
-                            metadata["filename"] ?: fileName
-                        } catch (e: Exception) {
-                            log.warn("Could not read filename from metadata: $e")
-                            fileName
-                        }
-                    } else {
-                        fileName
+                var originalFilename = fileName
+                var accessControlJson: String? = null
+                
+                if (Files.exists(metadataPath)) {
+                    try {
+                        val metadataJson = Files.readString(metadataPath)
+                        val storedMetadata: Map<String, Any> = objectMapper.readValue(metadataJson)
+                        originalFilename = storedMetadata["filename"] as? String ?: fileName
+                        accessControlJson = storedMetadata["accessControl"] as? String
+                    } catch (e: Exception) {
+                        log.warn("Could not read metadata: $e")
                     }
+                }
             
                 val metadata =
                     mutableMapOf<String, Any>(
@@ -171,6 +173,16 @@ class LocalFileStorageService(
                         "bytes" to attrs.size(),
                         "created_at" to attrs.creationTime().toInstant().epochSecond,
                     )
+                
+                // Add access control if present
+                accessControlJson?.let {
+                    try {
+                        val accessControl: AccessControl = AccessManager.fromString(accessControlJson)
+                        metadata["accessControl"] = accessControl
+                    } catch (e: Exception) {
+                        log.warn("Could not deserialize access control: $e")
+                    }
+                }
             
                 metadata
             } catch (e: IOException) {
@@ -198,6 +210,7 @@ class LocalFileStorageService(
     override suspend fun store(
         filePart: FilePart,
         purpose: String,
+        accessControl: AccessControl?,
     ): String =
         withContext(Dispatchers.IO) {
             try {
@@ -301,9 +314,14 @@ class LocalFileStorageService(
                 // This is done in a separate coroutine to not block the main file upload
                 val metadataPath = purposeDir.resolve("$fileId.metadata")
                 val metadata =
-                    mapOf(
+                    mutableMapOf<String, Any>(
                         "filename" to originalFilename,
                     )
+                
+                // Add access control if present
+                accessControl?.let {
+                    metadata["accessControl"] = AccessManager.toString(accessControl)
+                }
                 
                 // Write metadata in parallel
                 launch {

@@ -2,11 +2,11 @@ package ai.masaic.platform.api.controller
 
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.ResponseProcessingException
+import ai.masaic.openresponses.api.user.Scope
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.*
 import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
-import ai.masaic.platform.api.config.PlatformCoreConfig
-import ai.masaic.platform.api.config.PlatformInfo
+import ai.masaic.platform.api.config.*
 import ai.masaic.platform.api.interpreter.CodeExecResult
 import ai.masaic.platform.api.interpreter.CodeExecuteReq
 import ai.masaic.platform.api.interpreter.CodeRunnerService
@@ -17,6 +17,7 @@ import ai.masaic.platform.api.service.createCompletion
 import ai.masaic.platform.api.service.messages
 import ai.masaic.platform.api.tools.FunDefGenerationTool
 import ai.masaic.platform.api.tools.SystemPromptGeneratorTool
+import ai.masaic.platform.api.user.UserInfoProvider
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import mu.KotlinLogging
@@ -222,7 +223,30 @@ ${request.description}
     }
 
     @GetMapping("/platform/info", produces = [MediaType.APPLICATION_JSON_VALUE])
-    fun getPlatformInfo() = platformInfo
+    suspend fun getPlatformInfo() = platformInfo
+
+    @GetMapping("/platform/features", produces = [MediaType.APPLICATION_JSON_VALUE])
+    suspend fun getFeatures(): PlatformInfo {
+        val userInfo = UserInfoProvider.userInfo()
+        return UserInfoProvider.userInfo()?.let {
+            if (it.grantedScope == Scope.RESTRICTED) {
+                val partners =
+                    platformInfo.partners.details.map { partner ->
+                        when (partner.category) {
+                            PartnerCategory.EVALS,
+                            PartnerCategory.VECTOR_DB,
+                            PartnerCategory.OBSERVABILITY,
+                            PartnerCategory.COMPUTE,
+                            -> partner.copy(enabled = false)
+                            else -> partner
+                        }
+                    }
+                platformInfo.copy(partners = Partners(details = partners), pyInterpreterSettings = PyInterpreterSettings(isEnabled = false))
+            } else {
+                platformInfo
+            }
+        } ?: platformInfo
+    }
 
     @PostMapping("/agc/functions:suggest")
     suspend fun configureFunction(

@@ -134,25 +134,9 @@ const E2BModal: React.FC<E2BModalProps> = ({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-full max-w-md">
         <DialogHeader className="text-center">
-          <div className="flex flex-col items-center space-y-4">
-            {/* E2B Logo */}
-            <div className="w-16 h-16 bg-muted/50 rounded-lg flex items-center justify-center relative">
-              {isConnecting && (
-                <>
-                  <div className="absolute inset-0 rounded-lg border-2 border-positive-trend/30 animate-pulse"></div>
-                  <div className="absolute inset-0 rounded-lg border-t-2 border-positive-trend animate-spin"></div>
-                </>
-              )}
-              <img 
-                src="/E2B-Logo.svg" 
-                alt="E2B Logo" 
-                className="h-12 w-12"
-              />
-            </div>
-            <DialogTitle className="text-xl font-semibold">
-              Connect to E2B MCP Server
-            </DialogTitle>
-          </div>
+          <DialogTitle className="text-xl font-semibold">
+            Connect to AgC Macro
+          </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">

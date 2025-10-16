@@ -64,6 +64,11 @@ data class VectorStore(
      */
     @JsonProperty("expires_at")
     val expiresAt: Long? = null,
+    /**
+     * Access control for the vector store.
+     */
+    @JsonProperty("access_control")
+    val accessControl: String? = null,
 )
 
 /**

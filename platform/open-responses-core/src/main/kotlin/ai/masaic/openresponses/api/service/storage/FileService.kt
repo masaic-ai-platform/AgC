@@ -6,6 +6,8 @@ import ai.masaic.openresponses.api.model.FileListResponse
 import ai.masaic.openresponses.api.model.FilePurpose
 import ai.masaic.openresponses.api.service.search.VectorSearchProvider
 import ai.masaic.openresponses.api.support.service.TelemetryService
+import ai.masaic.openresponses.api.user.AccessControl
+import ai.masaic.openresponses.api.user.AccessManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
@@ -15,6 +17,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.core.io.Resource
 import org.springframework.http.codec.multipart.FilePart
 import org.springframework.stereotype.Service
+import java.nio.file.AccessDeniedException
 import java.nio.file.Path
 import java.time.Instant
 
@@ -49,6 +52,9 @@ class FileService(
                 throw IllegalArgumentException("Invalid purpose: $purpose. Valid purposes are: ${FilePurpose.entries.joinToString()}")
             }
 
+            // Compute access control for the file
+            val accessControl = AccessManager.computeAccessControl()
+            
             // Track the file upload operation with telemetry
             telemetryService.withFileOperation(
                 operationName = "upload",
@@ -56,8 +62,8 @@ class FileService(
                 fileName = filePart.filename(),
                 purpose = purpose,
             ) {
-                // Store the file
-                val fileId = fileStorageService.store(filePart, purpose)
+                // Store the file with access control
+                val fileId = fileStorageService.store(filePart, purpose, accessControl)
 
                 // Create file object
                 File(
@@ -66,6 +72,7 @@ class FileService(
                     filename = filePart.filename(),
                     purpose = purpose,
                     createdAt = Instant.now().epochSecond,
+                    accessControl = accessControl,
                 )
             }
         }
@@ -94,12 +101,18 @@ class FileService(
                     fileStorageService.loadAll().map { pathToFile(it) }.toList()
                 }
 
+            // Filter files by access permission
+            val accessibleFiles =
+                allFiles.filter { file ->
+                    AccessManager.isAccessPermitted(file.accessControl)
+                }
+
             // Sort by creation time
             val sortedFiles =
                 if (order.equals("asc", ignoreCase = true)) {
-                    allFiles.sortedBy { it.createdAt }
+                    accessibleFiles.sortedBy { it.createdAt }
                 } else {
-                    allFiles.sortedByDescending { it.createdAt }
+                    accessibleFiles.sortedByDescending { it.createdAt }
                 }
 
             // Apply pagination
@@ -136,13 +149,22 @@ class FileService(
             // Get file metadata from storage
             val metadata = fileStorageService.getFileMetadata(fileId)
 
-            File(
-                id = fileId,
-                bytes = metadata["bytes"] as Long,
-                filename = metadata["filename"] as String,
-                purpose = metadata["purpose"] as String,
-                createdAt = metadata["created_at"] as Long,
-            )
+            val file =
+                File(
+                    id = fileId,
+                    bytes = metadata["bytes"] as Long,
+                    filename = metadata["filename"] as String,
+                    purpose = metadata["purpose"] as String,
+                    createdAt = metadata["created_at"] as Long,
+                    accessControl = metadata["accessControl"] as? AccessControl,
+                )
+            
+            // Check access permission
+            if (!AccessManager.isAccessPermitted(file.accessControl)) {
+                throw AccessDeniedException("Access denied to file: $fileId")
+            }
+
+            file
         }
 
     /**
@@ -153,6 +175,14 @@ class FileService(
      */
     suspend fun getFileContent(fileId: String): Resource =
         withContext(Dispatchers.IO) {
+            // Check access permission first
+            val metadata = fileStorageService.getFileMetadata(fileId)
+            val accessControl = metadata["accessControl"] as? AccessControl
+
+            if (!AccessManager.isAccessPermitted(accessControl)) {
+                throw AccessDeniedException("Access denied to file: $fileId")
+            }
+
             fileStorageService.loadAsResource(fileId)
         }
 
@@ -166,6 +196,14 @@ class FileService(
         withContext(Dispatchers.IO) {
             if (!fileStorageService.exists(fileId)) {
                 throw FileNotFoundException("File not found: $fileId")
+            }
+
+            // Check access permission before deletion
+            val metadata = fileStorageService.getFileMetadata(fileId)
+            val accessControl = metadata["accessControl"] as? AccessControl
+
+            if (!AccessManager.isAccessPermitted(accessControl)) {
+                throw AccessDeniedException("Access denied to delete file: $fileId")
             }
 
             val deleted = fileStorageService.delete(fileId)
@@ -205,6 +243,7 @@ class FileService(
                 filename = metadata["filename"] as String,
                 purpose = metadata["purpose"] as String,
                 createdAt = metadata["created_at"] as Long,
+                accessControl = metadata["accessControl"] as? AccessControl,
             )
         }
 }

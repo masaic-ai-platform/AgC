@@ -20,7 +20,7 @@ import {
   Brain,
   Zap
 } from 'lucide-react';
-import { API_URL } from '@/config';
+import { apiClient } from '@/lib/api';
 
 interface PlaygroundSidebarProps {
   activeTab: string;
@@ -33,7 +33,7 @@ interface PlaygroundSidebarProps {
 interface Partner {
   code: string;
   name: string;
-  category: 'VECTOR_DB' | 'EVALS' | 'OBSERVABILITY';
+  category: 'VECTOR_DB' | 'EVALS' | 'OBSERVABILITY' | 'COMPUTE';
   enabled: boolean;
   deploymentLink: string;
 }
@@ -70,6 +70,8 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
         return Brain;
       case 'OBSERVABILITY':
         return BarChart3;
+      case 'COMPUTE':
+        return Zap;
       default:
         return Activity; // fallback icon
     }
@@ -80,29 +82,26 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
     const fetchPlatformInfo = async () => {
       try {
         setIsLoadingPartners(true);
-        const response = await fetch(`${API_URL}/v1/dashboard/platform/info`);
-        if (response.ok) {
-          const data = await response.json();
-          setPlatformInfo(data);
-          
-          // Handle userId based on auth config
-          if (data.authConfig?.enabled === false) {
-            // Auth is disabled, ensure we have a userId
-            let userId = localStorage.getItem('platform_userId');
-            if (!userId) {
-              // Generate new random userId: user_ + 9 alphanumeric chars
-              const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-              const randomId = 'user_' + Array.from({length: 9}, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
-              localStorage.setItem('platform_userId', randomId);
-              console.log('Generated new userId:', randomId);
-            }
-          } else if (data.authConfig?.enabled === true) {
-            // Auth is enabled, clear userId if it exists
-            const existingUserId = localStorage.getItem('platform_userId');
-            if (existingUserId) {
-              localStorage.removeItem('platform_userId');
-              console.log('Auth enabled, cleared userId');
-            }
+        const data = await apiClient.jsonRequest<any>('/v1/dashboard/platform/features');
+        setPlatformInfo(data);
+        
+        // Handle userId based on auth config
+        if (data.authConfig?.enabled === false) {
+          // Auth is disabled, ensure we have a userId
+          let userId = localStorage.getItem('platform_userId');
+          if (!userId) {
+            // Generate new random userId: user_ + 9 alphanumeric chars
+            const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+            const randomId = 'user_' + Array.from({length: 9}, () => chars.charAt(Math.floor(Math.random() * chars.length))).join('');
+            localStorage.setItem('platform_userId', randomId);
+            console.log('Generated new userId:', randomId);
+          }
+        } else if (data.authConfig?.enabled === true) {
+          // Auth is enabled, clear userId if it exists
+          const existingUserId = localStorage.getItem('platform_userId');
+          if (existingUserId) {
+            localStorage.removeItem('platform_userId');
+            console.log('Auth enabled, cleared userId');
           }
         }
       } catch (error) {
@@ -123,7 +122,10 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
       label: partner.name,
       icon: getPartnerIcon(partner.category),
       link: partner.deploymentLink,
-      category: partner.category
+      category: partner.category,
+      code: partner.code,
+      // Special handling for E2B: if it's E2B and has no link, make it clickable internally
+      clickable: partner.code === 'e2b' && !partner.deploymentLink
     })) || [];
 
   // Static options that appear under Completions
@@ -133,14 +135,11 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
     // New clickable option directly below partner links
     { id: 'masaic-mocky', label: 'Mocky', icon: Sparkles, clickable: true },
     { id: 'add-model', label: 'Add Model', icon: Plus, clickable: true },
-    { id: 'e2b-server', label: 'E2B Server', icon: Server, clickable: true },
     { id: 'compliance', label: 'Compliance', icon: Shield },
   ];
 
   const bottomOptions = [
     { id: 'api-keys', label: 'API Keys', icon: Key },
-    { id: 'github', label: 'GitHub', icon: Github, link: 'https://github.com/masaic-ai-platform' },
-    { id: 'discord', label: 'Discord', icon: MessageCircle, link: 'https://discord.com/channels/1335132819260702723/1354795442004820068' },
   ];
 
   // Add Sign Out option if authentication is enabled and user is authenticated
@@ -217,7 +216,7 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
             staticCompletionOptions.map((option) => {
               const Icon = option.icon;
 
-              // External link behaviour for partner links
+              // External link behaviour for partner links (only if they have a link)
               if ('link' in option && option.link) {
                 return (
                   <Button
@@ -232,18 +231,21 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
                 );
               }
 
-              // Clickable internal option (e.g., Masaic Mocky)
+              // Clickable internal option (e.g., Masaic Mocky, E2B)
               if ('clickable' in option && option.clickable) {
+                // Special handling for E2B partner - open E2B modal
+                const tabId = 'code' in option && option.code === 'e2b' ? 'e2b-server' : option.id;
+                
                 return (
                   <Button
                     key={option.id}
-                    variant={activeTab === option.id ? 'secondary' : 'ghost'}
+                    variant={activeTab === tabId ? 'secondary' : 'ghost'}
                     className={`w-full justify-start text-xs h-8 ${
-                      activeTab === option.id
+                      activeTab === tabId
                         ? 'bg-accent text-accent-foreground'
                         : 'text-muted-foreground hover:text-foreground hover:bg-accent/50'
                     }`}
-                    onClick={() => onTabChange(option.id)}
+                    onClick={() => onTabChange(tabId)}
                   >
                     <Icon className="h-3 w-3 mr-2" />
                     {option.label}
@@ -272,21 +274,6 @@ const PlaygroundSidebar: React.FC<PlaygroundSidebarProps> = ({
       <div className="p-2 border-t border-border space-y-1">
         {bottomOptions.map((option) => {
           const Icon = option.icon;
-          const hasLink = 'link' in option && option.link;
-          
-          if (hasLink) {
-            return (
-              <Button
-                key={option.id}
-                variant="ghost"
-                className="w-full justify-start text-xs h-8 text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                onClick={() => window.open(option.link, '_blank')}
-              >
-                <Icon className="h-3 w-3 mr-2" />
-                {option.label}
-              </Button>
-            );
-          }
           
           return (
             <Button

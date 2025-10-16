@@ -61,7 +61,7 @@ class FileServiceTest {
             val fileId = "file-123456"
 
             // Mock file storage and telemetry
-            coEvery { fileStorageService.store(file, purpose) } returns fileId
+            coEvery { fileStorageService.store(file, purpose, any()) } returns fileId
 
             // Properly mock the telemetry service to return our expected File
             val expectedFile =
@@ -96,7 +96,7 @@ class FileServiceTest {
             assertEquals("test.txt", result.filename)
             assertEquals(purpose, result.purpose)
 
-            coVerify { fileStorageService.store(file, purpose) }
+            coVerify { fileStorageService.store(file, purpose, any()) }
         }
 
     @Test
@@ -223,7 +223,17 @@ class FileServiceTest {
             // Given
             val fileId = "file-123"
             val mockResource = mockk<Resource>()
+            
+            val metadata =
+                mapOf(
+                    "id" to fileId,
+                    "filename" to "test.txt",
+                    "purpose" to "assistants",
+                    "bytes" to 100L,
+                    "created_at" to Instant.now().epochSecond,
+                )
 
+            coEvery { fileStorageService.getFileMetadata(fileId) } returns metadata
             coEvery { fileStorageService.loadAsResource(fileId) } returns mockResource
 
             // When
@@ -238,8 +248,18 @@ class FileServiceTest {
         runTest {
             // Given
             val fileId = "file-123"
+            
+            val metadata =
+                mapOf(
+                    "id" to fileId,
+                    "filename" to "test.txt",
+                    "purpose" to "assistants",
+                    "bytes" to 100L,
+                    "created_at" to Instant.now().epochSecond,
+                )
 
             coEvery { fileStorageService.exists(fileId) } returns true
+            coEvery { fileStorageService.getFileMetadata(fileId) } returns metadata
             coEvery { fileStorageService.delete(fileId) } returns true
             coEvery { vectorSearchProvider.deleteFile(fileId) } returns true
 
@@ -262,8 +282,18 @@ class FileServiceTest {
         runTest {
             // Given
             val fileId = "file-123"
+            
+            val metadata =
+                mapOf(
+                    "id" to fileId,
+                    "filename" to "test.txt",
+                    "purpose" to "assistants",
+                    "bytes" to 100L,
+                    "created_at" to Instant.now().epochSecond,
+                )
 
             coEvery { fileStorageService.exists(fileId) } returns true
+            coEvery { fileStorageService.getFileMetadata(fileId) } returns metadata
             coEvery { fileStorageService.delete(fileId) } returns false
             coEvery { vectorSearchProvider.deleteFile(fileId) } returns true
 
@@ -299,8 +329,18 @@ class FileServiceTest {
         runTest {
             // Given
             val fileId = "file-123"
+            
+            val metadata =
+                mapOf(
+                    "id" to fileId,
+                    "filename" to "test.txt",
+                    "purpose" to "assistants",
+                    "bytes" to 100L,
+                    "created_at" to Instant.now().epochSecond,
+                )
 
             coEvery { fileStorageService.exists(fileId) } returns true
+            coEvery { fileStorageService.getFileMetadata(fileId) } returns metadata
             coEvery { fileStorageService.delete(fileId) } returns true
             every { runBlocking { vectorSearchProvider.deleteFile(fileId) } } throws RuntimeException("Vector search error")
 
@@ -323,8 +363,18 @@ class FileServiceTest {
             val fileId = "file-123"
             // Create a file service without vector search provider
             val fileServiceWithoutVectorSearch = FileService(fileStorageService, null, telemetryService)
+            
+            val metadata =
+                mapOf(
+                    "id" to fileId,
+                    "filename" to "test.txt",
+                    "purpose" to "assistants",
+                    "bytes" to 100L,
+                    "created_at" to Instant.now().epochSecond,
+                )
 
             coEvery { fileStorageService.exists(fileId) } returns true
+            coEvery { fileStorageService.getFileMetadata(fileId) } returns metadata
             coEvery { fileStorageService.delete(fileId) } returns true
 
             // When
@@ -449,7 +499,7 @@ class FileServiceTest {
             val purpose = "assistants"
             val fileId = "large-file-id"
 
-            coEvery { fileStorageService.store(file, purpose) } returns fileId
+            coEvery { fileStorageService.store(file, purpose, any()) } returns fileId
 
             val expectedFile =
                 ai.masaic.openresponses.api.model.File(
@@ -514,8 +564,18 @@ class FileServiceTest {
         runTest {
             // Given
             val fileId = "file-123"
+            
+            val metadata =
+                mapOf(
+                    "id" to fileId,
+                    "filename" to "test.txt",
+                    "purpose" to "assistants",
+                    "bytes" to 100L,
+                    "created_at" to Instant.now().epochSecond,
+                )
 
             coEvery { fileStorageService.exists(fileId) } returns true
+            coEvery { fileStorageService.getFileMetadata(fileId) } returns metadata
             coEvery { fileStorageService.delete(fileId) } returns true
             every { runBlocking { vectorSearchProvider.deleteFile(fileId) } } returns false // File not found in vector store
 

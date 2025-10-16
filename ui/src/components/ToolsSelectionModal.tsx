@@ -104,6 +104,7 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
   
   const { platformInfo } = usePlatformInfo();
   const isVectorStoreEnabled = platformInfo?.vectorStoreInfo?.isEnabled ?? true;
+  const isPyInterpreterEnabled = platformInfo?.pyInterpreterSettings?.isEnabled ?? true;
 
   // Handle editing existing function
   React.useEffect(() => {
@@ -376,8 +377,14 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
       };
     }
 
-    // Enable PyFunction tool
+    // Disable PyFunction tool if pyInterpreter is not enabled
     if (tool.id === 'py_fun_tool') {
+      if (!isPyInterpreterEnabled) {
+        return {
+          isDisabled: true,
+          tooltipMessage: 'Python Interpreter is disabled in platform settings'
+        };
+      }
       return {
         isDisabled: false,
         tooltipMessage: null
