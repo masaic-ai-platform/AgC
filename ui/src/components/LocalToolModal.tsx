@@ -115,10 +115,13 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     }
   }, [open, initialTool]);
 
-  // Validate function name (only alphanumeric and underscores, must start with letter)
+  // Validate function name (only alphanumeric and underscores, must start with letter, minimum 3 characters)
   const validateFunctionName = (value: string) => {
     if (!value.trim()) {
       return 'Function name is required';
+    }
+    if (value.trim().length < 3) {
+      return 'Function name must be at least 3 characters long';
     }
     if (!/^[a-zA-Z][a-zA-Z0-9_]*$/.test(value)) {
       return 'Function name must start with a letter and can only contain letters, numbers, and underscores (e.g., add_two_numbers)';
@@ -381,12 +384,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
       }
 
       const blob = await response.blob();
-      const contentDisposition = response.headers.get('content-disposition') || '';
-      const filenameMatch = contentDisposition.match(/filename\*=UTF-8''([^;]+)|filename="?([^";]+)"?/);
-      const filename =
-        (filenameMatch && (decodeURIComponent(filenameMatch[1] || filenameMatch[2])) ) ||
-        `${effectiveName}_client_runtime.zip`;
-
+      const filename = 'agc-runtime.zip';
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -479,6 +477,16 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
             <div className="text-xs text-muted-foreground">Supercharge your local tools — download the runtime and integrate in minutes.</div>
           </div>
           <div className="flex items-center gap-2">
+            {isEditing && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDownloadClientRuntime}
+                className="whitespace-nowrap border-positive-trend text-positive-trend hover:bg-positive-trend hover:text-white"
+              >
+                Download Runtime
+              </Button>
+            )}
             <Button
               variant="outline"
               size="sm"
@@ -799,17 +807,17 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
           {/* Flow Steps */}
           <div className="space-y-4">
             {/* Step 1 */}
-            <div className="flex items-start space-x-3 p-3 bg-green-50 border border-green-200 rounded-lg">
-              <div className="flex-shrink-0 w-6 h-6 bg-green-500 text-white rounded-full flex items-center justify-center font-bold text-xs">
+            <div className="flex items-start space-x-3 p-3 bg-muted/30 border border-border rounded-lg">
+              <div className="flex-shrink-0 w-6 h-6 bg-positive-trend text-white rounded-full flex items-center justify-center font-bold text-xs">
                 1
               </div>
               <div className="flex-1">
-                <h3 className="text-base font-semibold text-green-800 mb-1">Create Your Tool</h3>
-                <p className="text-green-700 mb-2 text-sm">
+                <h3 className="text-base font-semibold text-foreground mb-1">Create Your Tool</h3>
+                <p className="text-muted-foreground mb-2 text-sm">
                   Design your client-side tool using the form above. Define parameters, set execution specs, and configure all necessary settings.
                 </p>
-                <div className="bg-white p-2 rounded border border-green-200">
-                  <code className="text-xs text-gray-700">
+                <div className="bg-card p-2 rounded border border-border">
+                  <code className="text-xs text-foreground">
                     ✓ Fill in tool name and description<br/>
                     ✓ Add required parameters<br/>
                     ✓ Configure execution settings<br/>
@@ -820,16 +828,16 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
             </div>
 
             {/* Step 2 */}
-            <div className="flex items-start space-x-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-              <div className="flex-shrink-0 w-6 h-6 bg-blue-500 text-white rounded-full flex items-center justify-center font-bold text-xs">
+            <div className="flex items-start space-x-3 p-3 bg-muted/30 border border-border rounded-lg">
+              <div className="flex-shrink-0 w-6 h-6 bg-positive-trend text-white rounded-full flex items-center justify-center font-bold text-xs">
                 2
               </div>
               <div className="flex-1">
                 <div className="flex items justify-between mb-2">
-                  <h3 className="text-base font-semibold text-blue-800">Download Client Runtime</h3>
+                  <h3 className="text-base font-semibold text-foreground">Download Client Runtime</h3>
                 </div>
                 <div className="space-y-2">
-                  <p className="text-blue-700 text-sm">
+                  <p className="text-muted-foreground text-sm">
                     Download the Java SDK client runtime to execute your tools locally.
                   </p>
                 </div>
@@ -837,39 +845,39 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
             </div>
 
             {/* Step 3 */}
-            <div className="flex items-start space-x-3 p-3 bg-purple-50 border border-purple-200 rounded-lg">
-              <div className="flex-shrink-0 w-6 h-6 bg-purple-500 text-white rounded-full flex items-center justify-center font-bold text-xs">
+            <div className="flex items-start space-x-3 p-3 bg-muted/30 border border-border rounded-lg">
+              <div className="flex-shrink-0 w-6 h-6 bg-positive-trend text-white rounded-full flex items-center justify-center font-bold text-xs">
                 3
               </div>
               <div className="flex-1">
-                <h3 className="text-base font-semibold text-purple-800 mb-1">Run the Runtime</h3>
-                <p className="text-purple-700 mb-2 text-sm">
+                <h3 className="text-base font-semibold text-foreground mb-1">Run the Runtime</h3>
+                <p className="text-muted-foreground mb-2 text-sm">
                   Execute the Gradle wrapper to start your client-side tool runtime.
                 </p>
-                <div className="bg-white p-2 rounded border border-purple-200">
-                  <div className="text-xs text-gray-700 font-medium">Run on Unix/Mac:</div>
-                  <div className="bg-gray-900 text-green-400 p-2 mt-1 rounded font-mono text-xs">
+                <div className="bg-card p-2 rounded border border-border">
+                  <div className="text-xs text-foreground font-medium">Run on Unix/Mac:</div>
+                  <div className="bg-accentGray-8 text-accentGray-2 p-2 mt-1 rounded font-mono text-xs">
                     <div className="flex items-center space-x-2">
-                      <span className="text-gray-400">$</span>
+                      <span className="text-accentGray-4">$</span>
                       <span>./gradlew run</span>
                     </div>
                   </div>
-                  <div className="text-xs text-gray-700 font-medium mt-2">Run on Windows:</div>
-                  <div className="bg-gray-900 text-green-400 p-2 mt-1 rounded font-mono text-xs">
-                    <span className="text-gray-300">gradlew.bat run</span>
+                  <div className="text-xs text-foreground font-medium mt-2">Run on Windows:</div>
+                  <div className="bg-accentGray-8 text-accentGray-2 p-2 mt-1 rounded font-mono text-xs">
+                    <span className="text-accentGray-3">gradlew.bat run</span>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Step 4 */}
-            <div className="flex items-start space-x-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
-              <div className="flex-shrink-0 w-6 h-6 bg-emerald-500 text-white rounded-full flex items-center justify-center font-bold text-xs">
+            <div className="flex items-start space-x-3 p-3 bg-muted/30 border border-border rounded-lg">
+              <div className="flex-shrink-0 w-6 h-6 bg-positive-trend text-white rounded-full flex items-center justify-center font-bold text-xs">
                 4
               </div>
               <div className="flex-1">
-                <h3 className="text-base font-semibold text-emerald-800 mb-1">Done! 🎉</h3>
-                <p className="text-emerald-700 mb-2 text-sm">
+                <h3 className="text-base font-semibold text-foreground mb-1">Done! 🎉</h3>
+                <p className="text-muted-foreground mb-2 text-sm">
                   Your client-side tool is now running and ready to execute. The runtime will handle all the heavy lifting.
                 </p>
               </div>
@@ -877,12 +885,12 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
           </div>
 
           {/* Additional Resources */}
-          <div className="border-t pt-4">
-            <h3 className="text-base font-semibold mb-3 text-center">Additional Resources</h3>
+          <div className="border-t border-border pt-4">
+            <h3 className="text-base font-semibold mb-3 text-center text-foreground">Additional Resources</h3>
             <div className="flex justify-center">
-              <div className="p-3 bg-gray-50 border border-gray-200 rounded-lg max-w-md w-full">
-                <h4 className="font-medium text-gray-800 mb-1 text-sm">📖 README</h4>
-                <p className="text-xs text-gray-600 mb-2">
+              <div className="p-3 bg-muted/30 border border-border rounded-lg max-w-md w-full">
+                <h4 className="font-medium text-foreground mb-1 text-sm">📖 README</h4>
+                <p className="text-xs text-muted-foreground mb-2">
                   Quick start guide and examples
                 </p>
                 <Button
@@ -899,7 +907,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
           </div>
 
           {/* Footer */}
-          <div className="text-center pt-3 border-t">
+          <div className="text-center pt-3 border-t border-border">
             <p className="text-xs text-muted-foreground">
               Need help? Check our documentation or contact support.
             </p>

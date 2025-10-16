@@ -413,7 +413,7 @@ ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF
     ): ResponseEntity<ByteArrayResource> {
         val zipBytes = DownloadPackagingUtil.buildZip(request)
         val resource = ByteArrayResource(zipBytes)
-        val fileName = "download.zip"
+        val fileName = "agc-runtime.zip"
         val headers = HttpHeaders()
         headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$fileName\"")
         headers.add("X-Download-Metadata", mapper.writeValueAsString(request.downloadMetadata ?: emptyMap<String, Any>()))

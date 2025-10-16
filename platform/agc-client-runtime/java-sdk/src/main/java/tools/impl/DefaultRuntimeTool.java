@@ -2,13 +2,13 @@ package tools.impl;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import tools.ClientSideTool;
+import tools.AgcRuntimeTool;
 import tools.ToolRequest;
 
-public class AddNumbersTool implements ClientSideTool {
-    private static final Logger logger = LoggerFactory.getLogger(AddNumbersTool.class);
-    private static String TOOL_NAME = "add_two_numbers";
-    private static String PROFILE_ID = "user_yWrOnKu6n";
+public class DefaultRuntimeTool implements AgcRuntimeTool {
+    private static final Logger logger = LoggerFactory.getLogger(DefaultRuntimeTool.class);
+    private static String TOOL_NAME = "default";
+    private static String PROFILE_ID = "default";
 
     @Override
     public String toolId() {

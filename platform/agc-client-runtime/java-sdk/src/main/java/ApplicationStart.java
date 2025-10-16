@@ -10,7 +10,7 @@ import io.temporal.worker.Worker;
 import io.temporal.worker.WorkerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import tools.ClientSideTool;
+import tools.AgcRuntimeTool;
 import tools.ToolRegistration;
 
 import javax.crypto.Cipher;
@@ -51,7 +51,7 @@ public class ApplicationStart {
         WorkflowClient client = WorkflowClient.newInstance(service, clientOptions);
 
         // Warm up tool registry and ensure at least one tool is available
-        java.util.Collection<ClientSideTool> discoveredTools = ToolRegistration.getAll();
+        java.util.Collection<AgcRuntimeTool> discoveredTools = ToolRegistration.getAll();
         if (discoveredTools == null || discoveredTools.isEmpty()) {
             logger.warn("No client-side tools discovered; worker factory will not be started.");
             return;
@@ -59,7 +59,7 @@ public class ApplicationStart {
 
         // Build worker factory and start a worker per toolId
         WorkerFactory factory = WorkerFactory.newInstance(client);
-        for (ClientSideTool tool : ToolRegistration.getAll()) {
+        for (AgcRuntimeTool tool : ToolRegistration.getAll()) {
             String taskQueue = tool.toolId();
             Worker worker = factory.newWorker(taskQueue);
             worker.registerActivitiesImplementations(tool);

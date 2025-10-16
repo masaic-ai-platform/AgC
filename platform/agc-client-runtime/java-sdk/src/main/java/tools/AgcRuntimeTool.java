@@ -4,7 +4,7 @@ import io.temporal.activity.ActivityInterface;
 import io.temporal.activity.ActivityMethod;
 
 @ActivityInterface
-public interface ClientSideTool {
+public interface AgcRuntimeTool {
     String toolId();
 
     @ActivityMethod

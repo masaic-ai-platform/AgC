@@ -386,12 +386,8 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
     }
 
     onToolSelect(clientSideTool);
-    setClientSideToolModalOpen(false);
-    
-    // Clear editing state
-    if (onEditingClientSideToolChange) {
-      onEditingClientSideToolChange(null);
-    }
+    // Don't close modal or clear state here - let the modal handle its own closing
+    // This prevents affecting other tools
   };
 
   const isToolSelected = (toolId: string) => {

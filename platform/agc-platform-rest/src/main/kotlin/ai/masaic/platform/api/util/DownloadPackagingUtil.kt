@@ -1,6 +1,7 @@
 package ai.masaic.platform.api.util
 
 import ai.masaic.platform.api.controller.DownloadRequest
+import org.slf4j.LoggerFactory
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -10,26 +11,35 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 object DownloadPackagingUtil {
+    private val logger = LoggerFactory.getLogger(DownloadPackagingUtil::class.java)
+
     fun buildZip(request: DownloadRequest): ByteArray {
         val functionName = request.functionName?.trim().orEmpty()
         val profileId = request.profile?.trim().orEmpty()
         val type = request.type ?: "client_side"
+        logger.info(
+            "Building zip for download request: functionName={},type={}",
+            functionName, profileId, type
+        )
         val baos = ByteArrayOutputStream()
         ZipOutputStream(baos).use { zos ->
+            // Include the agc-client-runtime/java-sdk project from platform directory first
+            val javaSdkDir: Path = Paths.get("../agc-client-runtime/java-sdk")
+            if (Files.exists(javaSdkDir) && Files.isDirectory(javaSdkDir)) {
+                logger.info("Including agc-client-runtime directory: {}", javaSdkDir.toAbsolutePath())
+                addDirectoryToZip(zos, javaSdkDir, "agc-runtime")
+            } else {
+                logger.warn("agc-client-runtime directory not found at: {}", javaSdkDir.toAbsolutePath())
+            }
+
             if (type.equals("download_code_snippet", ignoreCase = true)) {
                 val className = toPascalCase(functionName).ifBlank { "GeneratedClientTool" }
                 val toolName = functionName.ifBlank { "tool" }
                 val javaSource = buildJavaClientTool(className, toolName, profileId)
-                val entryPath = "client_runtime/java-sdk/src/main/java/tools/impl/$className.java"
+                val entryPath = "agc-runtime/src/main/java/tools/impl/$className.java"
                 zos.putNextEntry(ZipEntry(entryPath))
                 zos.write(javaSource.toByteArray(StandardCharsets.UTF_8))
                 zos.closeEntry()
-            }
-
-            // Include the client_runtime/java-sdk project from server resources if present
-            val javaSdkDir: Path = Paths.get("../agc-platform-server/src/main/resources/client_runtime/java-sdk")
-            if (Files.exists(javaSdkDir) && Files.isDirectory(javaSdkDir)) {
-                addDirectoryToZip(zos, javaSdkDir, "client_runtime/java-sdk")
             }
         }
         return baos.toByteArray()
@@ -68,7 +78,7 @@ public class $className implements ClientSideTool {
                 request != null ? request.getName() : null,
                 request != null ? request.getArguments() : null,
                 request != null ? request.getLoopContextInfo() : null);
-        return "success";
+        return "tool $toolName is yet to to be implemented";
     }
 }
         """.trimIndent()

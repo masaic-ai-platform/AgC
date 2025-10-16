@@ -526,6 +526,43 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       }
       
       onSelectedToolsChange(updatedTools);
+    } else if (toolId === 'client_side_tool' && toolIndex !== undefined) {
+      // For Client-side tools, remove by index since we allow multiple
+      const updatedTools = selectedTools.filter((_, index) => index !== toolIndex);
+      
+      // Also remove the Client-side tool from localStorage
+      try {
+        const toolToRemove = selectedTools[toolIndex];
+        if (toolToRemove && toolToRemove.clientSideToolConfig) {
+          const existingTools = localStorage.getItem('platform_client_side_tools');
+          if (existingTools) {
+            const toolsMap = JSON.parse(existingTools);
+            const functionNameToRemove = toolToRemove.clientSideToolConfig.name;
+            
+            // Handle both array and object formats for backward compatibility
+            if (Array.isArray(toolsMap)) {
+              // Old array format - convert to object and remove
+              const newToolsMap: { [key: string]: any } = {};
+              toolsMap.forEach((tool: any) => {
+                if (tool.name !== functionNameToRemove) {
+                  newToolsMap[tool.name] = tool;
+                }
+              });
+              localStorage.setItem('platform_client_side_tools', JSON.stringify(newToolsMap));
+            } else {
+              // New object format - remove by key
+              if (toolsMap[functionNameToRemove]) {
+                delete toolsMap[functionNameToRemove];
+                localStorage.setItem('platform_client_side_tools', JSON.stringify(toolsMap));
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to remove Client-side tool from localStorage:', error);
+      }
+      
+      onSelectedToolsChange(updatedTools);
     } else {
       // Remove by id for other tools
       const updatedTools = selectedTools.filter(tool => tool.id !== toolId);

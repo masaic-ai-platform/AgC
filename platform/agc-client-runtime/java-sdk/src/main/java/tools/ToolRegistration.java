@@ -6,17 +6,17 @@ import java.net.URL;
 import java.util.*;
 
 public class ToolRegistration {
-    private static final Map<String, ClientSideTool> toolIdToTool = new LinkedHashMap<String, ClientSideTool>();
+    private static final Map<String, AgcRuntimeTool> toolIdToTool = new LinkedHashMap<String, AgcRuntimeTool>();
 
     static {
         autoLoadFromPackage("tools.impl");
     }
 
-    public static synchronized void registerTool(ClientSideTool tool) {
+    public static synchronized void registerTool(AgcRuntimeTool tool) {
         toolIdToTool.put(tool.toolId(), tool);
     }
 
-    public static synchronized Collection<ClientSideTool> getAll() {
+    public static synchronized Collection<AgcRuntimeTool> getAll() {
         return Collections.unmodifiableCollection(toolIdToTool.values());
     }
 
@@ -42,8 +42,8 @@ public class ToolRegistration {
     private static void loadIfTool(String className, ClassLoader cl) {
         try {
             Class<?> c = Class.forName(className, true, cl);
-            if (ClientSideTool.class.isAssignableFrom(c)) {
-                registerTool((ClientSideTool) c.getDeclaredConstructor().newInstance());
+            if (AgcRuntimeTool.class.isAssignableFrom(c)) {
+                registerTool((AgcRuntimeTool) c.getDeclaredConstructor().newInstance());
             }
         } catch (Throwable ignored) {}
     }
