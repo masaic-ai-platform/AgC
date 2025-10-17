@@ -116,6 +116,7 @@ data class ClientSideTool(
                         maxRetryAttempts = maxRetryAttempts,
                         waitTimeInMillis = waitTimeInMillis,
                     ),
+                eventMeta = ToolProgressEventMeta(infix = "agc"),
             )
         }
     }

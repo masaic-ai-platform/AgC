@@ -1,8 +1,8 @@
-package ai.masaic.platform.api.util
+package ai.masaic.platform.api.utils
 
-import ai.masaic.platform.api.controller.DownloadRequest
+import ai.masaic.platform.api.config.AgentClientSideRuntimeConfig
 import ai.masaic.platform.api.user.UserInfoProvider
-import org.slf4j.LoggerFactory
+import mu.KotlinLogging
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -12,28 +12,26 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
 object DownloadPackagingUtil {
-    private val logger = LoggerFactory.getLogger(DownloadPackagingUtil::class.java)
+    private val logger = KotlinLogging.logger { }
 
     suspend fun buildZip(
         request: DownloadRequest,
-        agcRuntimePath: String,
+        agentClientSideRuntimeConfig: AgentClientSideRuntimeConfig,
     ): ByteArray {
+        require(agentClientSideRuntimeConfig.path.isNotEmpty()) { "agc runtime code path not defined." }
+        requireNotNull(agentClientSideRuntimeConfig.securityKey.isNotEmpty()) { "agc runtime security key is not available" }
         val functionName = request.functionName?.trim().orEmpty()
         val profileId = UserInfoProvider.userId() ?: request.profile?.trim().orEmpty()
         val type = request.type ?: "client_side"
-        logger.info(
-            "Building zip for download request: functionName={},type={}",
-            functionName,
-            profileId,
-            type,
-        )
+        logger.info { "Building zip for download request: functionName=$functionName, profile=$profileId and type=$type" }
+
         val baos = ByteArrayOutputStream()
         ZipOutputStream(baos).use { zos ->
             // Include the agc-client-runtime/java-sdk project from platform directory first
-            val javaSdkDir: Path = Paths.get(agcRuntimePath)
+            val javaSdkDir: Path = Paths.get(agentClientSideRuntimeConfig.path)
             if (Files.exists(javaSdkDir) && Files.isDirectory(javaSdkDir)) {
                 logger.info("Including agc-client-runtime directory: {}", javaSdkDir.toAbsolutePath())
-                addDirectoryToZip(zos, javaSdkDir, "agc-runtime")
+                addDirectoryToZip(zos, javaSdkDir, "agc-runtime", agentClientSideRuntimeConfig.securityKey)
             } else {
                 logger.warn("agc-client-runtime directory not found at: {}", javaSdkDir.toAbsolutePath())
             }
@@ -97,17 +95,47 @@ public class $className implements AgcRuntimeTool {
         zos: ZipOutputStream,
         baseDir: Path,
         zipRootPrefix: String,
+        securityKey: String,
     ) {
         Files.walk(baseDir).use { paths ->
             paths.filter { Files.isRegularFile(it) }.forEach { filePath ->
                 val relative = baseDir.relativize(filePath).toString().replace('\\', '/')
                 val zipPath = "$zipRootPrefix/$relative"
                 zos.putNextEntry(ZipEntry(zipPath))
-                Files.newInputStream(filePath).use { input ->
-                    input.copyTo(zos)
+                
+                // Special handling for ApplicationStart.java to inject B64 variable
+                if (relative.endsWith("ApplicationStart.java")) {
+                    val originalContent = Files.readString(filePath, StandardCharsets.UTF_8)
+                    val modifiedContent = injectB64Variable(originalContent, securityKey)
+                    zos.write(modifiedContent.toByteArray(StandardCharsets.UTF_8))
+                    logger.info("Injected securityKey into ApplicationStart.java B64 variable")
+                } else {
+                    Files.newInputStream(filePath).use { input ->
+                        input.copyTo(zos)
+                    }
                 }
                 zos.closeEntry()
             }
         }
     }
+
+    private fun injectB64Variable(
+        javaSource: String,
+        securityKey: String,
+    ): String {
+        // Replace the B64 constant value with the securityKey
+        // Pattern matches: private static final String B64 = "...any value...";
+        val b64Pattern = """(private\s+static\s+final\s+String\s+B64\s*=\s*")[^"]*("\s*;)""".toRegex()
+        return b64Pattern.replace(javaSource) { matchResult ->
+            "${matchResult.groupValues[1]}$securityKey${matchResult.groupValues[2]}"
+        }
+    }
 }
+
+data class DownloadRequest(
+    val functionName: String?,
+    val profile: String?,
+    val type: String?,
+    val format: String?,
+    val downloadMetadata: Map<String, Any>? = null,
+)

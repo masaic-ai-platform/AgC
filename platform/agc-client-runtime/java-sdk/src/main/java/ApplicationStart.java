@@ -27,7 +27,7 @@ import java.util.concurrent.TimeUnit;
 
 public class ApplicationStart {
     private static final Logger logger = LoggerFactory.getLogger(ApplicationStart.class);
-    private static final String B64 = "U2FsdGVkX1/vaKfU2w6MUao0RBej4XM7it74NY2klDRmDTiO9qE04wVqBqDcsSujIvBMk6yDOHcQ9mb1PA046S5LrpQeLa1M01us/CnbtltbOEwSIz+Eq4HyP5XXrb1bsXXzrxak+llPh72hAZ3LRaOfEULb97RoVAmRe2EhYoSGFv65CElPU741ez7BMzG+0mcF6hvBETQazKNeHmfuvUgNvr4cGmgGAJLQ1v2dlJMVi01nUXoBAI+JQLdltS0j43tmwmG8Diu0gwT6H+mtW+rKx4IsBrdfsk5/+yhtFsfd+IVdRortmjKXir1HLg31PGM/ZzbIbox7hDUFJGvBEWTmf3cd5VqhMzd60q+6zKQNfr91lIxblS5VozeGzX4xDRrA38l2KiWuVS9AfR3V7y+LSypoTI1rHVHFBot+TK1q02XjR+ZMFwLFy/o0NiAVRpsFOvYE/Zob+koqTxwgc3HDV9odFQNtHOrVAC6g5kspvwj+6fpZll6/T8C/R8qfh/qDFm79QPILgc5/bc+fcuG9OEgEVKhKXgRNUSlJv3KHKG32x5AxhXIifXAEjWGkTDixI+N6wvfyQ1USFuXAltwOnwUxKYb7loVG99oonXeybhhtzx0xhFT2KXnS1Y4W4tvZ/FmwwsIl0E4hNe/ucTDuKj9gBDsiayPcwUhG5665ckbFaJGta/U9n9b+GSfj";
+    private static final String B64 = "";
     private static final String OPENSSL_HDR = "Salted__";
     private static final int SALT_LEN = 8, KEY_LEN = 32, IV_LEN = 16, ITER = 100000;
 
