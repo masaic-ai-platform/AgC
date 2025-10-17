@@ -30,7 +30,7 @@ private val logger = KotlinLogging.logger {}
  * Global exception handler for the OpenResponses API.
  * This centralizes error handling across all controllers.
  */
-@RestControllerAdvice(basePackages = ["ai.masaic.openresponses.api.controller"])
+@RestControllerAdvice
 class GlobalExceptionHandler(
     val objectMapper: ObjectMapper,
 ) {

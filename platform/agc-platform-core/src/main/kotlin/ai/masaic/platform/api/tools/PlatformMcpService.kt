@@ -4,7 +4,9 @@ import ai.masaic.openresponses.api.model.CreateCompletionRequest
 import ai.masaic.openresponses.api.model.MCPTool
 import ai.masaic.openresponses.api.model.ModelSettings
 import ai.masaic.openresponses.api.model.SystemSettingsType
+import ai.masaic.openresponses.api.service.AccessDeniedException
 import ai.masaic.openresponses.api.service.ResponseProcessingException
+import ai.masaic.openresponses.api.user.AccessManager
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolParamsAccessor
 import ai.masaic.openresponses.tool.mcp.MCPServerInfo
@@ -49,16 +51,34 @@ class PlatformMcpService(
         // 2. frame url like https://{id}.mock.masaic.ai/api/mcp
         val url = request.url ?: "https://$id$MOCK_UURL_ENDS_WITH"
 
-        // 3. persist McpMockServer in DB
-        var mockServer = McpMockServer(id = id, url = url, serverLabel = request.serverLabel, toolIds = request.toolIds)
+        // 3. Compute and serialize access control
+        val accessControl = AccessManager.computeAccessControl()
+        val accessControlJson = accessControl.let { AccessManager.toString(it) }
+
+        // 4. persist McpMockServer in DB
+        var mockServer =
+            McpMockServer(
+                id = id, 
+                url = url, 
+                serverLabel = request.serverLabel, 
+                toolIds = request.toolIds,
+                accessControlJson = accessControlJson,
+            )
         mockServer = mcpMockServerRepository.upsert(mockServer)
         return MockMcpServerResponse(id = mockServer.id, url = url, serverLabel = mockServer.serverLabel)
     }
 
     suspend fun getAllMockServers(): List<MockMcpServerResponse> {
         val servers = mcpMockServerRepository.findAll()
+        
+        // Filter by access permission
+        val accessibleServers =
+            servers.filter { mockServer ->
+                AccessManager.isAccessPermitted(mockServer.accessControlJson).read
+            }
+        
         val mockServers =
-            servers.map { mockServer ->
+            accessibleServers.map { mockServer ->
                 MockMcpServerResponse(id = mockServer.id, url = mockServer.url, serverLabel = mockServer.serverLabel)
             }
         return mockServers
@@ -68,10 +88,18 @@ class PlatformMcpService(
         serverLabel: String,
         url: String,
     ): MockMcpServerResponse {
-        val servers = getAllMockServers()
-        return servers.firstOrNull { mockServer ->
-            mockServer.serverLabel == serverLabel && mockServer.url == url
-        } ?: throw ResponseProcessingException("Unable to find mock mcp server marching serverLabel=$serverLabel and url=$url")
+        val servers = mcpMockServerRepository.findAll()
+        val mockServer =
+            servers.firstOrNull { mockServer ->
+                mockServer.serverLabel == serverLabel && mockServer.url == url
+            } ?: throw ResponseProcessingException("Unable to find mock mcp server marching serverLabel=$serverLabel and url=$url")
+        
+        // Check access permission
+        if (!AccessManager.isAccessPermitted(mockServer.accessControlJson).read) {
+            throw AccessDeniedException("Access denied to mock server: $serverLabel")
+        }
+        
+        return MockMcpServerResponse(id = mockServer.id, url = mockServer.url, serverLabel = mockServer.serverLabel)
     }
 
     suspend fun getMockMcpTool(
@@ -83,19 +111,48 @@ class PlatformMcpService(
             servers.firstOrNull { mockServer ->
                 mockServer.serverLabel == serverLabel && mockServer.url == url
             } ?: throw ResponseProcessingException("Unable to find mock mcp server marching serverLabel=$serverLabel and url=$url")
+        
+        // Check access permission
+        if (!AccessManager.isAccessPermitted(mcpServer.accessControlJson).read) {
+            throw AccessDeniedException("Access denied to mock server: $serverLabel")
+        }
+        
         val allowedFunctions = mcpServer.toolIds.map { getFunction(it).functionDefinition.name }
         return MCPTool(type = "mcp", serverLabel = serverLabel, serverUrl = url, allowedTools = allowedFunctions)
     }
 
     suspend fun getFunction(functionId: String): GetFunctionResponse {
         val functionDefinition = mockFunRepository.findById(functionId) ?: throw IllegalStateException("Function $functionId not found")
+        
+        // Check access permission
+        if (!AccessManager.isAccessPermitted(functionDefinition.accessControlJson).read) {
+            throw AccessDeniedException("Access denied to function: $functionId")
+        }
+        
         val mocks = mocksRepository.findById(functionId) ?: throw IllegalStateException("Mocks for function $functionId not found")
         return GetFunctionResponse(FunctionBodyResponse.from(functionDefinition), mocks)
     }
 
+    suspend fun getAllMockFunctions(): List<FunctionBodyResponse> {
+        val mockDefinitions = mockFunRepository.findAll()
+        
+        // Filter by access permission
+        val accessibleFunctions =
+            mockDefinitions.filter { functionDefinition ->
+                AccessManager.isAccessPermitted(functionDefinition.accessControlJson).read
+            }
+        
+        return accessibleFunctions.map { FunctionBodyResponse.from(it) }
+    }
+
     suspend fun deleteFunction(functionId: String) {
         // Ensure the function exists before attempting deletion
-        mockFunRepository.findById(functionId) ?: throw IllegalStateException("Function $functionId not found")
+        val functionDefinition = mockFunRepository.findById(functionId) ?: throw IllegalStateException("Function $functionId not found")
+
+        // Check access permission before deletion
+        if (!AccessManager.isAccessPermitted(functionDefinition.accessControlJson).delete) {
+            throw AccessDeniedException("Access denied to delete function: $functionId")
+        }
 
         // Delete associated mocks if present (ignore result)
         mocksRepository.deleteById(functionId)
@@ -313,6 +370,7 @@ data class McpMockServer(
     val serverLabel: String,
     val toolIds: List<String>,
     val createdAt: Instant = Instant.now(),
+    val accessControlJson: String? = null,
 )
 
 data class GetFunctionResponse(

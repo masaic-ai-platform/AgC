@@ -1,5 +1,6 @@
 package ai.masaic.platform.api.tools
 
+import ai.masaic.openresponses.api.user.AccessManager
 import ai.masaic.openresponses.tool.*
 import ai.masaic.openresponses.tool.mcp.MCPServerInfo
 import ai.masaic.openresponses.tool.mcp.McpToolDefinition
@@ -54,7 +55,19 @@ class MockFunSaveTool(
         val functionDefinition = jsonTree["functionDefinition"].asText()
         logger.info { "functionDefinition to save: $functionDefinition" }
         val functionBody: FunctionBody = mapper.readValue(functionDefinition.replace("```json", "").replace("```", ""))
-        val savedDefinition = mockFunctionRepository.upsert(MockFunctionDefinition(functionBody = functionBody, outputSchem = jsonTree["outputSchema"].asText()))
+        
+        // Compute and serialize access control
+        val accessControl = AccessManager.computeAccessControl()
+        val accessControlJson = accessControl.let { AccessManager.toString(it) }
+        
+        val savedDefinition =
+            mockFunctionRepository.upsert(
+                MockFunctionDefinition(
+                    functionBody = functionBody, 
+                    outputSchem = jsonTree["outputSchema"].asText(),
+                    accessControlJson = accessControlJson,
+                ),
+            )
         return "functionId: ${savedDefinition.id}"
     }
 }
@@ -65,6 +78,7 @@ data class MockFunctionDefinition(
     val functionBody: FunctionBody,
     val outputSchem: String,
     val createdAt: Instant = Instant.now(),
+    val accessControlJson: String? = null,
 ) {
     fun toMcpToolDefinition(serverInfo: MCPServerInfo): McpToolDefinition {
         val schemaElement = JsonSchemaMapper.mapToJsonSchemaElement(functionBody.parameters) as JsonObjectSchema
@@ -80,6 +94,7 @@ data class MockFunctionDefinition(
 }
 
 data class FunctionBody(
+    val id: String? = null,
     val name: String,
     val description: String,
     val parameters: MutableMap<String, Any> = mutableMapOf(),

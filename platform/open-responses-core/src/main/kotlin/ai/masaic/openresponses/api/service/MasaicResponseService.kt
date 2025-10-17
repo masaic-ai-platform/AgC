@@ -451,3 +451,7 @@ class ResponseStreamingException(
     message: String,
     cause: Throwable? = null,
 ) : RuntimeException(message, cause)
+
+class AccessDeniedException(
+    message: String,
+) : ResponseProcessingException(message = message)

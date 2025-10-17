@@ -6,6 +6,7 @@ import ai.masaic.openresponses.api.exception.VectorStoreFileNotFoundException
 import ai.masaic.openresponses.api.exception.VectorStoreNotFoundException
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.repository.VectorStoreRepository
+import ai.masaic.openresponses.api.service.AccessDeniedException
 import ai.masaic.openresponses.api.service.VectorStoreFileManager
 import ai.masaic.openresponses.api.support.service.OpenResponsesObsAttributes
 import ai.masaic.openresponses.api.support.service.TelemetryService
@@ -15,7 +16,6 @@ import io.micrometer.core.instrument.Timer
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import java.io.InputStream
-import java.nio.file.AccessDeniedException
 import java.time.Instant
 
 /**
@@ -259,7 +259,7 @@ open class VectorStoreService(
             // Filter by access permission
             val accessibleVectorStores =
                 vectorStores.filter { vectorStore ->
-                    isAccessible(vectorStore.accessControl)
+                    canRead(vectorStore.accessControl)
                 }
 
             // Check and update expiration status for each accessible vector store
@@ -291,7 +291,7 @@ open class VectorStoreService(
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
 
             // Check access permission
-            if (!isAccessible(vectorStore.accessControl)) {
+            if (!canRead(vectorStore.accessControl)) {
                 throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
             }
 
@@ -317,7 +317,8 @@ open class VectorStoreService(
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
 
             // Check access permission
-            if (!isAccessible(vectorStore.accessControl)) {
+
+            if (!AccessManager.isAccessPermitted(getAccessControl(vectorStore.accessControl)).update) {
                 throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
             }
 
@@ -349,7 +350,7 @@ open class VectorStoreService(
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
 
             // Check access permission
-            if (!isAccessible(vectorStore.accessControl)) {
+            if (!AccessManager.isAccessPermitted(getAccessControl(vectorStore.accessControl)).delete) {
                 throw AccessDeniedException("Access denied to delete vector store: $vectorStoreId")
             }
 
@@ -405,7 +406,7 @@ open class VectorStoreService(
                         ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
                 
                 // Check access permission
-                if (!isAccessible(vectorStore.accessControl)) {
+                if (!canRead(vectorStore.accessControl)) {
                     throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
                 }
 
@@ -476,7 +477,7 @@ open class VectorStoreService(
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
 
             // Check access permission
-            if (!isAccessible(vectorStore.accessControl)) {
+            if (!canRead(vectorStore.accessControl)) {
                 throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
             }
 
@@ -513,7 +514,7 @@ open class VectorStoreService(
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
 
             // Check access permission
-            if (!isAccessible(vectorStore.accessControl)) {
+            if (!canRead(vectorStore.accessControl)) {
                 throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
             }
 
@@ -558,7 +559,7 @@ open class VectorStoreService(
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
 
             // Check access permission
-            if (!isAccessible(vectorStore.accessControl)) {
+            if (!canRead(vectorStore.accessControl)) {
                 throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
             }
 
@@ -713,7 +714,7 @@ open class VectorStoreService(
                         ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
 
                 // Check access permission
-                if (!isAccessible(vectorStore.accessControl)) {
+                if (!canRead(vectorStore.accessControl)) {
                     throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
                 }
 
@@ -842,7 +843,7 @@ open class VectorStoreService(
                     ?: throw VectorStoreNotFoundException("Vector store not found: $vectorStoreId")
 
             // Check access permission
-            if (!isAccessible(vectorStore.accessControl)) {
+            if (!canRead(vectorStore.accessControl)) {
                 throw AccessDeniedException("Access denied to vector store: $vectorStoreId")
             }
 
@@ -1119,5 +1120,5 @@ open class VectorStoreService(
 
     private suspend fun getAccessControl(accessControlStr: String?) = accessControlStr?.let { AccessManager.fromString(accessControlStr) }
 
-    private suspend fun isAccessible(accessControlStr: String?) = AccessManager.isAccessPermitted(getAccessControl(accessControlStr))
+    private suspend fun canRead(accessControlStr: String?) = AccessManager.isAccessPermitted(getAccessControl(accessControlStr)).read
 }

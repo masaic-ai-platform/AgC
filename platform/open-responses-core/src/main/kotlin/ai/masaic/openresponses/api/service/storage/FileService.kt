@@ -4,6 +4,7 @@ import ai.masaic.openresponses.api.model.File
 import ai.masaic.openresponses.api.model.FileDeleteResponse
 import ai.masaic.openresponses.api.model.FileListResponse
 import ai.masaic.openresponses.api.model.FilePurpose
+import ai.masaic.openresponses.api.service.AccessDeniedException
 import ai.masaic.openresponses.api.service.search.VectorSearchProvider
 import ai.masaic.openresponses.api.support.service.TelemetryService
 import ai.masaic.openresponses.api.user.AccessControl
@@ -17,7 +18,6 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.core.io.Resource
 import org.springframework.http.codec.multipart.FilePart
 import org.springframework.stereotype.Service
-import java.nio.file.AccessDeniedException
 import java.nio.file.Path
 import java.time.Instant
 
@@ -104,7 +104,7 @@ class FileService(
             // Filter files by access permission
             val accessibleFiles =
                 allFiles.filter { file ->
-                    AccessManager.isAccessPermitted(file.accessControl)
+                    AccessManager.isAccessPermitted(file.accessControl).delete
                 }
 
             // Sort by creation time
@@ -160,7 +160,7 @@ class FileService(
                 )
             
             // Check access permission
-            if (!AccessManager.isAccessPermitted(file.accessControl)) {
+            if (!AccessManager.isAccessPermitted(file.accessControl).read) {
                 throw AccessDeniedException("Access denied to file: $fileId")
             }
 
@@ -179,7 +179,7 @@ class FileService(
             val metadata = fileStorageService.getFileMetadata(fileId)
             val accessControl = metadata["accessControl"] as? AccessControl
 
-            if (!AccessManager.isAccessPermitted(accessControl)) {
+            if (!AccessManager.isAccessPermitted(accessControl).read) {
                 throw AccessDeniedException("Access denied to file: $fileId")
             }
 
@@ -202,7 +202,7 @@ class FileService(
             val metadata = fileStorageService.getFileMetadata(fileId)
             val accessControl = metadata["accessControl"] as? AccessControl
 
-            if (!AccessManager.isAccessPermitted(accessControl)) {
+            if (!AccessManager.isAccessPermitted(accessControl).delete) {
                 throw AccessDeniedException("Access denied to delete file: $fileId")
             }
 
