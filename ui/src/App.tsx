@@ -18,9 +18,9 @@ const queryClient = new QueryClient();
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <PlatformProvider>
-      <GoogleOAuthProvider clientId={AUTH_CONFIG.googleClientId}>
-        <AuthProvider>
+    <GoogleOAuthProvider clientId={AUTH_CONFIG.googleClientId}>
+      <AuthProvider>
+        <PlatformProvider>
           <TooltipProvider>
             <Toaster />
             <Sonner />
@@ -45,9 +45,9 @@ const App = () => (
               </Routes>
             </BrowserRouter>
           </TooltipProvider>
-        </AuthProvider>
-      </GoogleOAuthProvider>
-    </PlatformProvider>
+        </PlatformProvider>
+      </AuthProvider>
+    </GoogleOAuthProvider>
   </QueryClientProvider>
 );
 
