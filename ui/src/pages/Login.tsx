@@ -7,13 +7,12 @@ import { Github, MessageCircle } from 'lucide-react';
 import Silk from '@/components/backgrounds/Silk';
 
 const Login: React.FC = () => {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, apiError } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   
-  // Get the path they were trying to access and API error state
+  // Get the path they were trying to access
   const from = (location.state as any)?.from || '/';
-  const apiError = (location.state as any)?.apiError || false;
 
   // If already authenticated, redirect to intended destination
   useEffect(() => {
