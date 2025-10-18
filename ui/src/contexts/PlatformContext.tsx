@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { API_URL } from '@/config';
 import { apiClient } from '@/lib/api';
-import { useAuth } from './AuthContext';
 
 interface ModelSettings {
   settingsType: string;
@@ -77,17 +76,8 @@ export const PlatformProvider: React.FC<PlatformProviderProps> = ({ children }) 
   const [platformInfo, setPlatformInfo] = useState<PlatformInfo | null>(defaultPlatformInfo);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { isAuthenticated, authEnabled, isLoading: authLoading } = useAuth();
 
   const fetchPlatformInfo = async () => {
-    // Only fetch if auth is disabled OR user is authenticated
-    const shouldFetch = !authEnabled || isAuthenticated;
-    
-    if (!shouldFetch) {
-      console.log('Skipping platform info fetch - user not authenticated');
-      return;
-    }
-
     setIsLoading(true);
     setError(null);
     
@@ -110,13 +100,8 @@ export const PlatformProvider: React.FC<PlatformProviderProps> = ({ children }) 
     }
   };
 
-  // Fetch platform info when authentication state changes
+  // Fetch platform info on mount and page visibility change (refresh detection)
   useEffect(() => {
-    // Wait for auth to finish loading
-    if (authLoading) {
-      return;
-    }
-
     fetchPlatformInfo();
 
     // Listen for page visibility changes (to detect page refresh/focus)
@@ -138,7 +123,7 @@ export const PlatformProvider: React.FC<PlatformProviderProps> = ({ children }) 
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
     };
-  }, [isAuthenticated, authEnabled, authLoading]);
+  }, []);
 
   const refetchPlatformInfo = async () => {
     await fetchPlatformInfo();
