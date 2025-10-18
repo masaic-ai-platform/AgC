@@ -16,7 +16,7 @@ import org.springframework.context.annotation.Configuration
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
 import java.net.URI
 
-@Configuration
+// @Configuration
 class AgCPlatformServerConfig {
     @Bean
     @ConditionalOnMissingBean
@@ -51,6 +51,7 @@ class AgCPlatformServerConfig {
                 },
             partners = partners,
             oAuthRedirectSpecs = oAuthRedirectSpecs,
+            agentClientSideRuntimeConfig = AgentClientSideRuntimeConfig("", ""),
         )
     }
 

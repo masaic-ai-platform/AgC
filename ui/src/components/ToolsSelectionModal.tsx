@@ -24,6 +24,7 @@ import FileSearchModal from './FileSearchModal';
 import AgenticFileSearchModal from './AgenticFileSearchModal';
 import PyFunctionToolModal from './PyFunctionToolModal';
 import PyFunctionToolSelectionModal from './PyFunctionToolSelectionModal';
+import LocalToolModal from './LocalToolModal';
 import { toast } from 'sonner';
 
 interface Tool {
@@ -35,6 +36,7 @@ interface Tool {
   fileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[] }; // For file search tools
   agenticFileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[]; iterations: number; maxResults: number }; // For agentic file search tools
   pyFunctionConfig?: any; // For Python function tools
+  clientSideToolConfig?: any; // For Client-side tools
 }
 
 interface PyFunctionTool {
@@ -60,6 +62,8 @@ interface ToolsSelectionModalProps {
   onEditingAgenticFileSearchChange?: (editingAgenticFileSearch: Tool | null) => void;
   editingPyFunction?: Tool | null;
   onEditingPyFunctionChange?: (editingPyFunction: Tool | null) => void;
+  editingClientSideTool?: Tool | null;
+  onEditingClientSideToolChange?: (editingClientSideTool: Tool | null) => void;
   onOpenE2BModal?: () => void;
   getMCPToolByLabel?: (label: string) => any;
   children?: React.ReactNode;
@@ -68,6 +72,7 @@ interface ToolsSelectionModalProps {
 const availableTools: Tool[] = [
   { id: 'mcp_server', name: 'MCP Server', icon: MCP },
   { id: 'py_fun_tool', name: 'Py Function Tool', icon: Code },
+  { id: 'client_side_tool', name: 'Client-Side Tool', icon: Puzzle },
   { id: 'file_search', name: 'File Search', icon: Search },
   { id: 'agentic_file_search', name: 'Agentic File Search', icon: FileSearch },
   { id: 'function', name: 'Function', icon: Code },
@@ -88,6 +93,8 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
   onEditingAgenticFileSearchChange,
   editingPyFunction,
   onEditingPyFunctionChange,
+  editingClientSideTool,
+  onEditingClientSideToolChange,
   onOpenE2BModal,
   getMCPToolByLabel,
   children
@@ -99,6 +106,7 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
   const [agenticFileSearchModalOpen, setAgenticFileSearchModalOpen] = useState(false);
   const [pyFunctionModalOpen, setPyFunctionModalOpen] = useState(false);
   const [pyFunctionSelectionModalOpen, setPyFunctionSelectionModalOpen] = useState(false);
+  const [clientSideToolModalOpen, setClientSideToolModalOpen] = useState(false);
   const [functionDefinition, setFunctionDefinition] = useState('');
   const [editingMCPConfig, setEditingMCPConfig] = useState<any>(null);
   
@@ -142,6 +150,13 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
     }
   }, [editingPyFunction]);
 
+  // Handle editing existing Client-side tool
+  React.useEffect(() => {
+    if (editingClientSideTool && editingClientSideTool.id === 'client_side_tool') {
+      setClientSideToolModalOpen(true);
+    }
+  }, [editingClientSideTool]);
+
   const handleToolSelect = (tool: Tool) => {
     if (tool.id === 'function') {
       setIsOpen(false);
@@ -158,6 +173,9 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
     } else if (tool.id === 'py_fun_tool') {
       setIsOpen(false);
       setPyFunctionSelectionModalOpen(true);
+    } else if (tool.id === 'client_side_tool') {
+      setIsOpen(false);
+      setClientSideToolModalOpen(true);
     } else {
       onToolSelect(tool);
       setIsOpen(false);
@@ -352,9 +370,29 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
     }
   };
 
+  const handleClientSideToolSave = (config: any) => {
+    // Create Client-side tool with config
+    const clientSideTool: Tool = {
+      id: 'client_side_tool',
+      name: config.name || 'Client-Side Function',
+      icon: Puzzle,
+      clientSideToolConfig: config
+    };
+
+    // If editing, remove the old Client-side tool first
+    if (editingClientSideTool && onEditingClientSideToolChange) {
+      // The parent component will handle removing the old Client-side tool and adding the new one
+      onEditingClientSideToolChange(null);
+    }
+
+    onToolSelect(clientSideTool);
+    // Don't close modal or clear state here - let the modal handle its own closing
+    // This prevents affecting other tools
+  };
+
   const isToolSelected = (toolId: string) => {
-    // Allow multiple functions, MCP servers, and PyFunction tools to be added
-    if (toolId === 'function' || toolId === 'mcp_server' || toolId === 'py_fun_tool') {
+    // Allow multiple functions, MCP servers, PyFunction tools, and Client-side tools to be added
+    if (toolId === 'function' || toolId === 'mcp_server' || toolId === 'py_fun_tool' || toolId === 'client_side_tool') {
       return false;
     }
     return selectedTools.some(tool => tool.id === toolId);
@@ -385,6 +423,14 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
           tooltipMessage: 'Python Interpreter is disabled in platform settings'
         };
       }
+      return {
+        isDisabled: false,
+        tooltipMessage: null
+      };
+    }
+
+    // Enable Client-side tool
+    if (tool.id === 'client_side_tool') {
       return {
         isDisabled: false,
         tooltipMessage: null
@@ -575,20 +621,35 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
         onOpenE2BModal={onOpenE2BModal}
       />
 
-             <PyFunctionToolSelectionModal
-         open={pyFunctionSelectionModalOpen}
-         onOpenChange={(open) => {
-           setPyFunctionSelectionModalOpen(open);
-           if (!open) {
-             // Clear editing state when modal closes
-             if (onEditingPyFunctionChange) {
-               onEditingPyFunctionChange(null);
-             }
-           }
-         }}
-         onFunctionSelect={handlePyFunctionSelect}
-         onCreateFunction={handleCreatePyFunction}
-       />
+      <PyFunctionToolSelectionModal
+        open={pyFunctionSelectionModalOpen}
+        onOpenChange={(open) => {
+          setPyFunctionSelectionModalOpen(open);
+          if (!open) {
+            // Clear editing state when modal closes
+            if (onEditingPyFunctionChange) {
+              onEditingPyFunctionChange(null);
+            }
+          }
+        }}
+        onFunctionSelect={handlePyFunctionSelect}
+        onCreateFunction={handleCreatePyFunction}
+      />
+
+      <LocalToolModal
+        open={clientSideToolModalOpen}
+        onOpenChange={(open) => {
+          setClientSideToolModalOpen(open);
+          if (!open) {
+            // Clear editing state when modal closes
+            if (onEditingClientSideToolChange) {
+              onEditingClientSideToolChange(null);
+            }
+          }
+        }}
+        onSave={handleClientSideToolSave}
+        initialTool={editingClientSideTool?.clientSideToolConfig || null}
+      />
     </>
   );
 };
