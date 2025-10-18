@@ -8,16 +8,16 @@ interface ProtectedRouteProps {
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isAuthenticated, isLoading, authEnabled, apiError, tokenExpired } = useAuth();
+  const { isAuthenticated, isLoading, authEnabled, tokenExpired } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
     // If auth is enabled and user is not authenticated, redirect to login
     if (authEnabled && !isLoading && (!isAuthenticated || tokenExpired)) {
-      navigate('/login', { state: { from: location.pathname, apiError } });
+      navigate('/login', { state: { from: location.pathname } });
     }
-  }, [authEnabled, isAuthenticated, isLoading, tokenExpired, navigate, location.pathname, apiError]);
+  }, [authEnabled, isAuthenticated, isLoading, tokenExpired, navigate, location.pathname]);
 
   // If auth is disabled, render children directly
   if (!authEnabled) {
