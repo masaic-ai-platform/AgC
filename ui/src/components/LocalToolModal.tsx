@@ -335,7 +335,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     const parsedDefaultValue = parseDefaultValue(propertyDefaultValue, propertyType);
     
     const newProperty: PropertyDefinition = {
-      type: propertyType,
+      type: propertyType === 'enum' ? 'string' : propertyType,
       description: propertyDescription.trim() || undefined,
       ...(parsedDefaultValue !== undefined && { default: parsedDefaultValue }),
       ...(propertyType === 'enum' && propertyEnumValues.length > 0 && { enum: propertyEnumValues }),
@@ -379,7 +379,8 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     const property = parameters[propName];
     setPropertyName(propName);
     setPropertyNameError('');
-    setPropertyType(property.type);
+    // If property has enum values, treat it as enum type in UI
+    setPropertyType(property.enum && property.enum.length > 0 ? 'enum' : property.type);
     setPropertyDescription(property.description || '');
     setPropertyDefaultValue(property.default !== undefined ? JSON.stringify(property.default) : '');
     setPropertyEnumValues(property.enum || []);
@@ -950,7 +951,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
                         <div className="flex items-center space-x-2 flex-wrap">
                           <span className="font-mono text-sm font-medium">{propName}</span>
                           <span className="text-xs text-muted-foreground px-2 py-0.5 bg-background rounded">
-                            {propDef.type}
+                            {propDef.enum && propDef.enum.length > 0 ? 'enum' : propDef.type}
                           </span>
                           {propDef.default !== undefined && (
                             <span className="text-xs text-green-600 px-2 py-0.5 bg-green-50 rounded border border-green-200">

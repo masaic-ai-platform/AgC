@@ -59,6 +59,7 @@ data class ToolMeta(
     val fileSearchTools: List<FileSearchToolMeta> = emptyList(),
     val agenticSearchTools: List<AgenticSearchToolMeta> = emptyList(),
     val pyFunTools: List<PyFunToolMeta> = emptyList(),
+    val functionTools: List<FunctionToolMeta> = emptyList(),
 )
 
 data class McpToolMeta(
@@ -107,6 +108,13 @@ data class ModelInfoMeta(
 
 data class PyFunToolMeta(
     val id: String,
+)
+
+data class FunctionToolMeta(
+    val name: String,
+    val description: String? = null,
+    val parameters: MutableMap<String, Any> = mutableMapOf(),
+    val strict: Boolean = true,
 )
 
 data class RankingOptionsMeta(
