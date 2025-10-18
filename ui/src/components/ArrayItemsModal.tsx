@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Plus, Trash2, Check, X } from 'lucide-react';
+import { Plus, Trash2, Pencil,Check, X } from 'lucide-react';
 import { toast } from 'sonner';
 import ObjectPropertiesModal from './ObjectPropertiesModal';
 
@@ -159,7 +159,7 @@ const ArrayItemsModal: React.FC<ArrayItemsModalProps> = ({
       <DialogContent className="w-full max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center space-x-2">
-            <Plus className="h-5 w-5" />
+            <Pencil className="h-5 w-5" />
             <span>Array Items Definition</span>
           </DialogTitle>
         </DialogHeader>
@@ -183,11 +183,10 @@ const ArrayItemsModal: React.FC<ArrayItemsModalProps> = ({
             </div>
 
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Description (optional)</Label>
               <Textarea
                 value={propertyDescription}
                 onChange={(e) => setPropertyDescription(e.target.value)}
-                placeholder="Describe what each array item represents..."
+                placeholder="Describe (optional) what each array item represents..."
                 className="min-h-[60px]"
               />
             </div>
@@ -263,8 +262,17 @@ const ArrayItemsModal: React.FC<ArrayItemsModalProps> = ({
                     onClick={() => setObjectModalOpen(true)}
                     className="h-6 text-xs"
                   >
-                    <Plus className="h-3 w-3 mr-1" />
-                    Define Properties
+                    {Object.keys(propertyObjectProperties).length > 0 ? (
+                      <>
+                        <Pencil className="h-3 w-3 mr-1" />
+                        Edit Properties
+                      </>
+                    ) : (
+                      <>
+                        <Plus className="h-3 w-3 mr-1" />
+                        Define Properties
+                      </>
+                    )}
                   </Button>
                 </div>
                 

@@ -222,6 +222,54 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     setPropertyEnumValues(values);
   };
 
+  // Handlers for editing existing object properties and array items
+  const handleEditObjectProperties = (propName: string) => {
+    const property = parameters[propName];
+    if (property && property.properties) {
+      setPropertyObjectProperties(property.properties);
+      setObjectModalOpen(true);
+    }
+  };
+
+  const handleEditArrayItems = (propName: string) => {
+    const property = parameters[propName];
+    if (property && property.items) {
+      setPropertyArrayItems(property.items);
+      setArrayModalOpen(true);
+    }
+  };
+
+  // Enhanced handlers for saving object properties and array items
+  const handleObjectPropertiesSaveEnhanced = (properties: Record<string, PropertyDefinition>) => {
+    if (editingPropertyName) {
+      // Update existing parameter
+      const updatedParameters = { ...parameters };
+      updatedParameters[editingPropertyName] = {
+        ...updatedParameters[editingPropertyName],
+        properties
+      };
+      setParameters(updatedParameters);
+    } else {
+      // Update current form state
+      setPropertyObjectProperties(properties);
+    }
+  };
+
+  const handleArrayItemsSaveEnhanced = (items: PropertyDefinition) => {
+    if (editingPropertyName) {
+      // Update existing parameter
+      const updatedParameters = { ...parameters };
+      updatedParameters[editingPropertyName] = {
+        ...updatedParameters[editingPropertyName],
+        items
+      };
+      setParameters(updatedParameters);
+    } else {
+      // Update current form state
+      setPropertyArrayItems(items);
+    }
+  };
+
   const resetForm = () => {
     setName('');
     setNameError('');
@@ -772,8 +820,17 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
                       onClick={() => setObjectModalOpen(true)}
                       className="h-6 text-xs"
                     >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Define Properties
+                      {Object.keys(propertyObjectProperties).length > 0 ? (
+                        <>
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Edit Properties
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-3 w-3 mr-1" />
+                          Define Properties
+                        </>
+                      )}
                     </Button>
                   </div>
                   
@@ -810,8 +867,17 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
                       onClick={() => setArrayModalOpen(true)}
                       className="h-6 text-xs"
                     >
-                      <Plus className="h-3 w-3 mr-1" />
-                      Define Items
+                      {propertyArrayItems ? (
+                        <>
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Edit Items
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-3 w-3 mr-1" />
+                          Define Items
+                        </>
+                      )}
                     </Button>
                   </div>
                   
@@ -901,11 +967,11 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
                           <div className="mt-2">
                             <p className="text-xs text-muted-foreground mb-1">Properties:</p>
                             <div className="space-y-1">
-                              {Object.entries(propDef.properties).map(([propName, propDef]) => (
-                                <div key={propName} className="flex items-center space-x-2 text-xs">
-                                  <span className="font-mono text-muted-foreground">{propName}</span>
+                              {Object.entries(propDef.properties).map(([nestedPropName, nestedPropDef]) => (
+                                <div key={nestedPropName} className="flex items-center space-x-2 text-xs">
+                                  <span className="font-mono text-muted-foreground">{nestedPropName}</span>
                                   <span className="px-1 py-0.5 bg-muted rounded text-muted-foreground">
-                                    {propDef.type}
+                                    {nestedPropDef.type}
                                   </span>
                                 </div>
                               ))}
@@ -1239,7 +1305,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     <ObjectPropertiesModal
       open={objectModalOpen}
       onOpenChange={setObjectModalOpen}
-      onSave={handleObjectPropertiesSave}
+      onSave={handleObjectPropertiesSaveEnhanced}
       initialProperties={propertyObjectProperties}
     />
 
@@ -1247,7 +1313,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     <ArrayItemsModal
       open={arrayModalOpen}
       onOpenChange={setArrayModalOpen}
-      onSave={handleArrayItemsSave}
+      onSave={handleArrayItemsSaveEnhanced}
       initialItems={propertyArrayItems}
     />
 
