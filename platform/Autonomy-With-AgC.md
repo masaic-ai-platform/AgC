@@ -138,6 +138,7 @@
 - ✅ Streaming and real-time responses
 - ✅ Error handling and retries
 - ✅ Context window management
+- ✅ Open telemetry traces of conversations.
 - ✅ Supporting multiple LLM providers
 
 **AgC handles all of this for you.**
@@ -270,16 +271,16 @@ AgC Approach:
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                                                             │
-│  "You build the tools, we handle the AI"                   │
+│  "You build the tools, we handle the AI"                    │
 │                                                             │
-│  ✓ AgC does the heavy lifting: Agentic loops, LLMs,        │
-│    conversation management, multi-step reasoning           │
+│  ✓ AgC does the heavy lifting: Agentic loops, LLMs,         │
+│    conversation management, multi-step reasoning            │
 │                                                             │
-│  ✓ You keep control: Your tools, your data, your           │
-│    environment, your credentials                           │
+│  ✓ You keep control: Your tools, your data, your            │
+│    environment, your credentials                            │
 │                                                             │
-│  ✓ Best of both worlds: Enterprise-grade AI platform       │
-│    with complete privacy and autonomy                      │
+│  ✓ Best of both worlds: Enterprise-grade AI platform        │
+│    with complete privacy and autonomy                       │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
