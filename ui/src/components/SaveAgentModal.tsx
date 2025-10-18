@@ -118,6 +118,14 @@ const SaveAgentModal: React.FC<SaveAgentModalProps> = ({
           },
           code: tool.pyFunctionConfig.code
         };
+      } else if (tool.id === 'client_side_tool' && tool.clientSideToolConfig) {
+        return {
+          type: tool.clientSideToolConfig.type || 'function',
+          name: tool.clientSideToolConfig.name,
+          description: tool.clientSideToolConfig.description,
+          parameters: tool.clientSideToolConfig.parameters,
+          strict: tool.clientSideToolConfig.strict
+        };
       } else if (tool.id === 'fun_req_gathering_tool') {
         return { type: 'fun_req_gathering_tool' };
       } else if (tool.id === 'fun_def_generation_tool') {

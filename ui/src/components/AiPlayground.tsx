@@ -751,6 +751,14 @@ const AiPlayground: React.FC = () => {
           icon: Code,
           pyFunctionConfig: tool
         };
+      } else if (tool.type === 'function' && tool.name && tool.parameters) {
+        // Handle client-side tools (saved as type 'function' with name and parameters)
+        return {
+          id: 'client_side_tool',
+          name: tool.name,
+          icon: Puzzle,
+          clientSideToolConfig: tool
+        };
       }
       // Handle other tool types with their default configurations
       return {
