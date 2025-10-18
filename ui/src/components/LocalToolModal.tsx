@@ -14,6 +14,9 @@ import { Switch } from '@/components/ui/switch';
 import { Loader2, Plus, Trash2, Copy, Wand2, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api';
+import ObjectPropertiesModal from './ObjectPropertiesModal';
+import ArrayItemsModal from './ArrayItemsModal';
+import EnumValuesModal from './EnumValuesModal';
 
 interface LocalToolModalProps {
   open: boolean;
@@ -38,8 +41,10 @@ interface LocalTool {
 interface PropertyDefinition {
   type: string;
   description?: string;
+  default?: any;
   enum?: any[];
   properties?: Record<string, PropertyDefinition>;
+  items?: PropertyDefinition;
 }
 
 interface ExecutionSpecs {
@@ -80,7 +85,16 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
   const [propertyNameError, setPropertyNameError] = useState('');
   const [propertyType, setPropertyType] = useState('string');
   const [propertyDescription, setPropertyDescription] = useState('');
+  const [propertyDefaultValue, setPropertyDefaultValue] = useState('');
+  const [propertyEnumValues, setPropertyEnumValues] = useState<string[]>([]);
+  const [propertyObjectProperties, setPropertyObjectProperties] = useState<Record<string, PropertyDefinition>>({});
+  const [propertyArrayItems, setPropertyArrayItems] = useState<PropertyDefinition | null>(null);
   const [editingPropertyName, setEditingPropertyName] = useState<string | null>(null);
+
+  // Modal states
+  const [objectModalOpen, setObjectModalOpen] = useState(false);
+  const [arrayModalOpen, setArrayModalOpen] = useState(false);
+  const [enumModalOpen, setEnumModalOpen] = useState(false);
 
   // Load existing tool configuration when editing
   useEffect(() => {
@@ -162,6 +176,52 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     return hasValidName && hasValidDescription && hasValidPropertyName;
   };
 
+  // Helper function to parse default value based on type
+  const parseDefaultValue = (value: string, type: string): any => {
+    if (!value.trim()) return undefined;
+    
+    try {
+      switch (type) {
+        case 'number':
+          return Number(value);
+        case 'boolean':
+          return value.toLowerCase() === 'true';
+        case 'object':
+        case 'array':
+          return JSON.parse(value);
+        case 'string':
+        case 'enum':
+        default:
+          return value;
+      }
+    } catch (error) {
+      // If parsing fails, return the original string value
+      return value;
+    }
+  };
+
+  // Helper functions for enum values
+  const addEnumValue = () => {
+    setEnumModalOpen(true);
+  };
+
+  const removeEnumValue = (index: number) => {
+    setPropertyEnumValues(propertyEnumValues.filter((_, i) => i !== index));
+  };
+
+  // Modal handlers
+  const handleObjectPropertiesSave = (properties: Record<string, PropertyDefinition>) => {
+    setPropertyObjectProperties(properties);
+  };
+
+  const handleArrayItemsSave = (items: PropertyDefinition) => {
+    setPropertyArrayItems(items);
+  };
+
+  const handleEnumValuesSave = (values: string[]) => {
+    setPropertyEnumValues(values);
+  };
+
   const resetForm = () => {
     setName('');
     setNameError('');
@@ -175,6 +235,10 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     setPropertyNameError('');
     setPropertyType('string');
     setPropertyDescription('');
+    setPropertyDefaultValue('');
+    setPropertyEnumValues([]);
+    setPropertyObjectProperties({});
+    setPropertyArrayItems(null);
     setEditingPropertyName(null);
     setExecutionType('client_side');
     setMaxRetryAttempts(1);
@@ -196,9 +260,39 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
       return;
     }
 
+    // Validate enum type
+    if (propertyType === 'enum' && propertyEnumValues.length === 0) {
+      toast.error('Enum type requires at least one enum value');
+      return;
+    }
+
+    // Validate default value for enum
+    if (propertyType === 'enum' && propertyDefaultValue.trim() && !propertyEnumValues.includes(propertyDefaultValue.trim())) {
+      toast.error('Default value must be one of the defined enum values');
+      return;
+    }
+
+    // Validate object type
+    if (propertyType === 'object' && Object.keys(propertyObjectProperties).length === 0) {
+      toast.error('Object type requires at least one property');
+      return;
+    }
+
+    // Validate array type
+    if (propertyType === 'array' && !propertyArrayItems) {
+      toast.error('Array type requires items definition');
+      return;
+    }
+
+    const parsedDefaultValue = parseDefaultValue(propertyDefaultValue, propertyType);
+    
     const newProperty: PropertyDefinition = {
       type: propertyType,
       description: propertyDescription.trim() || undefined,
+      ...(parsedDefaultValue !== undefined && { default: parsedDefaultValue }),
+      ...(propertyType === 'enum' && propertyEnumValues.length > 0 && { enum: propertyEnumValues }),
+      ...(propertyType === 'object' && Object.keys(propertyObjectProperties).length > 0 && { properties: propertyObjectProperties }),
+      ...(propertyType === 'array' && propertyArrayItems && { items: propertyArrayItems }),
     };
 
     // If editing, remove the old property first
@@ -226,6 +320,10 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     setPropertyName('');
     setPropertyType('string');
     setPropertyDescription('');
+    setPropertyDefaultValue('');
+    setPropertyEnumValues([]);
+    setPropertyObjectProperties({});
+    setPropertyArrayItems(null);
     setEditingPropertyName(null);
   };
 
@@ -235,6 +333,10 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     setPropertyNameError('');
     setPropertyType(property.type);
     setPropertyDescription(property.description || '');
+    setPropertyDefaultValue(property.default !== undefined ? JSON.stringify(property.default) : '');
+    setPropertyEnumValues(property.enum || []);
+    setPropertyObjectProperties(property.properties || {});
+    setPropertyArrayItems(property.items || null);
     setEditingPropertyName(propName);
   };
 
@@ -243,6 +345,10 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     setPropertyNameError('');
     setPropertyType('string');
     setPropertyDescription('');
+    setPropertyDefaultValue('');
+    setPropertyEnumValues([]);
+    setPropertyObjectProperties({});
+    setPropertyArrayItems(null);
     setEditingPropertyName(null);
   };
 
@@ -584,6 +690,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
                   <option value="boolean">Boolean</option>
                   <option value="object">Object</option>
                   <option value="array">Array</option>
+                  <option value="enum">Enum</option>
                 </select>
               </div>
               
@@ -593,6 +700,142 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
                 placeholder="Description (optional)"
                 className="bg-background"
               />
+              
+              <div className="space-y-1">
+                <Input
+                  value={propertyDefaultValue}
+                  onChange={(e) => setPropertyDefaultValue(e.target.value)}
+                  placeholder={
+                    propertyType === 'string' ? 'Enter default string value' :
+                    propertyType === 'number' ? 'Enter default number (e.g., 42)' :
+                    propertyType === 'boolean' ? 'Enter default boolean value (true or false)' :
+                    propertyType === 'object' ? 'Enter default JSON object (e.g., {"key": "value"})' :
+                    propertyType === 'array' ? 'Enter default JSON array (e.g., ["item1", "item2"])' :
+                    propertyType === 'enum' ? 'Enter default enum value from the list below' :
+                    'Enter default value'
+                  }
+                  className="bg-background text-sm"
+                />
+              </div>
+              
+              {/* Enum Values Section */}
+              {propertyType === 'enum' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Enum Values</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addEnumValue}
+                      className="h-6 text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Value
+                    </Button>
+                  </div>
+                  
+                  {propertyEnumValues.length > 0 ? (
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                      {propertyEnumValues.map((value, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded border">
+                          <span className="text-sm font-mono">{value}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeEnumValue(index)}
+                            className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      No enum values defined. Click "Add Value" to add options.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Object Properties Section */}
+              {propertyType === 'object' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Object Properties</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setObjectModalOpen(true)}
+                      className="h-6 text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Define Properties
+                    </Button>
+                  </div>
+                  
+                  {Object.keys(propertyObjectProperties).length > 0 ? (
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                      {Object.entries(propertyObjectProperties).map(([propName, propDef]) => (
+                        <div key={propName} className="flex items-center justify-between p-2 bg-muted/50 rounded border">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm font-mono">{propName}</span>
+                            <span className="text-xs text-muted-foreground px-1 py-0.5 bg-background rounded">
+                              {propDef.type}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      No properties defined. Click "Define Properties" to add object structure.
+                    </p>
+                  )}
+                </div>
+              )}
+
+              {/* Array Items Section */}
+              {propertyType === 'array' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Array Items</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setArrayModalOpen(true)}
+                      className="h-6 text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Define Items
+                    </Button>
+                  </div>
+                  
+                  {propertyArrayItems ? (
+                    <div className="p-2 bg-muted/50 rounded border">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-medium">Items Type:</span>
+                        <span className="text-xs text-muted-foreground px-2 py-0.5 bg-background rounded">
+                          {propertyArrayItems.type}
+                        </span>
+                      </div>
+                      {propertyArrayItems.description && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {propertyArrayItems.description}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      No items defined. Click "Define Items" to specify array item structure.
+                    </p>
+                  )}
+                </div>
+              )}
               
               <Button
                 size="sm"
@@ -638,17 +881,52 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
                       }`}
                     >
                       <div className="flex-1">
-                        <div className="flex items-center space-x-2">
+                        <div className="flex items-center space-x-2 flex-wrap">
                           <span className="font-mono text-sm font-medium">{propName}</span>
                           <span className="text-xs text-muted-foreground px-2 py-0.5 bg-background rounded">
                             {propDef.type}
                           </span>
+                          {propDef.default !== undefined && (
+                            <span className="text-xs text-green-600 px-2 py-0.5 bg-green-50 rounded border border-green-200">
+                              default: {typeof propDef.default === 'string' ? `"${propDef.default}"` : JSON.stringify(propDef.default)}
+                            </span>
+                          )}
                         </div>
                         {propDef.description && (
                           <p className="text-xs text-muted-foreground mt-1">
                             {propDef.description}
                           </p>
                         )}
+                        {/* {propDef.properties && Object.keys(propDef.properties).length > 0 && (
+                          <div className="mt-2">
+                            <p className="text-xs text-muted-foreground mb-1">Properties:</p>
+                            <div className="space-y-1">
+                              {Object.entries(propDef.properties).map(([propName, propDef]) => (
+                                <div key={propName} className="flex items-center space-x-2 text-xs">
+                                  <span className="font-mono text-muted-foreground">{propName}</span>
+                                  <span className="px-1 py-0.5 bg-muted rounded text-muted-foreground">
+                                    {propDef.type}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )} */}
+                        {/* {propDef.items && (
+                          <div className="mt-2">
+                            <p className="text-xs text-muted-foreground mb-1">Array Items:</p>
+                            <div className="flex items-center space-x-2 text-xs">
+                              <span className="px-1 py-0.5 bg-muted rounded text-muted-foreground">
+                                {propDef.items.type}
+                              </span>
+                              {propDef.items.description && (
+                                <span className="text-muted-foreground italic">
+                                  {propDef.items.description}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        )} */}
                       </div>
                       <div className="flex items-center space-x-2">
                         <label className="flex items-center space-x-2 cursor-pointer">
@@ -956,6 +1234,30 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
         </div>
       </DialogContent>
     </Dialog>
+
+    {/* Object Properties Modal */}
+    <ObjectPropertiesModal
+      open={objectModalOpen}
+      onOpenChange={setObjectModalOpen}
+      onSave={handleObjectPropertiesSave}
+      initialProperties={propertyObjectProperties}
+    />
+
+    {/* Array Items Modal */}
+    <ArrayItemsModal
+      open={arrayModalOpen}
+      onOpenChange={setArrayModalOpen}
+      onSave={handleArrayItemsSave}
+      initialItems={propertyArrayItems}
+    />
+
+    {/* Enum Values Modal */}
+    <EnumValuesModal
+      open={enumModalOpen}
+      onOpenChange={setEnumModalOpen}
+      onSave={handleEnumValuesSave}
+      initialValues={propertyEnumValues}
+    />
   </>
   );
 };
