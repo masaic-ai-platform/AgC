@@ -215,6 +215,11 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
       setParameters({ ...newParams, [propertyName]: newProperty });
     } else {
       setParameters({ ...parameters, [propertyName]: newProperty });
+      
+      // Add new parameter to required fields by default
+      if (!editingPropertyName && !requiredFields.includes(propertyName)) {
+        setRequiredFields([...requiredFields, propertyName]);
+      }
     }
 
     // Reset form
@@ -606,6 +611,16 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
                   </>
                 )}
               </Button>
+              
+              {/* Note about default required behavior */}
+              {!editingPropertyName && (
+                <div className="text-xs text-muted-foreground bg-blue-50 border border-blue-200 rounded-md p-2 mt-2">
+                  <div className="flex items-center space-x-1">
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                    <span>New parameters are required by default</span>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Parameters List */}
