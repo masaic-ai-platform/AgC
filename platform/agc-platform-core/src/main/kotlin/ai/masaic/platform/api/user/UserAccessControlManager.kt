@@ -7,15 +7,19 @@ class UserAccessControlManager : AllowAllAccessManager() {
     private val mapper = jacksonObjectMapper()
 
     override suspend fun computeAccessControl() =
-        UserInfoProvider.userId()?.let {
-            if (it == SYSTEM_USER) {
+        UserInfoProvider.userInfo()?.let {
+            if (it.userId == SYSTEM_USER) {
                 UserAccessControl(
-                    userId = it,
+                    userId = it.userId,
                     grantedScope = Scope.FULL,
                     deletionScope = Scope.RESTRICTED,
                 )
             } else {
-                UserAccessControl(userId = it)
+                if (it.loggedIn) {
+                    UserAccessControl(userId = it.userId)
+                } else {
+                    NoAccessControl()
+                }
             }
         } ?: NoAccessControl()
 
