@@ -36,6 +36,7 @@ interface LocalTool {
     additionalProperties: boolean;
   };
   strict: boolean;
+  executionSpecs?: ExecutionSpecs;
 }
 
 interface PropertyDefinition {
@@ -114,7 +115,17 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
           setParameters({});
         }
         
-        // Always set execution specs toggle to false when editing
+        // Load execution specs values if they exist
+        if (initialTool.executionSpecs) {
+          setExecutionType(initialTool.executionSpecs.type || 'client_side');
+          setMaxRetryAttempts(initialTool.executionSpecs.maxRetryAttempts || 1);
+          setWaitTimeInMillis(initialTool.executionSpecs.waitTimeInMillis || 60000);
+        } else {
+          setExecutionType('client_side');
+          setMaxRetryAttempts(1);
+          setWaitTimeInMillis(60000);
+        }
+        // Always start with execution specs disabled by default
         setIncludeExecutionSpecs(false);
         
         // Load required fields (exclude execution_specs as it's always included)
@@ -437,23 +448,11 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     // Build parameters object
     const finalParameters = { ...parameters };
     
-    // Always add execution_specs with default values (regardless of UI toggle)
-    finalParameters.execution_specs = {
-      type: 'object',
-      properties: {
-        type: {
-          type: 'string',
-          enum: [executionType],
-        },
-        maxRetryAttempts: {
-          type: 'number',
-          enum: [maxRetryAttempts],
-        },
-        waitTimeInMillis: {
-          type: 'number',
-          enum: [waitTimeInMillis],
-        },
-      },
+    // Create execution specs object - always save the current values
+    const executionSpecs = {
+      type: executionType,
+      maxRetryAttempts: maxRetryAttempts,
+      waitTimeInMillis: waitTimeInMillis,
     };
 
     // Create tool object
@@ -468,7 +467,9 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
         additionalProperties: additionalProperties,
       },
       strict: strict,
+      executionSpecs: executionSpecs, // Always save execution specs values
     };
+
 
     // Save to localStorage
     const existingTools = localStorage.getItem('platform_client_side_tools');
