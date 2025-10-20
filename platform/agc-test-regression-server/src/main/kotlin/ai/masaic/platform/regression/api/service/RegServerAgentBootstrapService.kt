@@ -13,22 +13,11 @@ import org.springframework.stereotype.Component
 @Component
 class RegServerAgentBootstrapService(
     private val agentService: AgentService,
-    platformMcpService: PlatformMcpService,
-    mockFunctionRepository: MockFunctionRepository,
-    mocksRepository: MocksRepository,
-    functionRegistryService: FunctionRegistryService,
-) : AgentBootstrapService(
-        agentService,
-        platformMcpService,
-        mockFunctionRepository,
-        mocksRepository,
-        functionRegistryService,
-    ) {
+) {
     private val regTestSuiteAgent = RegTestSuiteAgent()
 
     @EventListener(ApplicationReadyEvent::class)
-    override suspend fun bootstrapAgentsOnStartup() {
-        super.bootstrapAgentsOnStartup()
+    suspend fun bootstrapAgentsOnStartup() {
         val regTestSuiteAgentDef = regTestSuiteAgent.getAgent()
         val regAgent = agentService.getAgent(regTestSuiteAgentDef.name)
         agentService.saveAgent(regTestSuiteAgent.getAgent(), regAgent != null)
