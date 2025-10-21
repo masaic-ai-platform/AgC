@@ -1,11 +1,6 @@
 package ai.masaic.platform.regression.api.service
 
-import ai.masaic.platform.api.registry.functions.FunctionRegistryService
-import ai.masaic.platform.api.repository.MockFunctionRepository
-import ai.masaic.platform.api.repository.MocksRepository
-import ai.masaic.platform.api.service.AgentBootstrapService
 import ai.masaic.platform.api.service.AgentService
-import ai.masaic.platform.api.tools.PlatformMcpService
 import org.springframework.boot.context.event.ApplicationReadyEvent
 import org.springframework.context.event.EventListener
 import org.springframework.stereotype.Component

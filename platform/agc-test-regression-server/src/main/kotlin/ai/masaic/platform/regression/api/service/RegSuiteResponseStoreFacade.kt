@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.models.responses.Response
-import kotlinx.coroutines.reactor.awaitSingle
 import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.http.HttpStatus
@@ -40,8 +39,8 @@ class RegSuiteResponseStoreFacade(
         order: String,
         after: String?,
         before: String?,
-    ): ResponseInputItemList {
-        return when (mode) {
+    ): ResponseInputItemList =
+        when (mode) {
             "in-memory" -> {
                 log.debug { "Using in-memory ResponseStoreService for listInputItems" }
                 responseStoreService.listInputItems(responseId, limit, order, after, before)
@@ -55,14 +54,13 @@ class RegSuiteResponseStoreFacade(
                 responseStoreService.listInputItems(responseId, limit, order, after, before)
             }
         }
-    }
 
     /**
      * Gets a response by ID.
      * Uses either in-memory service or HTTP API based on configuration.
      */
-    suspend fun getResponse(responseId: String): Response {
-        return when (mode) {
+    suspend fun getResponse(responseId: String): Response =
+        when (mode) {
             "in-memory" -> {
                 log.debug { "Using in-memory ResponseStoreService for getResponse" }
                 responseStoreService.getResponse(responseId)
@@ -76,7 +74,6 @@ class RegSuiteResponseStoreFacade(
                 responseStoreService.getResponse(responseId)
             }
         }
-    }
 
     private suspend fun listInputItemsViaHttp(
         responseId: String,
@@ -89,25 +86,25 @@ class RegSuiteResponseStoreFacade(
             val uri = "/v1/responses/$responseId/input_items"
             log.info { "Fetching input items via HTTP: $apiBaseUrl$uri" }
 
-            val response = webClient.get()
-                .uri { uriBuilder ->
-                    uriBuilder.path(uri)
-                        .queryParam("limit", limit)
-                        .queryParam("order", order)
-                    after?.let { uriBuilder.queryParam("after", it) }
-                    before?.let { uriBuilder.queryParam("before", it) }
-                    uriBuilder.build()
-                }
-                .retrieve()
-                .onStatus({ status -> status == HttpStatus.NOT_FOUND }) {
-                    Mono.error(ResponseNotFoundException("Response not found with ID: $responseId"))
-                }
-                .onStatus({ status -> status.isError }) { clientResponse ->
-                    clientResponse.bodyToMono(String::class.java).flatMap { errorBody ->
-                        Mono.error(RuntimeException("HTTP error fetching input items: ${clientResponse.statusCode()} - $errorBody"))
-                    }
-                }
-                .awaitBody<String>()
+            val response =
+                webClient
+                    .get()
+                    .uri { uriBuilder ->
+                        uriBuilder
+                            .path(uri)
+                            .queryParam("limit", limit)
+                            .queryParam("order", order)
+                        after?.let { uriBuilder.queryParam("after", it) }
+                        before?.let { uriBuilder.queryParam("before", it) }
+                        uriBuilder.build()
+                    }.retrieve()
+                    .onStatus({ status -> status == HttpStatus.NOT_FOUND }) {
+                        Mono.error(ResponseNotFoundException("Response not found with ID: $responseId"))
+                    }.onStatus({ status -> status.isError }) { clientResponse ->
+                        clientResponse.bodyToMono(String::class.java).flatMap { errorBody ->
+                            Mono.error(RuntimeException("HTTP error fetching input items: ${clientResponse.statusCode()} - $errorBody"))
+                        }
+                    }.awaitBody<String>()
 
             return mapper.readValue(response)
         } catch (e: Exception) {
@@ -126,18 +123,18 @@ class RegSuiteResponseStoreFacade(
             val uri = "/v1/responses/$responseId"
             log.info { "Fetching response via HTTP: $apiBaseUrl$uri" }
 
-            val responseJson = webClient.get()
-                .uri(uri)
-                .retrieve()
-                .onStatus({ status -> status == HttpStatus.NOT_FOUND }) {
-                    Mono.error(ResponseNotFoundException("Response not found with ID: $responseId"))
-                }
-                .onStatus({ status -> status.isError }) { clientResponse ->
-                    clientResponse.bodyToMono(String::class.java).flatMap { errorBody ->
-                        Mono.error(RuntimeException("HTTP error fetching response: ${clientResponse.statusCode()} - $errorBody"))
-                    }
-                }
-                .awaitBody<String>()
+            val responseJson =
+                webClient
+                    .get()
+                    .uri(uri)
+                    .retrieve()
+                    .onStatus({ status -> status == HttpStatus.NOT_FOUND }) {
+                        Mono.error(ResponseNotFoundException("Response not found with ID: $responseId"))
+                    }.onStatus({ status -> status.isError }) { clientResponse ->
+                        clientResponse.bodyToMono(String::class.java).flatMap { errorBody ->
+                            Mono.error(RuntimeException("HTTP error fetching response: ${clientResponse.statusCode()} - $errorBody"))
+                        }
+                    }.awaitBody<String>()
 
             // Parse the JSON response to Response object using Jackson ObjectMapper
             return mapper.readValue(responseJson, Response::class.java)
@@ -152,4 +149,3 @@ class RegSuiteResponseStoreFacade(
         }
     }
 }
-

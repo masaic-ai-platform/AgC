@@ -1,7 +1,6 @@
 package ai.masaic.platform.regression.api.tools
 
 import ai.masaic.openresponses.api.service.ResponseNotFoundException
-import ai.masaic.platform.regression.api.service.RegSuiteResponseStoreFacade
 import ai.masaic.openresponses.tool.NativeToolDefinition
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolHosting
@@ -11,6 +10,7 @@ import ai.masaic.openresponses.tool.mcp.McpClient
 import ai.masaic.openresponses.tool.mcp.McpToolDefinition
 import ai.masaic.openresponses.tool.mcp.nativeToolDefinition
 import ai.masaic.platform.api.utils.JsonSchemaMapper
+import ai.masaic.platform.regression.api.service.RegSuiteResponseStoreFacade
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.client.OpenAIClient
