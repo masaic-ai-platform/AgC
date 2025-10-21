@@ -1,4 +1,4 @@
-package usecases.telcoRevenueRetention.core.records;
+package core.records;
 
 import java.util.List;
 

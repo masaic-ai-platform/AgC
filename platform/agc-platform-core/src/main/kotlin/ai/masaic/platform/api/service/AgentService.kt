@@ -4,7 +4,10 @@ import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.AccessDeniedException
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.api.user.AccessManager
-import ai.masaic.openresponses.tool.*
+import ai.masaic.openresponses.tool.NativeToolDefinition
+import ai.masaic.openresponses.tool.ToolParamsAccessor
+import ai.masaic.openresponses.tool.ToolProgressEventMeta
+import ai.masaic.openresponses.tool.UnifiedToolContext
 import ai.masaic.openresponses.tool.mcp.nativeToolDefinition
 import ai.masaic.platform.api.model.*
 import ai.masaic.platform.api.registry.functions.*
@@ -12,15 +15,28 @@ import ai.masaic.platform.api.repository.AgentRepository
 import ai.masaic.platform.api.tools.PlatformMcpService
 import ai.masaic.platform.api.tools.PlatformNativeTool
 import ai.masaic.platform.api.tools.PlatformToolsNames
+import ai.masaic.platform.api.tools.TemporalConfig
+import ai.masaic.platform.api.user.UserInfoProvider
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.client.OpenAIClient
 import org.slf4j.LoggerFactory
 import org.springframework.http.codec.ServerSentEvent
+import java.io.ByteArrayOutputStream
+import java.util.Base64
+import javax.crypto.Cipher
+import javax.crypto.spec.SecretKeySpec
+import javax.crypto.spec.PBEKeySpec
+import javax.crypto.spec.IvParameterSpec
+import javax.crypto.SecretKeyFactory
+import java.security.spec.KeySpec
+import kotlin.let
 
 class AgentService(
     private val agentRepository: AgentRepository,
     private val funRegService: FunctionRegistryService,
     private val platformMcpService: PlatformMcpService,
+    private val temporalConfig: TemporalConfig?,
 ) : PlatformNativeTool(PlatformToolsNames.SAVE_AGENT_TOOL) {
     private val log = LoggerFactory.getLogger(AgentService::class.java)
 
@@ -135,6 +151,26 @@ class AgentService(
         
         // Delete persisted agent
         return agentRepository.deleteByName(updatedAgentName)
+    }
+
+    suspend fun getAgentCredentials(agentName: String, toolType: String): String? {
+        getAgent(agentName) ?: return null
+        if (toolType.lowercase() == "client_side") {
+            val userId = UserInfoProvider.userId() ?: throw ResponseProcessingException("User ID not available")
+            val credentials = mutableMapOf<String, String>()
+            credentials["userId"] = userId
+            // Add temporal config if available
+            temporalConfig?.let { config ->
+                config.target?.let { credentials["target"] = it }
+                config.namespace?.let { credentials["namespace"] = it }
+                config.apiKey?.let { credentials["apiKey"] = it }
+            }
+            val jsonString = ObjectMapper().writeValueAsString(credentials)
+            val response = mapOf("creds" to encryptCredentials(jsonString))
+            return ObjectMapper().writeValueAsString(response)
+        } else {
+            throw ResponseProcessingException("Unsupported tool type: $toolType. Only 'client_side' is supported.")
+        }
     }
 
     private suspend fun convertToPlatformAgent(
@@ -825,6 +861,48 @@ Remember: Your goal is to be helpful and productive. Most users want to see prog
                 else -> throw AgentBuilderException("unknown tool type. At the moment I can save agents with tools like McpTool and PyFunTool/")
             }
         }
+
+    private fun encryptCredentials(jsonString: String): String {
+        return try {
+            // Convert JSON string to bytes
+            val jsonBytes = jsonString.toByteArray(Charsets.UTF_8)
+            // Create salt (8 bytes)
+            val salt = ByteArray(8)
+            java.security.SecureRandom().nextBytes(salt)
+
+            // Create key and IV using PBKDF2 with empty password (as in your command)
+            // Generate 384 bits (48 bytes) = 32 bytes for key + 16 bytes for IV
+            val keySpec: KeySpec = PBEKeySpec("".toCharArray(), salt, 100000, 384)
+            val keyFactory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+            val keyIv = keyFactory.generateSecret(keySpec).encoded
+            
+            // Split key and IV (32 bytes key + 16 bytes IV)
+            val key = ByteArray(32)
+            val iv = ByteArray(16)
+            System.arraycopy(keyIv, 0, key, 0, 32)
+            System.arraycopy(keyIv, 32, iv, 0, 16)
+            
+            val secretKey = SecretKeySpec(key, "AES")
+
+            // Encrypt using AES-256-CBC with derived IV
+            val cipher = Cipher.getInstance("AES/CBC/PKCS5Padding")
+            cipher.init(Cipher.ENCRYPT_MODE, secretKey, IvParameterSpec(iv))
+            val encryptedBytes = cipher.doFinal(jsonBytes)
+
+            // Combine "Salted__" + salt + encrypted data (OpenSSL format)
+            val combined = ByteArrayOutputStream().use { baos ->
+                baos.write("Salted__".toByteArray(Charsets.US_ASCII)) // OpenSSL header
+                baos.write(salt)
+                baos.write(encryptedBytes)
+                baos.toByteArray()
+            }
+            // Encode to base64
+            Base64.getEncoder().encodeToString(combined)
+        } catch (e: Exception) {
+            log.error("Failed to encrypt credentials", e)
+            throw ResponseProcessingException("Failed to encrypt credentials: ${e.message}")
+        }
+    }
 }
 
 class AgentBuilderException(

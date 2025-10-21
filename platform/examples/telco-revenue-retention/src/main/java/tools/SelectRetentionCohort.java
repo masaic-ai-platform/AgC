@@ -1,20 +1,20 @@
-package usecases.telcoRevenueRetention.tools;
+package tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import common.AgcRuntimeTool;
+import common.AgCClientSideTool;
 import common.ToolRequest;
+import core.service.CohortSelectorService;
+import data.RetentionCohortRequest;
+import data.RetentionCohortResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import usecases.telcoRevenueRetention.core.service.CohortSelectorService;
-import usecases.telcoRevenueRetention.data.RetentionCohortRequest;
-import usecases.telcoRevenueRetention.data.RetentionCohortResponse;
+
 
 import java.util.List;
 
-public class SelectRetentionCohort implements AgcRuntimeTool {
+public class SelectRetentionCohort implements AgCClientSideTool {
     private static final Logger logger = LoggerFactory.getLogger(SelectRetentionCohort.class);
     private static String TOOL_NAME = "select_retention_cohort";
-    private static String PROFILE_ID = "user_yWrOnKu6n";
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private final CohortSelectorService cohortSelectorService;
 
@@ -24,7 +24,7 @@ public class SelectRetentionCohort implements AgcRuntimeTool {
 
     @Override
     public String toolId() {
-        return PROFILE_ID + "." + TOOL_NAME;
+        return TOOL_NAME;
     }
 
     @Override

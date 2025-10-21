@@ -1,4 +1,4 @@
-package usecases.telcoRevenueRetention.core.records;
+package core.records;
 
 /**
  * Represents a payment record event for a customer

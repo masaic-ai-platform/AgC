@@ -84,8 +84,128 @@
     "description":"Demonstrate how AgC can agentify an existing Telco system to autonomously detect and mitigate revenue leakage and churn risk.",
     "systemPrompt":"System prompt: ROLE\nYou are Customer-Retention Assistant, a concise decision-maker that orchestrates two tools to fulfil retention-related requests.\n\nAvailable tools:\n1. select_retention_cohort: Return a redacted list of customers who meet retention-risk criteria.\n2. apply_retention_actions: Execute one retention action for a batch of customers identified only by customer_id_hash\n\nCore rules\n1. Validate inputs \n    – do not call a tool until every required parameter is present and well-formed or executed with defult values while inform to user\n2. Enforce order \n    – always call select_retention_cohort first; call apply_retention_actions only after a valid cohort is returned.\n3. Single action \n    – each apply_retention_actions call must specify exactly one action value and the customer list from the previous step.\n4. Crisp answers \n    – respond factually and concisely; for purely informational questions, answer directly without invoking tools.\n5. Error handling \n    – if parameters are missing, reply with a clear statement of what is required.",
     "tools":[
-      {"type":"function","description":"Returns a redacted list of customers who meet specified retention-risk criteria (revenue threshold, recent payment failures, unresolved complaints","name":"select_retention_cohort","parameters":{"type":"object","properties":{"min_revenue":{"type":"number","default":100000},"region":{"type":"string","default":"IN"},"lookback_days":{"type":"number","default":2},"min_payment_failures":{"type":"number","default":3},"min_open_complaints":{"type":"number","default":2}},"required":["min_revenue","region","lookback_days","min_payment_failures","min_open_complaints"],"additionalProperties":false},"strict":true},
-      {"type":"function","description":"Executes a single retention action for a batch of customers identified only by customer_id_hash.","name":"apply_retention_actions","parameters":{"type":"object","properties":{"action":{"type":"string","enum":["offer_discount","assign_agent","schedule_callback","waive_fee"]},"customers":{"type":"array","items":{"type":"object","properties":{"customer_id_hash":{"type":"string"}}}}},"required":["action","customers"],"additionalProperties":false},"strict":true}],
+      {
+        "type": "function",
+        "name": "select_retention_cohort",
+        "description": "Returns a redacted list of customers who meet specified retention-risk criteria (revenue threshold, recent payment failures, unresolved complaints",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "min_revenue": {
+              "type": "number",
+              "default": 100000
+            },
+            "region": {
+              "type": "string",
+              "default": "IN"
+            },
+            "lookback_days": {
+              "type": "number",
+              "default": 2
+            },
+            "min_payment_failures": {
+              "type": "number",
+              "default": 3
+            },
+            "min_open_complaints": {
+              "type": "number",
+              "default": 2
+            },
+            "execution_specs": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "client_side"
+                  ]
+                },
+                "maxRetryAttempts": {
+                  "type": "number",
+                  "enum": [
+                    1
+                  ]
+                },
+                "waitTimeInMillis": {
+                  "type": "number",
+                  "enum": [
+                    60000
+                  ]
+                }
+              }
+            }
+          },
+          "required": [
+            "min_revenue",
+            "region",
+            "lookback_days",
+            "min_payment_failures",
+            "min_open_complaints"
+          ],
+          "additionalProperties": false
+        },
+        "strict": true
+      },
+      {
+        "type": "function",
+        "name": "apply_retention_actions",
+        "description": "Executes a single retention action for a batch of customers identified only by customer_id_hash.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "action": {
+              "type": "string",
+              "enum": [
+                "offer_discount",
+                "assign_agent",
+                "schedule_callback",
+                "waive_fee"
+              ]
+            },
+            "customers": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "customer_id_hash": {
+                    "type": "string"
+                  }
+                }
+              }
+            },
+            "execution_specs": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "client_side"
+                  ]
+                },
+                "maxRetryAttempts": {
+                  "type": "number",
+                  "enum": [
+                    1
+                  ]
+                },
+                "waitTimeInMillis": {
+                  "type": "number",
+                  "enum": [
+                    60000
+                  ]
+                }
+              }
+            }
+          },
+          "required": [
+            "action",
+            "customers"
+          ],
+          "additionalProperties": false
+        },
+        "strict": true
+      }
+    ],
     "model":"gpt-4o",
     "temperature":1,
     "suggestedQueries":["Find high-value customers with repeated payment failures and unresolved complaints, and recommend actions to retain them."]

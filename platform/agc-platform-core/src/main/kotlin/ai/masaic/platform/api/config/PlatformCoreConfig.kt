@@ -223,7 +223,8 @@ class PlatformCoreConfig {
         agentRepository: AgentRepository,
         functionRegistryService: FunctionRegistryService,
         platformMcpService: PlatformMcpService,
-    ) = AgentService(agentRepository, functionRegistryService, platformMcpService)
+        temporalConfig: TemporalConfig?,
+    ) = AgentService(agentRepository, functionRegistryService, platformMcpService, temporalConfig)
 
     @Bean
     fun funRegistryValidator() = FunctionRegistryValidator()

@@ -1,7 +1,9 @@
-package usecases.telcoRevenueRetention.core.repository;
+package core.repository;
 
-import usecases.telcoRevenueRetention.core.records.Customer;
-import usecases.telcoRevenueRetention.core.records.Payment;
+
+
+import core.records.Customer;
+import core.records.Payment;
 
 import java.util.List;
 

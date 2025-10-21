@@ -1,7 +1,9 @@
-package usecases.telcoRevenueRetention.core.repository;
+package core.repository;
 
-import usecases.telcoRevenueRetention.data.ApplyRetentionRequest;
-import usecases.telcoRevenueRetention.data.ApplyRetentionResponse;
+
+
+import data.ApplyRetentionRequest;
+import data.ApplyRetentionResponse;
 
 import java.util.List;
 

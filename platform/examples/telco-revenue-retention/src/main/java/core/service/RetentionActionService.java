@@ -1,8 +1,9 @@
-package usecases.telcoRevenueRetention.core.service;
+package core.service;
 
-import usecases.telcoRevenueRetention.core.repository.RetentionActionRepository;
-import usecases.telcoRevenueRetention.data.ApplyRetentionRequest;
-import usecases.telcoRevenueRetention.data.ApplyRetentionResponse;
+import core.repository.RetentionActionRepository;
+import data.ApplyRetentionRequest;
+import data.ApplyRetentionResponse;
+
 
 import java.util.List;
 
@@ -26,7 +27,7 @@ public class RetentionActionService {
         if(!validateRequest(request)){
             throw new Exception("Bad Request");
         }
-        List<ApplyRetentionResponse.RetentionActionResult> results = 
+        List<ApplyRetentionResponse.RetentionActionResult> results =
             retentionActionRepository.processRetentionActions(request);
         // Calculate summary statistics
         int total = results.size();

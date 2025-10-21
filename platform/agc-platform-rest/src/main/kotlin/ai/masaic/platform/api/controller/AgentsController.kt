@@ -3,6 +3,7 @@ package ai.masaic.platform.api.controller
 import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.platform.api.model.PlatformAgent
 import ai.masaic.platform.api.service.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -84,4 +85,18 @@ class AgentsController(
             .body(
                 askAgentService.askAgent(request = request.copy(agentName = agentName)),
             )
+
+    @GetMapping("/agents/{agentName}/credentials/{toolType}", produces = [MediaType.TEXT_PLAIN_VALUE])
+    suspend fun getAgentCredentials(
+        @PathVariable agentName: String,
+        @PathVariable toolType: String,
+    ): ResponseEntity<String> {
+        if (toolType.isBlank()) {
+            throw ResponseProcessingException("Tool type cannot be empty.")
+        }
+        val credentials = agentService.getAgentCredentials(agentName, toolType)
+            ?: throw ResponseProcessingException("Agent: $agentName is not found.")
+        
+        return ResponseEntity.ok(credentials)
+    }
 }

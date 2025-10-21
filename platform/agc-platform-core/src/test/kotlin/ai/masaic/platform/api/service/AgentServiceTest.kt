@@ -31,7 +31,7 @@ class AgentServiceTest {
         funRegService = mockk()
         platformMcpService = mockk()
         toolService = mockk()
-        agentService = AgentService(agentRepository, funRegService, platformMcpService)
+        agentService = AgentService(agentRepository, funRegService, platformMcpService, mockk())
     }
 
     @Test

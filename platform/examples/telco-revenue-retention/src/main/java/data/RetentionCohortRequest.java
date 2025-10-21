@@ -1,4 +1,4 @@
-package usecases.telcoRevenueRetention.data;
+package data;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;

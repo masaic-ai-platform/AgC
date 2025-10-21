@@ -122,13 +122,6 @@ data class PyFunToolMeta(
     val id: String,
 )
 
-data class FunctionToolMeta(
-    val name: String,
-    val description: String? = null,
-    val parameters: MutableMap<String, Any> = mutableMapOf(),
-    val strict: Boolean = true,
-)
-
 data class RankingOptionsMeta(
     val ranker: String = "auto",
     @JsonProperty("score_threshold")

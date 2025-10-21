@@ -1,32 +1,27 @@
-package usecases.telcoRevenueRetention.tools;
+package tools;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import core.service.RetentionActionService;
+import data.ApplyRetentionRequest;
+import data.ApplyRetentionResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import common.AgcRuntimeTool;
+import common.AgCClientSideTool;
 import common.ToolRequest;
-import usecases.telcoRevenueRetention.core.service.RetentionActionService;
-import usecases.telcoRevenueRetention.data.ApplyRetentionRequest;
-import usecases.telcoRevenueRetention.data.ApplyRetentionResponse;
 
-public class ApplyRetentionActions implements AgcRuntimeTool {
+
+public class ApplyRetentionActions implements AgCClientSideTool {
     private static final Logger logger = LoggerFactory.getLogger(ApplyRetentionActions.class);
     private static String TOOL_NAME = "apply_retention_actions";
-    private static String PROFILE_ID = "user_yWrOnKu6n";
     private static final ObjectMapper MAPPER = new ObjectMapper();
     private final RetentionActionService retentionActionService;
 
     public ApplyRetentionActions() {
         this.retentionActionService = new RetentionActionService();
     }
-
-    public ApplyRetentionActions(RetentionActionService retentionActionService) {
-        this.retentionActionService = retentionActionService;
-    }
-
     @Override
     public String toolId() {
-        return PROFILE_ID + "." + TOOL_NAME;
+        return TOOL_NAME;
     }
 
     @Override

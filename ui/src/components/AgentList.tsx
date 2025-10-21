@@ -40,7 +40,7 @@ const AgentList: React.FC<AgentListProps> = ({ className = '', onAgentSelect }) 
   const fetchAgents = async () => {
     setLoading(true);
     try {
-      const agentsData = await apiClient.agentJsonRequest('/v1/agents');
+      const agentsData = await apiClient.agentJsonRequest('/v1/agents') as Agent[];
       setAgents(agentsData);
     } catch (error) {
       console.error('Error fetching agents:', error);
@@ -74,7 +74,7 @@ const AgentList: React.FC<AgentListProps> = ({ className = '', onAgentSelect }) 
 
   const fetchAgentDetails = async (agentName: string) => {
     try {
-      const agentData = await apiClient.agentJsonRequest(`/v1/agents/${agentName}`);
+      const agentData = await apiClient.agentJsonRequest(`/v1/agents/${agentName}`) as Agent;
       return agentData;
     } catch (error) {
       console.error('Error fetching agent details:', error);

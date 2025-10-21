@@ -1,9 +1,11 @@
-package usecases.telcoRevenueRetention.core.service;
+package core.service;
 
-import usecases.telcoRevenueRetention.core.records.Customer;
-import usecases.telcoRevenueRetention.core.repository.CustomerDataRepository;
-import usecases.telcoRevenueRetention.data.RetentionCohortRequest;
-import usecases.telcoRevenueRetention.data.RetentionCohortResponse;
+
+import core.records.Customer;
+import core.repository.CustomerDataRepository;
+import data.RetentionCohortRequest;
+import data.RetentionCohortResponse;
+
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
