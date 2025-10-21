@@ -28,7 +28,7 @@ class AgentService(
         agent: PlatformAgent,
         isUpdate: Boolean,
     ) {
-        val updatedAgent = agent.copy(name = PlatformAgent.persistenceName(agent.name))
+        var updatedAgent = agent.copy(name = PlatformAgent.persistenceName(agent.name))
         val existingAgent = agentRepository.findByName(updatedAgent.name)
         // For updates, verify the agent exists
         if (isUpdate && existingAgent == null) {
@@ -44,6 +44,7 @@ class AgentService(
             if (!AccessManager.isAccessPermitted(existingAgent.accessControlJson).update) {
                 throw AccessDeniedException("Access denied to agent: ${updatedAgent.name}")
             }
+            updatedAgent = updatedAgent.copy(suggestedQueries = existingAgent.suggestedQueries)
         }
 
         // Compute access control for new agents, preserve for updates
@@ -223,22 +224,21 @@ class AgentService(
                 )
             }
 
-            // Handle function tools
-            meta.functionTools.forEach { functionToolMeta ->
-                tools.add(
-                    FunctionTool(
-                        type = "function",
-                        name = functionToolMeta.name,
-                        description = functionToolMeta.description,
-                        parameters = functionToolMeta.parameters,
-                        strict = functionToolMeta.strict,
-                    ),
-                )
-            }
-
             meta.pyFunTools.forEach { pyFunTool ->
                 val function = funRegService.getFunction(pyFunTool.id)
                 tools.add(PyFunTool(type = "py_fun_tool", functionDetails = FunctionDetails(name = function.name, description = function.description, parameters = function.inputSchema), code = function.code, deps = function.deps))
+            }
+
+            meta.functionTools.forEach { func ->
+                val functionTool =
+                    FunctionTool(
+                        type = "function",
+                        name = func.name,
+                        description = func.description,
+                        parameters = func.parameters,
+                        strict = func.strict,
+                    )
+                tools.add(functionTool)
             }
         }
         
@@ -311,16 +311,15 @@ class AgentService(
                 }
 
                 is FunctionTool -> {
-                    functionTools.add(
+                    val functionToolMeta =
                         FunctionToolMeta(
-                            name = tool.name ?: throw ResponseProcessingException("Function tool is missing name"),
                             description = tool.description,
+                            name = tool.name,
                             parameters = tool.parameters,
                             strict = tool.strict,
-                        ),
-                    )
+                        )
+                    functionTools.add(functionToolMeta)
                 }
-
                 else -> {
                     throw ResponseProcessingException("Unknown tool type: ${tool.type}")
                 }
@@ -633,17 +632,6 @@ You must ensure all required fields are populated before calling save_agent tool
         }
       },
       "code": "string", //base 64 encoded python code of the function.
-    },
-    {
-      "type": "function", //simple function tool
-      "name": "string", //name of function
-      "description": "string", //description of function
-      "parameters": {
-        "type": "object",
-        "properties": { //Json-schema of input parameters of function
-        }
-      },
-      "strict": true //strict parameter validation
     }
   ]
 }
@@ -695,7 +683,7 @@ Remember: Your goal is to be helpful and productive. Most users want to see prog
                     nullableProperty("userMessage", "string", "Initial user message to start with")
                     
                     arrayProperty("tools", "Available tools for the agent", default = emptyList<Any>()) {
-                        itemsOneOf("MCPTool", "PyFunTool", "FunctionTool")
+                        itemsOneOf("MCPTool", "PyFunTool")
                     }
                     
                     property("formatType", "string", "Output format", default = "text")
@@ -780,26 +768,6 @@ Remember: Your goal is to be helpful and productive. Most users want to see prog
                     additionalProperties = false
                 }
 
-                // Define FunctionTool schema
-                definition("FunctionTool") {
-                    property("type", "string", "Tool type identifier", required = true)
-                    property("name", "string", "Function name", required = true)
-                    nullableProperty("description", "string", "Function description")
-                    
-                    objectProperty(
-                        "parameters",
-                        "JSON Schema for function parameters", 
-                        default = emptyMap<String, Any>(),
-                        additionalProps = true,
-                    ) {
-                        property("additionalProperties", "boolean", enum = listOf(false))
-                    }
-                    
-                    property("strict", "boolean", "Strict parameter validation", default = true)
-                    
-                    additionalProperties = false
-                }
-
                 additionalProperties = false
             }
         }
@@ -854,10 +822,7 @@ Remember: Your goal is to be helpful and productive. Most users want to see prog
                         throw AgentBuilderException("tool provided with label=${tool.serverLabel} and url=${tool.serverUrl} is not known. Correct the provided tool and then send save agent request.")
                     }
                 }
-                is FunctionTool -> {
-                    tool
-                }
-                else -> throw AgentBuilderException("unknown tool type. At the moment I can save agents with tools like McpTool, PyFunTool, and FunctionTool")
+                else -> throw AgentBuilderException("unknown tool type. At the moment I can save agents with tools like McpTool and PyFunTool/")
             }
         }
 }

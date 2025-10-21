@@ -102,6 +102,18 @@ data class AgenticSearchToolMeta(
     val modelInfo: ModelInfoMeta,
 )
 
+data class FunctionToolMeta(
+    val type: String = "function",
+    val description: String? = null,
+    val name: String? = null,
+    val parameters: MutableMap<String, Any> = mutableMapOf(),
+    val strict: Boolean = true,
+) {
+    init {
+        parameters["additionalProperties"] = false
+    }
+}
+
 data class ModelInfoMeta(
     val name: String? = null,
 )
