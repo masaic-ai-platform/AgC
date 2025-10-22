@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.tool.mcp
 
+import ai.masaic.openresponses.api.model.MCPTool
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolHosting
 import ai.masaic.openresponses.tool.ToolParamsAccessor
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Component
 @Component
 class MCPToolExecutor(
     private val mcpClientFactory: McpClientFactory,
+    private val mcpToolRegistry: MCPToolRegistry,
 ) {
     private val log = LoggerFactory.getLogger(MCPToolExecutor::class.java)
     private val mcpClients = mutableMapOf<String, McpClient>()
@@ -44,6 +46,17 @@ class MCPToolExecutor(
         mcpClients[serverName] = mcpClient
     }
 
+    suspend fun initMcp(mcpTool: MCPTool): List<McpToolDefinition> {
+        val mcpClient = mcpClientFactory.init(mcpTool.serverLabel, mcpTool.serverUrl, mcpTool.headers)
+        val availableTools = mcpClient.listTools(MCPServerInfo(mcpTool.serverLabel, mcpTool.serverUrl, mcpTool.headers))
+        availableTools.forEach {
+            mcpToolRegistry.addTool(it)
+        }
+        mcpToolRegistry.addMcpServer(MCPServerInfo(mcpTool.serverLabel, mcpTool.serverUrl, mcpTool.headers, availableTools.map { it.name }))
+        addMcpClient(mcpTool.toMCPServerInfo().serverIdentifier(), mcpClient)
+        return availableTools
+    }
+
     /**
      * Executes a tool with the provided arguments.
      *
@@ -58,16 +71,22 @@ class MCPToolExecutor(
         openAIClient: OpenAIClient?,
         eventEmitter: ((ServerSentEvent<String>) -> Unit)?,
     ): String? {
-        val mcpTool = tool as McpToolDefinition
-        var serverId = mcpTool.serverInfo.id
-        var toolName = mcpTool.name
-        if (mcpTool.hosting == ToolHosting.REMOTE) {
-            serverId = mcpTool.serverInfo.serverIdentifier()
-            toolName = mcpTool.serverInfo.unQualifiedToolName(mcpTool.name)
+        val mcpToolDef = tool as McpToolDefinition
+        var serverId = mcpToolDef.serverInfo.id
+        var toolName = mcpToolDef.name
+        var mcpTool: MCPTool? = null
+        if (mcpToolDef.hosting == ToolHosting.REMOTE) {
+            serverId = mcpToolDef.serverInfo.serverIdentifier()
+            toolName = mcpToolDef.serverInfo.unQualifiedToolName(mcpToolDef.name)
+            mcpTool = MCPTool(type = "mcp", serverLabel = mcpToolDef.serverInfo.id, serverUrl = mcpToolDef.serverInfo.url, headers = mcpToolDef.serverInfo.headers, allowedTools = mcpToolDef.serverInfo.tools)
         }
 
-        val mcpClient = mcpClients[serverId] ?: return null
-        return mcpClient.executeTool(tool.copy(name = toolName), arguments, paramsAccessor, openAIClient, headers = mcpTool.serverInfo.headers, eventEmitter)
+        val mcpClient =
+            mcpClients[serverId] ?: run {
+                mcpTool?.let { initMcp(it) }
+                mcpClients[serverId]
+            } ?: return null
+        return mcpClient.executeTool(tool.copy(name = toolName), arguments, paramsAccessor, openAIClient, headers = mcpToolDef.serverInfo.headers, eventEmitter)
     }
 
     /**

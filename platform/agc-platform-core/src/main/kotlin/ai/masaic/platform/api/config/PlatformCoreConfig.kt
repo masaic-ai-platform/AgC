@@ -155,10 +155,9 @@ class PlatformCoreConfig {
         resourceLoader: ResourceLoader,
         nativeToolRegistry: NativeToolRegistry,
         objectMapper: ObjectMapper,
-        mcpClientFactory: McpClientFactory,
         plugableToolAdapter: PlugableToolAdapter,
         pluggedToolsRegistry: PluggedToolsRegistry,
-    ) = PlatformToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, objectMapper, mcpClientFactory, plugableToolAdapter, pluggedToolsRegistry)
+    ) = PlatformToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, objectMapper, plugableToolAdapter, pluggedToolsRegistry)
 
     @Bean
     fun platformRequestValidator(

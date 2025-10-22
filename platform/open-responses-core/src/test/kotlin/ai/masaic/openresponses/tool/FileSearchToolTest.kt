@@ -3,7 +3,6 @@ package ai.masaic.openresponses.tool
 import ai.masaic.openresponses.api.service.search.VectorStoreService
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.openresponses.tool.mcp.MCPToolRegistry
-import ai.masaic.openresponses.tool.mcp.SimpleMcpClientFactory
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.ResponseCreateParams
@@ -24,7 +23,6 @@ class FileSearchToolTest {
     private lateinit var resourceLoader: ResourceLoader
     private lateinit var nativeToolRegistry: NativeToolRegistry
     private lateinit var vectorStoreService: VectorStoreService
-    private lateinit var mcpClientFactory: SimpleMcpClientFactory
     private val openAIClient = mockk<OpenAIClient>()
 
     @BeforeEach
@@ -34,9 +32,8 @@ class FileSearchToolTest {
         resourceLoader = mockk()
         nativeToolRegistry = mockk()
         vectorStoreService = mockk()
-        mcpClientFactory = mockk()
         
-        toolService = ToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, ObjectMapper(), mcpClientFactory, NoOpPlugableToolAdapter())
+        toolService = ToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, ObjectMapper(), NoOpPlugableToolAdapter())
     }
 
     @Test

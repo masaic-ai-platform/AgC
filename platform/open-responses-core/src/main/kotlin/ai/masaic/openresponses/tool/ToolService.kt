@@ -42,7 +42,6 @@ open class ToolService(
     private val resourceLoader: ResourceLoader,
     private val nativeToolRegistry: NativeToolRegistry,
     private val objectMapper: ObjectMapper,
-    private val mcpClientFactory: McpClientFactory,
     private val plugableToolAdapter: PlugableToolAdapter,
 ) {
     @Value("\${open-responses.tools.mcp.enabled:false}")
@@ -274,14 +273,7 @@ open class ToolService(
         val allowedTools = mcpTool.allowedTools.map { info.qualifiedToolName(it) }
         val mcpServerInfo = mcpToolRegistry.findServerById(info.serverIdentifier())
         return if (mcpServerInfo == null || mcpServerInfo.tools.isEmpty()) {
-            val mcpClient = mcpClientFactory.init(mcpTool.serverLabel, mcpTool.serverUrl, mcpTool.headers)
-            val availableTools = mcpClient.listTools(MCPServerInfo(mcpTool.serverLabel, mcpTool.serverUrl, mcpTool.headers))
-            availableTools.forEach {
-                mcpToolRegistry.addTool(it)
-            }
-            mcpToolRegistry.addMcpServer(MCPServerInfo(mcpTool.serverLabel, mcpTool.serverUrl, mcpTool.headers, availableTools.map { it.name }))
-            mcpToolExecutor.addMcpClient(info.serverIdentifier(), mcpClient)
-
+            val availableTools = mcpToolExecutor.initMcp(mcpTool)
             if (allowedTools.isEmpty()) {
                 availableTools
             } else {

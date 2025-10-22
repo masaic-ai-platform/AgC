@@ -2,7 +2,6 @@ package ai.masaic.openresponses.tool
 
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.openresponses.tool.mcp.MCPToolRegistry
-import ai.masaic.openresponses.tool.mcp.SimpleMcpClientFactory
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.mockk.every
 import io.mockk.mockk
@@ -21,7 +20,6 @@ class FileSearchToolServiceTest {
     private lateinit var mcpToolExecutor: MCPToolExecutor
     private lateinit var resourceLoader: ResourceLoader
     private lateinit var nativeToolRegistry: NativeToolRegistry
-    private lateinit var mcpClientFactory: SimpleMcpClientFactory
 
     @BeforeEach
     fun setUp() {
@@ -29,9 +27,8 @@ class FileSearchToolServiceTest {
         mcpToolExecutor = mockk(relaxed = true)
         resourceLoader = mockk(relaxed = true)
         nativeToolRegistry = mockk(relaxed = true)
-        mcpClientFactory = mockk(relaxed = true)
         
-        toolService = ToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, ObjectMapper(), mcpClientFactory, NoOpPlugableToolAdapter())
+        toolService = ToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, ObjectMapper(), NoOpPlugableToolAdapter())
     }
 
     @Test
