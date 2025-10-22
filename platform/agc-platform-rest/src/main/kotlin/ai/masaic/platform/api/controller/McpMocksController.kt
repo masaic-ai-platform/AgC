@@ -1,0 +1,50 @@
+package ai.masaic.platform.api.controller
+
+import ai.masaic.platform.api.tools.*
+import org.springframework.http.HttpStatusCode
+import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.*
+
+@RestController
+@RequestMapping("/v1/dashboard")
+@CrossOrigin("*")
+class McpMocksController(
+    private val platformMcpService: PlatformMcpService,
+) {
+    @PostMapping("/mcp/mock/servers", produces = [MediaType.APPLICATION_JSON_VALUE])
+    suspend fun createMockServer(
+        @RequestBody request: CreateMockMcpServerRequest,
+    ): ResponseEntity<MockMcpServerResponse> {
+        val mockServer = platformMcpService.createMockServer(request)
+        return ResponseEntity.ok(mockServer)
+    }
+
+    @GetMapping("/mcp/mock/servers", produces = [MediaType.APPLICATION_JSON_VALUE])
+    suspend fun getMockServers(): ResponseEntity<List<MockMcpServerResponse>> {
+        val mockServers = platformMcpService.getAllMockServers()
+        return ResponseEntity.ok(mockServers)
+    }
+
+    @GetMapping("/mcp/mock/functions", produces = [MediaType.APPLICATION_JSON_VALUE])
+    suspend fun getMockFunctions(): ResponseEntity<List<FunctionBodyResponse>> {
+        val functions = platformMcpService.getAllMockFunctions()
+        return ResponseEntity.ok(functions)
+    }
+
+    @GetMapping("/mcp/mock/functions/{functionId}", produces = [MediaType.APPLICATION_JSON_VALUE])
+    suspend fun getFunction(
+        @PathVariable functionId: String,
+    ): ResponseEntity<GetFunctionResponse> {
+        val functionResponse = platformMcpService.getFunction(functionId)
+        return ResponseEntity.ok(functionResponse)
+    }
+
+    @DeleteMapping("/mcp/mock/functions/{functionId}", produces = [MediaType.APPLICATION_JSON_VALUE])
+    suspend fun deleteFunction(
+        @PathVariable functionId: String,
+    ): ResponseEntity<HttpStatusCode> {
+        val functionResponse = platformMcpService.deleteFunction(functionId)
+        return ResponseEntity.ok().build()
+    }
+}

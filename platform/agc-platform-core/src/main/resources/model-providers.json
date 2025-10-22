@@ -1,0 +1,102 @@
+[
+  {
+    "name": "togetherai",
+    "description": "togetherai models",
+    "inferenceBaseUrl": "https://api.together.xyz/v1",
+    "supportedModels": [
+      {
+        "name": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
+        "modelSyntax": "togetherai@meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8"
+      }
+    ]
+  },
+  {
+    "name": "claude",
+    "description": "claude models",
+    "inferenceBaseUrl": "https://api.anthropic.com/v1",
+    "supportedModels": [
+      {
+        "name": "claude-3-7-sonnet-20250219",
+        "modelSyntax": "claude@claude-3-7-sonnet-20250219"
+      },
+      {
+        "name": "claude-sonnet-4-20250514",
+        "modelSyntax": "claude@claude-sonnet-4-20250514"
+      }
+    ]
+  },
+  {
+    "name": "openai",
+    "description": "openai models",
+    "inferenceBaseUrl": "https://api.openai.com/v1",
+    "supportedModels": [
+      {
+        "name": "gpt-4.1-mini",
+        "modelSyntax": "openai@gpt-4.1-mini"
+      },
+      {
+        "name": "gpt-4o",
+        "modelSyntax": "openai@gpt-4o"
+      },
+      {
+        "name": "o4-mini",
+        "modelSyntax": "openai@o4-mini"
+      },
+      {
+        "name": "gpt-4.1",
+        "modelSyntax": "openai@gpt-4.1"
+      },
+      {
+        "name": "text-embedding-3-small",
+        "modelSyntax": "openai@text-embedding-3-small",
+        "isEmbeddingModel": true
+      },
+      {
+        "name": "text-embedding-3-large",
+        "modelSyntax": "openai@text-embedding-3-large",
+        "isEmbeddingModel": true
+      },
+      {
+        "name": "text-embedding-ada-002",
+        "modelSyntax": "openai@text-embedding-ada-002",
+        "isEmbeddingModel": true
+      }
+    ]
+  },
+  {
+    "name": "google",
+    "description": "google models",
+    "inferenceBaseUrl": "https://generativelanguage.googleapis.com/v1beta/openai",
+    "supportedModels": [
+      {
+        "name": "gemini-2.5-pro",
+        "modelSyntax": "google@gemini-2.5-pro"
+      },
+      {
+        "name": "gemini-2.5-flash",
+        "modelSyntax": "google@gemini-2.5-flash"
+      }
+    ]
+  },
+  {
+    "name": "groq",
+    "description": "groq models",
+    "inferenceBaseUrl": "https://api.groq.com/openai/v1",
+    "supportedModels": [
+      {
+        "name": "moonshotai/kimi-k2-instruct",
+        "modelSyntax": "groq@moonshotai/kimi-k2-instruct"
+      }
+    ]
+  },
+  {
+    "name": "deepseek",
+    "description": "deepseek models",
+    "inferenceBaseUrl": "https://api.deepseek.com"
+  },
+  {
+    "name": "xAI",
+    "description": "xAI models",
+    "inferenceBaseUrl": "https://api.x.ai/v1"
+  }
+]

@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+    <!-- Human-readable console output -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %highlight(%-5level) [%thread] [%X{trace_id:-unknown}] [%X{span_id:-unknown}] %cyan(%logger{36}) - %msg%n</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <!-- File logging removed; console-only logging is enabled -->
+    <statusListener class="ch.qos.logback.core.status.NopStatusListener" />
+
+    <!-- Log masking for sensitive data -->
+    <conversionRule conversionWord="maskedMsg"
+                    converterClass="ai.masaic.openresponses.api.config.SensitiveDataMaskingConverter" />
+
+    <!-- Set default logging level -->
+    <root level="INFO">
+        <appender-ref ref="CONSOLE" />
+    </root>
+
+    <!-- Application-specific log levels -->
+    <logger name="org.springframework.web" level="INFO" />
+
+    <!-- Reduce verbosity of less important components -->
+    <logger name="org.springframework" level="WARN" />
+    <logger name="io.netty" level="WARN" />
+    <logger name="reactor.netty" level="WARN" />
+    
+    <!-- Suppress specific Netty error logs for already committed responses -->
+    <logger name="reactor.netty.http.server.HttpServerOperations" level="ERROR" additivity="false">
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>DENY</onMatch>
+        </filter>
+    </logger>
+    <logger name="org.springframework.web.server.adapter.HttpWebHandlerAdapter" level="ERROR" additivity="false">
+        <filter class="ch.qos.logback.classic.filter.LevelFilter">
+            <level>ERROR</level>
+            <onMatch>DENY</onMatch>
+        </filter>
+    </logger>
+
+    <!-- Micrometer and Observation related logging -->
+    <logger name="io.micrometer.observation" level="INFO" />
+    <logger name="io.micrometer.tracing" level="INFO" />
+</configuration>

@@ -1,0 +1,13 @@
+# AgC Python SDK Examples - Requirements
+# Core OpenAI SDK - Required for all examples except pure LangChain
+openai>=1.0.0
+
+# LangChain dependencies - Required for agcloopwithMCPLangchain.py
+langchain-openai>=0.1.0
+langchain-core>=0.1.0
+
+# Optional: Development and testing tools
+# Uncomment if needed for development
+# pytest>=8.0.0
+# black>=25.0.0
+# flake8>=7.0.0

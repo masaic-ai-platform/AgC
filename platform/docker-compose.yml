@@ -1,0 +1,284 @@
+version: '3.9'
+
+x-open-responses: &open_responses
+  image: masaicai/open-responses:latest
+
+x-open_responses-onnx: &open_responses_onnx
+  image: masaicai/open-responses-onnx:latest
+
+
+services:
+  # Default service
+  open-responses:
+    <<: *open_responses
+    ports:
+      - "6644:6644"
+    networks:
+      - observability-network
+    profiles:
+      - default
+
+  # Services used only in the MCP flavor.
+  mcp-github:
+    image: mcp/github
+    command: ["echo", "Pulled mcp/github image"]
+    restart: "no"
+    profiles:
+      - mcp
+
+  mcp-brave-search:
+    image: mcp/brave-search
+    command: ["echo", "Pulled mcp/brave-search image"]
+    restart: "no"
+    profiles:
+      - mcp
+
+  # Flavor 2: MCP service that includes extra configuration and depends on the above.
+  open-responses-mcp:
+    <<: *open_responses
+    ports:
+      - "6644:6644"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    environment:
+      - OPEN_RESPONSES_TOOLS_MCP_ENABLED=true
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - BRAVE_API_KEY=${BRAVE_API_KEY}
+    networks:
+      - observability-network
+    depends_on:
+      - mcp-github
+      - mcp-brave-search
+    profiles:
+      - mcp
+
+  # Flavor 2: replicated for Windows with named pipe
+  open-responses-mcp-windows:
+    image: masaicai/open-responses:latest
+    ports:
+      - "6644:6644"
+    volumes:
+      # Use the Docker named pipe on Windows
+      - "//./pipe/docker_engine://./pipe/docker_engine"
+    environment:
+      - OPEN_RESPONSES_TOOLS_MCP_ENABLED=true
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - BRAVE_API_KEY=${BRAVE_API_KEY}
+    networks:
+      - observability-network
+    depends_on:
+      - mcp-github
+      - mcp-brave-search
+    profiles:
+      - mcp
+
+
+  # Flavor 3: MCP service that includes extra configuration and custom path for mcp config json.
+  open-responses-custom-mcp:
+    <<: *open_responses
+    ports:
+      - "6644:6644"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+      - ${MCP_CONFIG_FILE_PATH:-/app/default_mcp_config.json}:/app/mcp_server_config.json:ro
+    environment:
+      - OPEN_RESPONSES_TOOLS_MCP_ENABLED=true
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - BRAVE_API_KEY=${BRAVE_API_KEY}
+      - MCP_SERVER_CONFIG_FILE_PATH=/app/mcp_server_config.json
+    networks:
+      - observability-network
+    depends_on:
+      - mcp-github
+      - mcp-brave-search
+    profiles:
+      - mcp
+
+  #Flavour 3: replicated for Windows with named pipe
+  open-responses-custom-mcp-windows:
+    image: masaicai/open-responses:latest
+    ports:
+      - "6644:6644"
+    volumes:
+      # Use the Docker named pipe on Windows
+      - "//./pipe/docker_engine://./pipe/docker_engine"
+      # Mount the MCP config file: if MCP_CONFIG_FILE_PATH is not defined, use the default path in the container
+      - ${MCP_CONFIG_FILE_PATH:-/app/default_mcp_config.json}:/app/mcp_server_config.json:ro
+    environment:
+      - OPEN_RESPONSES_TOOLS_MCP_ENABLED=true
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - BRAVE_API_KEY=${BRAVE_API_KEY}
+      - MCP_SERVER_CONFIG_FILE_PATH=/app/mcp_server_config.json
+    networks:
+      - observability-network
+    depends_on:
+      - mcp-github
+      - mcp-brave-search
+    profiles:
+      - mcp
+
+  # MongoDB service for persistent storage
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=openresponses
+    profiles:
+      - mongodb
+      - qdrant-mongodb
+    restart: unless-stopped
+    networks:
+      - observability-network
+
+  # Flavor 5: Open Responses with MongoDB storage integration
+  open-responses-with-mongodb:
+    <<: *open_responses
+    ports:
+      - "6644:6644"
+    environment:
+      - OPEN_RESPONSES_MONGODB_DATABASE=openresponses
+      - OPEN_RESPONSES_MONGODB_URI=mongodb://mongodb:27017
+      - OPEN_RESPONSES_STORE_TYPE=mongodb
+    networks:
+      - observability-network
+    depends_on:
+      - mongodb
+    profiles:
+      - mongodb
+    restart: unless-stopped
+
+  #Flavour 6: Open Responses with Observability stack
+  open-responses-otel:
+    <<: *open_responses
+    ports:
+      - "6644:6644"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    environment:
+      - OTEL_SDK_DISABLED=false
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4318
+      - OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+      - OPEN_RESPONSES_TOOLS_MCP_ENABLED=true
+      - GITHUB_TOKEN=${GITHUB_TOKEN}
+      - BRAVE_API_KEY=${BRAVE_API_KEY}
+    networks:
+      - observability-network
+    depends_on:
+      - mcp-github
+      - mcp-brave-search
+    profiles:
+      - mcp
+
+  # Qdrant vector database service
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"  # REST API
+      - "6334:6334"  # gRPC API
+    volumes:
+      - qdrant_data:/qdrant/storage
+    environment:
+      - QDRANT_ALLOW_CREATION_ON_FILE_NOT_FOUND=true
+    networks:
+      - observability-network
+    profiles:
+      - qdrant
+      - qdrant-mongodb
+    restart: unless-stopped
+
+  # Flavor 7: Open Responses with Qdrant vector search (OpenAI embeddings)
+  open-responses-with-qdrant:
+    <<: *open_responses_onnx
+    ports:
+      - "6644:6644"
+    environment:
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_PROVIDER=qdrant
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_HOST=qdrant
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_PORT=6334
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_USE_TLS=false
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_COLLECTION_NAME=open-responses-documents
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_MIN_SCORE=0.7
+      - OPEN_RESPONSES_EMBEDDINGS_HTTP_ENABLED=false
+    networks:
+      - observability-network
+    depends_on:
+      - qdrant
+    profiles:
+      - qdrant
+    restart: unless-stopped
+
+  # Flavor 8: Open Responses with Qdrant vector search and MongoDB storage (OpenAI embeddings)
+  open-responses-with-qdrant-mongodb:
+    <<: *open_responses
+    ports:
+      - "6644:6644"
+    environment:
+      # MongoDB configuration
+      - OPEN_RESPONSES_MONGODB_DATABASE=openresponses
+      - OPEN_RESPONSES_MONGODB_URI=mongodb://mongodb:27017
+      - OPEN_RESPONSES_STORE_TYPE=mongodb
+      - OPEN_RESPONSES_STORE_VECTOR_REPOSITORY_TYPE=mongodb
+      # Qdrant configuration
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_PROVIDER=qdrant
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_HOST=qdrant
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_PORT=6334
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_USE_TLS=false
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_COLLECTION_NAME=open-responses-documents
+      - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_MIN_SCORE=0.5
+    networks:
+      - observability-network
+    depends_on:
+      - mongodb
+      - qdrant
+    profiles:
+      - qdrant-mongodb
+    restart: unless-stopped
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    networks:
+      - observability-network
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    profiles:
+      - ollama
+    environment:
+      - OLLAMA_MODELS=/models
+    entrypoint:
+      - bash
+      - -c
+      - |
+        ollama serve &
+        sleep 5
+        ollama pull qwen3:1.7b
+        tail -f /dev/null
+   # 9. open-responses with Ollama
+  open-responses-with-ollama:
+        <<: *open_responses
+        ports:
+        - "6644:6644"
+        environment:
+        - MODEL_BASE_URL=http://ollama:11434/v1
+        networks:
+        - observability-network
+        depends_on:
+        - ollama
+        profiles:
+        - ollama
+        restart: unless-stopped
+
+
+networks:
+  observability-network:
+    name: observability-network
+
+volumes:
+  mongodb_data:
+  qdrant_data:
+  ollama_data:
