@@ -38,7 +38,7 @@ data remain on the customer's infrastructure while leveraging AgC's orchestratio
    Open `ApplicationStart.java` and update the credentials:
 
    ```java
-   private static final String B64 = "<ENTER_CREDS_HERE>";
+   private static final String B64 =  System.getenv("AGC_CREDS");
    ```
 
    The `B64` variable should contain your encrypted AgC credentials in OpenSSL salted format. You'll receive this from the AgC platform while selecting AutonomousRevenueRetentionAgent .
@@ -58,6 +58,78 @@ data remain on the customer's infrastructure while leveraging AgC's orchestratio
    ```
    The application will run continuously, polling for tool execution requests from the AgC platform.
 
+---
+
+## 🧪 API-only Java Example (no UI)
+
+Use this mode to call the client-side tools purely via API using a standalone Java main. This runs a single request/response flow using the OpenAI Java SDK against the AgC gateway.
+
+### Main class
+- `usecases.AgCLoopWithTelcoRevenueRetentionExample`
+
+### What it does
+- Validates inputs, calls `select_retention_cohort`, then (based on results) prepares for a single `apply_retention_actions` call.
+- Uses `OPENAI_API_KEY` and targets the AgC gateway at `http://localhost:6644/v1`.
+- Default user query is: "Find high-value customers with repeated payment failures and unresolved complaints, and recommend actions to retain them."
+
+### Required environment
+Set the following before running:
+```bash
+  export OPENAI_API_KEY="<your-openai-api-key>"
+  export AGC_CREDS="<your-encrypted-agc-creds>"
+```
+
+### How to run
+- Option A (IDE): Run the main class `usecases.AgCLoopWithTelcoRevenueRetentionExample` directly from your IDE.
+- Option B (temporary Gradle switch): Change the run target, then revert when done.
+
+1) Edit `build.gradle.kts` temporarily:
+```kotlin
+application {
+    mainClass.set("usecases.AgCLoopWithTelcoRevenueRetentionExample")
+}
+```
+2) Build and run:
+```bash
+  ./gradlew clean run
+```
+3) Revert `mainClass` back to `ApplicationStart` when finished.
+
+Output will print the model response JSON for the API-based flow.
+
+
+
+###  Code Snapshot
+
+Minimal entry to run the API-only flow:
+
+```java
+public class AgCLoopWithTelcoRevenueRetentionExample {
+    private static final String API_KEY = System.getenv("OPENAI_API_KEY");
+    private static final String BASE_URL = "http://localhost:6644/v1";
+    private static final String MODEL = "openai@gpt-4.1-mini";
+    private static final String B64 = System.getenv("AGC_CREDS");
+
+    public static void main(String[] args) throws Exception {
+        Util.decrypt(B64);
+        OpenAIClient client = OpenAIOkHttpClient.builder()
+            .apiKey(API_KEY)
+            .baseUrl(BASE_URL)
+            .headers(Headers.builder().put("x-user-id", Util.getCreds("userId")).build())
+            .build();
+
+        ResponseCreateParams params = ResponseCreateParams.builder()
+            .instructions("...system prompt...")
+            .model(MODEL)
+            .input("Find high-value customers ...")
+            .tools(List.of(/* select_retention_cohort, apply_retention_actions */))
+            .build();
+
+        Response resp = client.responses().create(params);
+        System.out.println(resp.output().get(0)._json());
+    }
+}
+```
 ---
 
 ## 🔧 Tech Stack
@@ -86,6 +158,9 @@ telco-revenue-retention/
 │   │   ├── AgCClientSideTool.java           # Client-side tool interface of AgC Loop
 │   │   ├── ToolRequest.java                 # Tool request wrapper
 │   │   └── LoopContextInfo.java             # Context information for loops
+│   │
+│   ├── usecases/                            # API-only (no UI) examples
+│   │   └── AgCLoopWithTelcoRevenueRetentionExample.java  # Pure API orchestration main
 │   │
 │   ├── tools/                                # Client-Side Tools Layer
 │   │   ├── SelectRetentionCohort.java       # Cohort selection tool

@@ -20,11 +20,10 @@ object DownloadPackagingUtil {
     ): ByteArray {
         require(agentClientSideRuntimeConfig.path.isNotEmpty()) { "agc runtime code path not defined." }
         requireNotNull(agentClientSideRuntimeConfig.securityKey.isNotEmpty()) { "agc runtime security key is not available" }
-        val functionName = request.functionName?.trim().orEmpty()
+        val functionNames = request.functionNames ?: emptyList()
         val profileId = UserInfoProvider.userId() ?: request.profile?.trim().orEmpty()
         val type = request.type ?: "client_side"
-        logger.info { "Building zip for download request: functionName=$functionName, profile=$profileId and type=$type" }
-
+        logger.info { "Building zip for download request: functionNames=$functionNames, profile=$profileId and type=$type" }
         val baos = ByteArrayOutputStream()
         ZipOutputStream(baos).use { zos ->
             // Include the agc-client-runtime/java-sdk project from platform directory first
@@ -37,13 +36,16 @@ object DownloadPackagingUtil {
             }
 
             if (type.equals("download_code_snippet", ignoreCase = true)) {
-                val className = toPascalCase(functionName).ifBlank { "GeneratedClientTool" }
-                val toolName = functionName.ifBlank { "tool" }
-                val javaSource = buildJavaClientTool(className, toolName, profileId)
-                val entryPath = "agc-runtime/src/main/java/tools/impl/$className.java"
-                zos.putNextEntry(ZipEntry(entryPath))
-                zos.write(javaSource.toByteArray(StandardCharsets.UTF_8))
-                zos.closeEntry()
+                // Generate Java client tools for each function name
+                functionNames.forEach { functionName ->
+                    val className = toPascalCase(functionName).ifBlank { "GeneratedClientTool" }
+                    val toolName = functionName.ifBlank { "tool" }
+                    val javaSource = buildJavaClientTool(className, toolName, profileId)
+                    val entryPath = "agc-runtime/src/main/java/tools/impl/$className.java"
+                    zos.putNextEntry(ZipEntry(entryPath))
+                    zos.write(javaSource.toByteArray(StandardCharsets.UTF_8))
+                    zos.closeEntry()
+                }
             }
         }
         return baos.toByteArray()
@@ -133,7 +135,7 @@ public class $className implements AgcRuntimeTool {
 }
 
 data class DownloadRequest(
-    val functionName: String?,
+    val functionNames: List<String>? = null,
     val profile: String?,
     val type: String?,
     val format: String?,

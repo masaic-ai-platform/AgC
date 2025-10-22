@@ -1,7 +1,5 @@
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import common.AgCClientSideTool;
-import io.temporal.worker.Worker;
+import common.Util;
 import io.temporal.worker.WorkerFactory;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,26 +12,16 @@ import io.temporal.serviceclient.WorkflowServiceStubsOptions;
 import tools.ApplyRetentionActions;
 import tools.SelectRetentionCohort;
 
-import javax.crypto.Cipher;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.IvParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
-import java.nio.charset.StandardCharsets;
-import java.security.spec.KeySpec;
-import java.util.Base64;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 public class ApplicationStart {
     private static final Logger logger = LoggerFactory.getLogger(ApplicationStart.class);
-    private static final String B64 = "<ENTER_CREDS_HERE>";
-    private static final String OPENSSL_HDR = "Salted__";
-    private static final int SALT_LEN = 8, KEY_LEN = 32, IV_LEN = 16, ITER = 100000;
+    private static final String B64 = System.getenv("AGC_CREDS");
 
     public static void main(String[] args) throws Exception {
         logger.info("###Starting ClientRuntime Java SDK ####");
-        Map<String, String> cred = decrypt(B64);
+        Map<String, String> cred = Util.decrypt(B64);
         String target = cred.get("target");
         String namespace = cred.get("namespace");
         String apiKey = cred.get("apiKey");
@@ -73,25 +61,5 @@ public class ApplicationStart {
         }));
         //keep the worker alive
         Thread.currentThread().join();
-    }
-    private static Map<String, String> decrypt(String base64) throws Exception {
-        byte[] all = Base64.getDecoder().decode(base64);
-        if (all.length < 16 || !OPENSSL_HDR.equals(new String(all, 0, 8, StandardCharsets.US_ASCII)))
-            throw new IllegalArgumentException("Not OpenSSL salted format");
-        byte[] salt = new byte[SALT_LEN];
-        System.arraycopy(all, 8, salt, 0, SALT_LEN);
-        byte[] ct = new byte[all.length - 16];
-        System.arraycopy(all, 16, ct, 0, ct.length);
-        SecretKeyFactory skf = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-        KeySpec spec = new PBEKeySpec(("").toCharArray(), salt, ITER, (KEY_LEN + IV_LEN) * 8);
-        byte[] keyIv = skf.generateSecret(spec).getEncoded();
-        byte[] key = new byte[KEY_LEN], iv = new byte[IV_LEN];
-        System.arraycopy(keyIv, 0, key, 0, KEY_LEN);
-        System.arraycopy(keyIv, KEY_LEN, iv, 0, IV_LEN);
-        Cipher c = Cipher.getInstance("AES/CBC/PKCS5Padding");
-        c.init(Cipher.DECRYPT_MODE, new SecretKeySpec(key, "AES"), new IvParameterSpec(iv));
-        byte[] plain = c.doFinal(ct);
-        return new ObjectMapper().readValue(plain, new TypeReference<Map<String, String>>() {
-        });
     }
 }
