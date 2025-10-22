@@ -432,10 +432,9 @@ ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF
             .contentType(MediaType.parseMediaType(MediaType.APPLICATION_OCTET_STREAM_VALUE))
             .body(resource)
     }
-
     @GetMapping("/tools/{type}/credentials", produces = [MediaType.TEXT_PLAIN_VALUE])
     suspend fun getToolsCredentials(
-        @PathVariable type: String,
+        @PathVariable type: String
     ): ResponseEntity<String> {
         if (type.lowercase() == "client_side") {
             val userId = UserInfoProvider.userId() ?: throw ResponseProcessingException("User ID not available")
@@ -449,7 +448,7 @@ ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF
             }
             val jsonString = ObjectMapper().writeValueAsString(credentials)
             val response = mapOf("creds" to Utilities.encryptCredentials(jsonString))
-            return ResponseEntity.ok(ObjectMapper().writeValueAsString(response))
+            return ResponseEntity.ok( ObjectMapper().writeValueAsString(response))
         } else {
             throw ResponseProcessingException("Unsupported tool type: $type. Only 'client_side' is supported.")
         }
