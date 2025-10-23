@@ -27,7 +27,6 @@ import io.temporal.workflow.WorkflowMethod
 import jakarta.annotation.PreDestroy
 import mu.KotlinLogging
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean
-import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.http.codec.ServerSentEvent
 import org.springframework.stereotype.Component
 import java.time.Duration
@@ -160,7 +159,6 @@ fun kotlinJacksonDataConverter(): DataConverter {
     return DefaultDataConverter(json, ByteArrayPayloadConverter(), ProtobufJsonPayloadConverter(), NullPayloadConverter())
 }
 
-@ConfigurationProperties("platform.deployment.temporal")
 data class TemporalConfig(
     val target: String? = null,
     val namespace: String? = null,
