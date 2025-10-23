@@ -106,8 +106,12 @@ class MCPToolExecutor(
  * methods to register, find, and clean up tools.
  */
 @Component
-class MCPToolRegistry {
-    private val toolRepository = mutableMapOf<String, ToolDefinition>()
+class MCPToolRegistry(
+    private val toolStorage: ToolRegistryStorage,
+) {
+    private val log = LoggerFactory.getLogger(MCPToolRegistry::class.java)
+
+    // Keep serverRepository as is for now - will be migrated to storage later
     private val serverRepository = mutableMapOf<String, MCPServerInfo>()
 
     /**
@@ -129,13 +133,15 @@ class MCPToolRegistry {
      *
      * @param tool Tool definition to add
      */
-    fun addTool(tool: ToolDefinition) {
-        toolRepository[tool.name] = tool
+    suspend fun addTool(tool: ToolDefinition) {
+        toolStorage.add<McpToolDefinition>(tool as McpToolDefinition)
+        log.debug("Added tool '${tool.name}' to registry")
     }
 
-    fun invalidateTool(tool: McpToolDefinition) {
-        toolRepository.remove(tool.name)
+    suspend fun invalidateTool(tool: McpToolDefinition) {
+        toolStorage.remove<McpToolDefinition>(tool.name)
         serverRepository.remove(tool.serverInfo.serverIdentifier())
+        log.debug("Invalidated tool '${tool.name}' from registry")
     }
 
     fun addMcpServer(mcpServerInfo: MCPServerInfo) {
@@ -152,21 +158,7 @@ class MCPToolRegistry {
      * @param name Name of the tool to find
      * @return Tool definition if found, null otherwise
      */
-    fun findByName(name: String): ToolDefinition? = toolRepository[name]
+    suspend fun findByName(name: String): ToolDefinition? = toolStorage.get<McpToolDefinition>(name)
 
     fun findServerById(id: String): MCPServerInfo? = serverRepository[id]
-
-    /**
-     * Returns all registered tools.
-     *
-     * @return List of all tool definitions
-     */
-    fun findAll(): List<ToolDefinition> = toolRepository.values.toList()
-
-    /**
-     * Clears the tool repository.
-     */
-    fun cleanUp() {
-        toolRepository.clear()
-    }
 }

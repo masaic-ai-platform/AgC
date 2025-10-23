@@ -4,15 +4,12 @@ import ai.masaic.openresponses.tool.mcp.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.ResponseCreateParams
-import dev.langchain4j.model.chat.request.json.JsonObjectSchema
-import io.mockk.every
 import io.mockk.mockk
-import io.mockk.verify
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
 import org.junit.jupiter.api.AfterAll
-import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Disabled
@@ -62,48 +59,6 @@ class ToolServiceTest {
         toolService.cleanup()
     }
 
-    @Test
-    fun `listAvailableTools should return mapped tool metadata`() {
-        // Given
-        val mockTools: List<McpToolDefinition> =
-            listOf(
-                McpToolDefinition(
-                    id = "tool1",
-                    protocol = ToolProtocol.MCP,
-                    hosting = ToolHosting.MASAIC_MANAGED,
-                    name = "Test Tool 1",
-                    description = "A test tool",
-                    parameters = JsonObjectSchema.builder().build(),
-                    serverInfo = MCPServerInfo("test"),
-                ),
-                McpToolDefinition(
-                    id = "tool2",
-                    protocol = ToolProtocol.MCP,
-                    hosting = ToolHosting.MASAIC_MANAGED,
-                    name = "Test Tool 2",
-                    description = "A test tool",
-                    parameters = JsonObjectSchema.builder().build(),
-                    serverInfo = MCPServerInfo("test"),
-                ),
-            )
-
-        every { mcpToolRegistry.findAll() } returns mockTools
-
-        // When
-        val result = toolService.listAvailableTools()
-
-        // Then
-        assertEquals(2, result.size)
-        assertEquals("tool1", result[0].id)
-        assertEquals("Test Tool 1", result[0].name)
-        assertEquals("A test tool", result[0].description)
-        assertEquals("tool2", result[1].id)
-        assertEquals("Test Tool 2", result[1].name)
-        assertEquals("Another test tool", result[1].description)
-
-        verify { mcpToolRegistry.findAll() }
-    }
-
     /**
      * Tests that a specific tool can be retrieved by name.
      *
@@ -122,16 +77,17 @@ class ToolServiceTest {
      * Verifies that a tool can be converted to a function tool with valid properties.
      */
     @Test
-    fun `get function tool`() {
-        val tool = toolService.getFunctionTool("create_or_update_file")
-        // Fail test if tool is null
-        assert(tool != null) { "Tool should not be null" }
+    fun `get function tool`() =
+        runBlocking {
+            val tool = toolService.getFunctionTool("create_or_update_file")
+            // Fail test if tool is null
+            assert(tool != null) { "Tool should not be null" }
 
-        // Now we can safely use non-null assertion
-        assert(tool?.name?.isNotEmpty() == true) { "Tool name should not be empty" }
-        assert(tool?.description?.isNotEmpty() == true) { "Tool description should not be empty" }
-        assert(tool?.parameters?.isNotEmpty() == true) { "Tool parameters should not be empty" }
-    }
+            // Now we can safely use non-null assertion
+            assert(tool?.name?.isNotEmpty() == true) { "Tool name should not be empty" }
+            assert(tool?.description?.isNotEmpty() == true) { "Tool description should not be empty" }
+            assert(tool?.parameters?.isNotEmpty() == true) { "Tool parameters should not be empty" }
+        }
 
     /**
      * Tests that a browser use tool can be executed with arguments.

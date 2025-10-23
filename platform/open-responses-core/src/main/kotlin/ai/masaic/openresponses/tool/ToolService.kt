@@ -16,7 +16,6 @@ import com.openai.models.chat.completions.ChatCompletionCreateParams
 import com.openai.models.chat.completions.ChatCompletionTool
 import com.openai.models.responses.ResponseCreateParams
 import dev.langchain4j.model.chat.request.json.*
-import jakarta.annotation.PostConstruct
 import jakarta.annotation.PreDestroy
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.Json
@@ -53,35 +52,6 @@ open class ToolService(
     private companion object {
         const val DEFAULT_CONFIG_PATH = "classpath:mcp-servers-config.json"
         const val MCP_CONFIG_ENV_VAR = "MCP_SERVER_CONFIG_FILE_PATH"
-    }
-
-    /**
-     * Lists all available tools.
-     *
-     * @return List of tool metadata representing all available tools
-     */
-    fun listAvailableTools(): List<ToolMetadata> {
-        val availableTools =
-            nativeToolRegistry
-                .findAll()
-                .map { tool ->
-                    ToolMetadata(
-                        id = tool.id,
-                        name = tool.name,
-                        description = tool.description,
-                    )
-                }.toMutableList()
-
-        availableTools.addAll(
-            mcpToolRegistry.findAll().map { tool ->
-                ToolMetadata(
-                    id = tool.id,
-                    name = tool.name,
-                    description = tool.description,
-                )
-            },
-        )
-        return availableTools
     }
 
     /**
@@ -179,7 +149,7 @@ open class ToolService(
      * @param context The completion tool request context
      * @return FunctionTool representation if found, null otherwise
      */
-    fun getFunctionTool(
+    suspend fun getFunctionTool(
         name: String,
         context: CompletionToolRequestContext,
     ): FunctionTool? {
@@ -199,7 +169,7 @@ open class ToolService(
      * @param name Name of the tool to retrieve
      * @return FunctionTool representation if found, null otherwise
      */
-    fun getFunctionTool(
+    suspend fun getFunctionTool(
         name: String,
     ): FunctionTool? {
         val toolDefinition = nativeToolRegistry.findByName(name) ?: mcpToolRegistry.findByName(name) ?: return null
@@ -353,7 +323,7 @@ open class ToolService(
      */
     suspend fun findToolByName(name: String): ToolDefinition? = nativeToolRegistry.findByName(name) ?: mcpToolRegistry.findByName(name) ?: plugableToolAdapter.plugIn(name)
 
-    fun invalidateMcpTool(tool: ToolDefinition) = mcpToolRegistry.invalidateTool(tool as McpToolDefinition)
+    suspend fun invalidateMcpTool(tool: ToolDefinition) = mcpToolRegistry.invalidateTool(tool as McpToolDefinition)
 
     /**
      * Executes a tool based on its protocol, using unified context/params.
@@ -427,7 +397,7 @@ open class ToolService(
      * Reads configuration from the file specified by MCP_SERVER_CONFIG_FILE_PATH
      * environment variable or uses the default path.
      */
-    @PostConstruct
+    @Deprecated("we are supporting only remote MCP servers")
     fun loadTools() {
         if (!toolsMCPEnabled) {
             log.info("MCP tools are not enabled, skipping loading of MCP tools.")
@@ -479,7 +449,6 @@ open class ToolService(
     @PreDestroy
     fun cleanup() {
         runBlocking {
-            mcpToolRegistry.cleanUp()
             mcpToolExecutor.shutdown()
         }
     }

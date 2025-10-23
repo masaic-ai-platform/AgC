@@ -180,6 +180,7 @@ class PlatformCoreConfig {
         @Value("\${platform.deployment.agc-cs-runtime.path:/app/agc-client-runtime/java-sdk}") agcRuntimePath: String,
         @Value("\${platform.deployment.agc-cs-runtime.securitykey:na}") securityKey: String,
         @Value("\${platform.deployment.multiplug.enabled:false}") multiPlugEnabled: Boolean,
+        @Value("\${platform.deployment.environment:local}") env: String,
     ): PlatformInfo {
         val vectorStoreInfo =
             if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
@@ -197,6 +198,7 @@ class PlatformCoreConfig {
         if (multiPlugEnabled && securityKey == "na") throw IllegalStateException("property platform.deployment.agc-cs-runtime.securityKey is not defined")
 
         return PlatformInfo(
+            env = env,
             version = "v${buildProperties.version}",
             buildTime = buildProperties.time,
             modelSettings = ModelSettings(modelSettings.settingsType, "", ""),
@@ -550,6 +552,7 @@ data class AuthConfig(
 )
 
 data class PlatformInfo(
+    val env: String = "local",
     val version: String,
     val buildTime: Instant,
     val modelSettings: ModelSettings,
