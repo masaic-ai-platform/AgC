@@ -177,7 +177,7 @@ class PlatformCoreConfig {
         partners: Partners,
         @Value("\${platform.deployment.oauth.redirectAgcHost:na}") agcPlatformRedirectBaseUrl: String = "na",
         @Value("\${platform.deployment.oauth.agcUiHost:na}") agcUiHost: String = "na",
-        @Value("\${platform.deployment.agc-cs-runtime.path:../agc-client-runtime/java-sdk}") agcRuntimePath: String,
+        @Value("\${platform.deployment.agc-cs-runtime.path:/app/agc-client-runtime/java-sdk}") agcRuntimePath: String,
         @Value("\${platform.deployment.agc-cs-runtime.securitykey:na}") securityKey: String,
         @Value("\${platform.deployment.multiplug.enabled:false}") multiPlugEnabled: Boolean,
     ): PlatformInfo {
@@ -213,7 +213,7 @@ class PlatformCoreConfig {
                 },
             partners = partners,
             oAuthRedirectSpecs = oAuthRedirectSpecs,
-            agentClientSideRuntimeConfig = AgentClientSideRuntimeConfig(agcRuntimePath, securityKey),
+            agentClientSideRuntimeConfig = AgentClientSideRuntimeConfig(agcRuntimePath, securityKey, multiPlugEnabled),
         )
     }
 
@@ -564,7 +564,7 @@ data class PlatformInfo(
         fun publicInfo(platformInfo: PlatformInfo) =
             platformInfo.copy(
                 modelSettings = ModelSettings(settingsType = platformInfo.modelSettings.settingsType, apiKey = "", model = ""),
-                agentClientSideRuntimeConfig = AgentClientSideRuntimeConfig("", ""),
+                agentClientSideRuntimeConfig = AgentClientSideRuntimeConfig("", "", platformInfo.agentClientSideRuntimeConfig.multiPlugEnabled),
                 oAuthRedirectSpecs = OAuthRedirectSpecs(),
             )
     }
@@ -573,6 +573,7 @@ data class PlatformInfo(
 data class AgentClientSideRuntimeConfig(
     val path: String,
     val securityKey: String,
+    val multiPlugEnabled: Boolean,
 )
 
 data class OAuthRedirectSpecs(

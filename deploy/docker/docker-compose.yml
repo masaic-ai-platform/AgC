@@ -1,8 +1,8 @@
 version: '3.8'
 
 # Image versions - can be overridden via environment variables
-x-image-agc-platform-server: &image-agc-platform-server masaicai/agc-platform-server:${OPEN_RESPONSES_VERSION:-0.6.0}
-x-image-platform-ui: &image-platform-ui masaicai/platform-ui:${PLATFORM_UI_VERSION:-0.6.0}
+x-image-agc-platform-server: &image-agc-platform-server masaicai/agc-platform-server:${OPEN_RESPONSES_VERSION:-0.7.0}
+x-image-platform-ui: &image-platform-ui masaicai/platform-ui:${PLATFORM_UI_VERSION:-0.7.0}
 
 services:
   # MongoDB service (only when using internal MongoDB)
