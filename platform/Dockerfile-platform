@@ -7,11 +7,11 @@ USER app
 WORKDIR /app
 
 # Copy the built JAR and configuration file into the image
-COPY agc-platform-server/build/libs/agc-platform-server-0.7.0-dev.jar /app/agc-platform-server-0.7.0-dev.jar
+COPY agc-platform-server/build/libs/agc-platform-server-0.7.0.jar /app/agc-platform-server-0.7.0.jar
 
 # Copy the agc-client-runtime/java-sdk directory
 COPY agc-client-runtime/java-sdk /app/agc-client-runtime/java-sdk
 
 EXPOSE 6644
 # Start the Java application directly
-ENTRYPOINT ["java", "-jar", "/app/agc-platform-server-0.7.0-dev.jar"]
+ENTRYPOINT ["java", "-jar", "/app/agc-platform-server-0.7.0.jar"]

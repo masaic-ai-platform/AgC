@@ -11,6 +11,7 @@ class RegTestSuiteAgent {
             description = "Executes Playwright test scripts, collects steps trail, applies user-provided assertions, and reports assertion pass/fail status with summaries. Prompts for missing script name or assertions as needed.",
             systemPrompt = agentPrompt,
             userMessage = "Tell me the weather of San Francisco",
+            model = "openai@gpt-4.1-mini",
             tools = listOf(MCPTool(type = "mcp", serverLabel = "reg-mcp-server", serverUrl = RegSuiteMcpClient.REGRESS_SERVER_URL, allowedTools = listOf(RegSuiteMcpClient.RUN_PW_SCRIPT_TOOL_NAME, RegSuiteMcpClient.GET_TEST_TRAIL_TOOL_NAME))),
             suggestedQueries = listOf(allBirdsMCPTest, addModelTest, fileSearchTest, agentBuilderTest, ecommerceAgentTest, mockyTest, mcpOauthConTest),
         )

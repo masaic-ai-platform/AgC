@@ -29,7 +29,7 @@ class AgCPlatformServerConfig {
         partners: Partners,
         @Value("\${platform.deployment.oauth.redirectAgcHost:na}") agcPlatformRedirectBaseUrl: String = "na",
         @Value("\${platform.deployment.oauth.agcUiHost:na}") agcUiHost: String = "na",
-        @Value("\${platform.deployment.agc-cs-runtime.path:../agc-client-runtime/java-sdk}") agcRuntimePath: String,
+        @Value("\${platform.deployment.agc-cs-runtime.path:/app/agc-client-runtime/java-sdk}") agcRuntimePath: String,
         @Value("\${platform.deployment.agc-cs-runtime.securitykey:na}") securityKey: String,
         @Value("\${platform.deployment.multiplug.enabled:false}") multiPlugEnabled: Boolean,
     ): PlatformInfo {
@@ -57,7 +57,7 @@ class AgCPlatformServerConfig {
                 },
             partners = partners,
             oAuthRedirectSpecs = oAuthRedirectSpecs,
-            agentClientSideRuntimeConfig = AgentClientSideRuntimeConfig(agcRuntimePath, securityKey),
+            agentClientSideRuntimeConfig = AgentClientSideRuntimeConfig(agcRuntimePath, securityKey, multiPlugEnabled),
         )
     }
 
