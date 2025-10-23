@@ -121,7 +121,6 @@ open class AgentBootstrapService(
                     when (tool) {
                         is FileSearchTool,
                         is AgenticSeachTool,
-                        is FunctionTool,
                         -> {
                             log.info("${agent.name} is having tool ${tool.type} which is not supported. Skipping this agent.")
                             possibleToBootstrap = false
