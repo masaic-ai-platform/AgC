@@ -26,7 +26,7 @@ class PlayWrightRunner {
 
             val pb =
                 ProcessBuilder(args).apply {
-                    directory(File("${System.getProperty("user.dir")}/platform/agc-test-regression-server/src/main/resources/playwright"))
+                    directory(File("${System.getProperty("user.dir")}/src/main/resources/playwright"))
                     redirectErrorStream(false)
                 }
 

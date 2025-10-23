@@ -184,17 +184,20 @@ The API implements the following OpenAI-compatible endpoints:
 
 The following environment variables can be configured to deploy a full-fledged AgC platform:
 
-| Environment Variable | Description | Default Value | Example Value |
-|---------------------|-------------|---------------|---------------|
-| `SPRING_PROFILES_ACTIVE` | Profile to activate when booting AgC as full-fledged platform | `default` | `platform` |
-| `OPEN_RESPONSES_STORE_VECTOR_SEARCH_PROVIDER` | Vector store provider to use | `file` | `qdrant` or `file` |
-| `OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_HOST` | Qdrant vector store host name | - | `your-qdrant-host.com` |
-| `OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_API_KEY` | API key for Qdrant vector store | - | `your-qdrant-api-key` |
-| `OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_USE_TLS` | Enable TLS for secure Qdrant connection | `false` | `true` or `false` |
-| `OPEN_RESPONSES_STORE_VECTOR_REPOSITORY_TYPE` | Repository type for vector operations | `file` | `mongodb` or `file` |
-| `OPEN_RESPONSES_STORE_TYPE` | Data store type for platform | `in-memory` | `mongodb` or `in-memory` |
-| `PLATFORM_DEPLOYMENT_AUTH_ENABLED` | Enable authentication for the platform | `false` | `true` or `false` |
-| `PLATFORM_DEPLOYMENT_AUTH_GOOGLE_AUDIENCE` | Google Auth audience when platform auth is enabled | - | `your-google-auth-audience` |
+| Environment Variable | Description                                                                                                                                                          | Default Value                      | Example Value                      |
+|---------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------|------------------------------------|
+| `SPRING_PROFILES_ACTIVE` | Profile to activate when booting AgC as full-fledged platform                                                                                                        | `default`                          | `platform`                         |
+| `OPEN_RESPONSES_STORE_VECTOR_SEARCH_PROVIDER` | Vector store provider to use                                                                                                                                         | `file`                             | `qdrant` or `file`                 |
+| `OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_HOST` | Qdrant vector store host name                                                                                                                                        | -                                  | `your-qdrant-host.com`             |
+| `OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_API_KEY` | API key for Qdrant vector store                                                                                                                                      | -                                  | `your-qdrant-api-key`              |
+| `OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_USE_TLS` | Enable TLS for secure Qdrant connection                                                                                                                              | `false`                            | `true` or `false`                  |
+| `OPEN_RESPONSES_STORE_VECTOR_REPOSITORY_TYPE` | Repository type for vector operations                                                                                                                                | `file`                             | `mongodb` or `file`                |
+| `OPEN_RESPONSES_STORE_TYPE` | Data store type for platform                                                                                                                                         | `in-memory`                        | `mongodb` or `in-memory`           |
+| `PLATFORM_DEPLOYMENT_AUTH_ENABLED` | Enable authentication for the platform                                                                                                                               | `false`                            | `true` or `false`                  |
+| `PLATFORM_DEPLOYMENT_AUTH_GOOGLE_AUDIENCE` | Google Auth audience when platform auth is enabled                                                                                                                   | -                                  | `your-google-auth-audience`        |
+| `PLATFORM_DEPLOYMENT_MULTIPLUG_ENABLED` | This is a flag to plug external (client-side) tools to AgC                                                                                                           | `false`                            | `true` or `false`                  |
+| `PLATFORM_DEPLOYMENT_AGC-CS-RUNTIME_PATH` | This is the path where agc-runtime SDK package is placed                                                                                                             | `/app/agc-client-runtime/java-sdk` | `/app/agc-client-runtime/java-sdk` |
+| `PLATFORM_DEPLOYMENT_AGC-CS-RUNTIME_SECURITYKEY` | This is the concatenated string generated using [Generate Key Utility](https://github.com/masaic-ai-platform/AgC/tree/main/platform/agc-client-runtime#generate-key) | -                                  | `to be generated`                   |
 
 ## MCP Server Integration
 

@@ -18,9 +18,13 @@ import ai.masaic.platform.api.service.messages
 import ai.masaic.platform.api.tools.FunDefGenerationTool
 import ai.masaic.platform.api.tools.SystemPromptGeneratorTool
 import ai.masaic.platform.api.user.UserInfoProvider
+import ai.masaic.platform.api.utils.DownloadPackagingUtil
+import ai.masaic.platform.api.utils.DownloadRequest
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import mu.KotlinLogging
+import org.springframework.core.io.ByteArrayResource
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -223,7 +227,7 @@ ${request.description}
     }
 
     @GetMapping("/platform/info", produces = [MediaType.APPLICATION_JSON_VALUE])
-    suspend fun getPlatformInfo() = platformInfo
+    suspend fun getPlatformInfo() = PlatformInfo.publicInfo(platformInfo)
 
     @GetMapping("/platform/features", produces = [MediaType.APPLICATION_JSON_VALUE])
     suspend fun getFeatures(): PlatformInfo {
@@ -241,11 +245,11 @@ ${request.description}
                             else -> partner
                         }
                     }
-                platformInfo.copy(partners = Partners(details = partners), pyInterpreterSettings = PyInterpreterSettings(isEnabled = false))
+                PlatformInfo.publicInfo(platformInfo.copy(partners = Partners(details = partners), pyInterpreterSettings = PyInterpreterSettings(isEnabled = false)))
             } else {
-                platformInfo
+                PlatformInfo.publicInfo(platformInfo)
             }
-        } ?: platformInfo
+        } ?: PlatformInfo.publicInfo(platformInfo)
     }
 
     @PostMapping("/agc/functions:suggest")
@@ -402,6 +406,27 @@ ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF
                 code = response.code,
             )
         return ResponseEntity.ok(funDetails)
+    }
+
+    @PostMapping("/download", produces = [MediaType.APPLICATION_OCTET_STREAM_VALUE])
+    suspend fun downloadFile(
+        @RequestBody request: DownloadRequest,
+    ): ResponseEntity<ByteArrayResource> {
+        val zipBytes = DownloadPackagingUtil.buildZip(request, platformInfo.agentClientSideRuntimeConfig)
+        val resource = ByteArrayResource(zipBytes)
+        val fileName = "agc-runtime.zip"
+        val headers = HttpHeaders()
+        headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$fileName\"")
+        headers.add(
+            "X-Download-Metadata",
+            mapper.writeValueAsString(request.downloadMetadata ?: emptyMap<String, Any>()),
+        )
+        return ResponseEntity
+            .ok()
+            .headers(headers)
+            .contentLength(zipBytes.size.toLong())
+            .contentType(MediaType.parseMediaType(MediaType.APPLICATION_OCTET_STREAM_VALUE))
+            .body(resource)
     }
 }
 
