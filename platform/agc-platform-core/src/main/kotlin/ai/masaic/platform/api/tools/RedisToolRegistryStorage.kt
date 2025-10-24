@@ -8,10 +8,8 @@ import ai.masaic.platform.api.user.UserInfoProvider
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import kotlinx.coroutines.reactive.awaitSingle
 import mu.KotlinLogging
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory
 import org.springframework.data.redis.core.ReactiveStringRedisTemplate
-import org.springframework.stereotype.Component
 import java.time.Duration
 
 /**

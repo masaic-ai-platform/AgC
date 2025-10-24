@@ -9,12 +9,10 @@ import ai.masaic.openresponses.tool.mcp.MCPServerInfo
 import ai.masaic.openresponses.tool.mcp.McpClient
 import ai.masaic.openresponses.tool.mcp.McpToolDefinition
 import ai.masaic.openresponses.tool.mcp.nativeToolDefinition
-import ai.masaic.platform.api.utils.JsonSchemaMapper
 import ai.masaic.platform.regression.api.service.RegSuiteResponseStoreFacade
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.client.OpenAIClient
-import dev.langchain4j.model.chat.request.json.JsonObjectSchema
 import mu.KotlinLogging
 import org.springframework.http.codec.ServerSentEvent
 
@@ -211,16 +209,14 @@ class RegSuiteMcpClient(
     private fun toMcpToolDef(
         nativeTool: NativeToolDefinition,
         mcpServerInfo: MCPServerInfo,
-    ): McpToolDefinition {
-        val parameters = JsonSchemaMapper.mapToJsonSchemaElement(nativeTool.parameters) as JsonObjectSchema
-        return McpToolDefinition(
+    ): McpToolDefinition =
+        McpToolDefinition(
             id = nativeTool.id,
             hosting = ToolHosting.REMOTE,
             name = mcpServerInfo.qualifiedToolName(nativeTool.name),
             description = nativeTool.description,
-            parameters = parameters,
+            parameters = nativeTool.parameters,
             serverInfo = mcpServerInfo,
             eventMeta = nativeTool.eventMeta,
         )
-    }
 }

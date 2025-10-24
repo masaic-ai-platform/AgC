@@ -3,13 +3,13 @@ package ai.masaic.openresponses.tool.mcp
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolHosting
 import ai.masaic.openresponses.tool.ToolParamsAccessor
+import com.fasterxml.jackson.module.kotlin.convertValue
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.client.OpenAIClient
-import dev.langchain4j.mcp.client.Converter
-import dev.langchain4j.model.chat.request.json.JsonObjectSchema
 import io.modelcontextprotocol.client.McpAsyncClient
 import io.modelcontextprotocol.spec.McpSchema
+import io.modelcontextprotocol.spec.McpSchema.TextContent
 import io.modelcontextprotocol.spec.McpTransportException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.reactor.awaitSingle
@@ -46,17 +46,7 @@ class SdkBackedMcpClient(
         try {
             val result = mcpClient.listTools().awaitSingle()
             return result.tools.mapNotNull { tool ->
-                val params =
-                    tool.inputSchema?.let {
-                        val schemaNode = mapper.readTree(mapper.writeValueAsString(it))
-                        try {
-                            Converter.toJsonObjectSchema(schemaNode)
-                        } catch (ex: McpToolsInputSchemaParsingException) {
-                            log.error { ex }
-                            null
-                        }
-                    } ?: JsonObjectSchema.builder().build()
-
+                val params: MutableMap<String, Any> = tool.inputSchema?.let { mapper.convertValue(tool.inputSchema) } ?: mutableMapOf()
                 McpToolDefinition(
                     hosting = ToolHosting.REMOTE,
                     name = mcpServerInfo.qualifiedToolName(tool.name()),
@@ -89,7 +79,7 @@ class SdkBackedMcpClient(
 
             val request = McpSchema.CallToolRequest(tool.name, argsMap)
             val result = mcpClient.callTool(request).awaitSingle()
-            mapper.writeValueAsString(Converter.extractResult(result))
+            mapper.writeValueAsString(extractResult(result))
         } catch (e: Exception) {
             log.error("Failed to execute tool '${tool.name}' for server: $serverName", e)
             throw mapException(e, "executeTool")
@@ -136,4 +126,36 @@ class SdkBackedMcpClient(
             }
         }
     }
+
+    private fun extractResult(result: McpSchema.CallToolResult): CallToolResponse =
+        try {
+            // Extract content from the result
+            val content =
+                if (result.content.isNotEmpty()) {
+                    result.content.joinToString("\n") { contentItem ->
+                        when (contentItem) {
+                            is TextContent -> contentItem.text
+                            else -> contentItem.toString()
+                        }
+                    }
+                } else {
+                    "No content returned returned by the tool."
+                }
+
+            // Check if this is an error result
+            val isError = result.isError ?: false
+
+            // Format error content if needed
+            val finalContent =
+                if (isError) {
+                    "There was an error executing the tool. The tool returned: $content"
+                } else {
+                    content
+                }
+
+            CallToolResponse(isError, finalContent)
+        } catch (ex: Exception) {
+            log.warn("Error occurred while extracting CallToolResult: ${ex.message}", ex)
+            CallToolResponse(true, "There was an error processing the tool result")
+        }
 }

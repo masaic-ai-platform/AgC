@@ -3,6 +3,7 @@ package ai.masaic.openresponses.tool
 import ai.masaic.openresponses.api.service.search.VectorStoreService
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.openresponses.tool.mcp.MCPToolRegistry
+import ai.masaic.openresponses.tool.mcp.McpWebFluxClientFactory
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.ResponseCreateParams
@@ -13,7 +14,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.core.io.ResourceLoader
-import java.util.Optional
+import java.util.*
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 
@@ -24,6 +25,7 @@ class FileSearchToolTest {
     private lateinit var resourceLoader: ResourceLoader
     private lateinit var nativeToolRegistry: NativeToolRegistry
     private lateinit var vectorStoreService: VectorStoreService
+    private lateinit var mcpClientFactory: McpWebFluxClientFactory
     private val openAIClient = mockk<OpenAIClient>()
 
     @BeforeEach
