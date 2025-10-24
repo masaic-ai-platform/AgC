@@ -32,11 +32,6 @@ import java.time.Duration
  * - tool_type: Type of tool (mcp, native, pyfun, plugable, file_search)
  * - name: Tool name
  */
-@Component
-@ConditionalOnProperty(
-    name = ["tool.registry.storage.type"],
-    havingValue = "redis",
-)
 class RedisToolRegistryStorage(
     connectionFactory: ReactiveRedisConnectionFactory,
     private val platformInfo: PlatformInfo,

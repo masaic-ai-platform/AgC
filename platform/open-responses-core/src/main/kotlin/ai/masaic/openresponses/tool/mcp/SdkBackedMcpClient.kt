@@ -56,15 +56,14 @@ class SdkBackedMcpClient(
                             null
                         }
                     } ?: JsonObjectSchema.builder().build()
-                params?.let {
-                    McpToolDefinition(
-                        hosting = ToolHosting.REMOTE,
-                        name = mcpServerInfo.qualifiedToolName(tool.name()),
-                        description = tool.description ?: tool.name,
-                        parameters = params,
-                        serverInfo = mcpServerInfo,
-                    )
-                }
+
+                McpToolDefinition(
+                    hosting = ToolHosting.REMOTE,
+                    name = mcpServerInfo.qualifiedToolName(tool.name()),
+                    description = tool.description ?: tool.name,
+                    parameters = params,
+                    serverInfo = mcpServerInfo,
+                )
             }
         } catch (e: Exception) {
             throw mapException(e, "listTools")
