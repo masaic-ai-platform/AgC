@@ -8,10 +8,7 @@ import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.tool.mcp.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
-import com.openai.core.JsonValue
 import com.openai.errors.OpenAIException
-import com.openai.models.FunctionDefinition
-import com.openai.models.FunctionParameters
 import com.openai.models.chat.completions.ChatCompletionCreateParams
 import com.openai.models.chat.completions.ChatCompletionTool
 import com.openai.models.responses.ResponseCreateParams
@@ -165,11 +162,12 @@ open class ToolService(
     ): FunctionTool? {
         val resolvedName = resolveToolName(name, context)
         val toolDefinition = nativeToolRegistry.findByName(resolvedName) ?: mcpToolRegistry.findByName(resolvedName) ?: plugableToolAdapter.plugIn(name) ?: return null
-        return when {
-            toolDefinition is NativeToolDefinition -> NativeToolDefinition.toFunctionTool(toolDefinition)
-            toolDefinition is PyFunToolDefinition -> toolDefinition.toFunctionTool()
-            toolDefinition is PlugableToolDefinition -> toolDefinition.toFunctionTool()
-            else -> (toolDefinition as McpToolDefinition).toFunctionTool()
+        return when (toolDefinition) {
+            is NativeToolDefinition -> NativeToolDefinition.toFunctionTool(toolDefinition)
+            is PyFunToolDefinition -> toolDefinition.toFunctionTool()
+            is PlugableToolDefinition -> toolDefinition.toFunctionTool()
+            is McpToolDefinition -> McpToolDefinition.toFunctionTool(toolDefinition)
+            else -> throw ResponseProcessingException("unknown tool type, can't proceed.")
         }
     }
 
@@ -190,7 +188,8 @@ open class ToolService(
             is NativeToolDefinition -> NativeToolDefinition.toFunctionTool(toolDefinition)
             is PyFunToolDefinition -> toolDefinition.toFunctionTool()
             is FileSearchToolDefinition -> toolDefinition.toFunctionTool()
-            else -> (toolDefinition as McpToolDefinition).toFunctionTool()
+            is McpToolDefinition -> McpToolDefinition.toFunctionTool(toolDefinition)
+            else -> throw ResponseProcessingException("unknown tool type, can't proceed.")
         }
     }
 
@@ -208,7 +207,8 @@ open class ToolService(
             is NativeToolDefinition -> NativeToolDefinition.toFunctionTool(toolDefinition)
             is PyFunToolDefinition -> toolDefinition.toFunctionTool()
             is FileSearchToolDefinition -> toolDefinition.toFunctionTool()
-            else -> (toolDefinition as McpToolDefinition).toFunctionTool()
+            is McpToolDefinition -> McpToolDefinition.toFunctionTool(toolDefinition)
+            else -> throw ResponseProcessingException("unknown tool type, can't proceed.")
         }
     }
 
@@ -257,14 +257,14 @@ open class ToolService(
         mcpTool: MCPTool,
     ): List<FunctionTool> {
         val remoteTools = getRemoteMcpToolDefinitions(mcpTool)
-        return remoteTools.map { it.toFunctionTool() }
+        return remoteTools.map { McpToolDefinition.toFunctionTool(it) }
     }
 
     suspend fun getRemoteMcpToolsForChatCompletion(
         mcpTool: MCPTool,
     ): List<ChatCompletionTool> {
         val remoteTools = getRemoteMcpToolDefinitions(mcpTool)
-        return remoteTools.map { it.toChatCompletionTool(objectMapper) }
+        return remoteTools.map { McpToolDefinition.toChatCompletionTool(objectMapper, it) }
     }
 
     private suspend fun getRemoteMcpToolDefinitions(
@@ -563,84 +563,6 @@ open class ToolService(
             e,
         )
         // Continue with next server instead of aborting
-    }
-
-    /**
-     * Converts an MCP tool definition to a FunctionTool.
-     *
-     * @return FunctionTool representation of this MCP tool definition
-     */
-    private fun McpToolDefinition.toFunctionTool(): FunctionTool {
-        // Convert JsonObjectSchema to MutableMap<String, Any>
-        val parametersMap = mutableMapOf<String, Any>()
-
-        // Add type and required properties
-        parametersMap["type"] = "object"
-
-        // Add properties
-        val propertiesMap = mutableMapOf<String, Any>()
-        this.parameters.properties().forEach { (name, schema) ->
-            propertiesMap[name] = mapJsonSchemaToMap(schema)
-        }
-
-        parametersMap["properties"] = propertiesMap
-
-        // Add required fields if present
-        this.parameters.required()?.let {
-            if (it.isNotEmpty()) {
-                parametersMap["required"] = it
-            }
-        }
-
-        // Create and return the FunctionTool
-        return FunctionTool(
-            name = this.name,
-            description = this.description,
-            parameters = parametersMap,
-            strict = false,
-        )
-    }
-
-    /**
-     * Converts an MCP tool definition to a FunctionTool.
-     *
-     * @return FunctionTool representation of this MCP tool definition
-     */
-    private fun McpToolDefinition.toChatCompletionTool(objectMapper: ObjectMapper): ChatCompletionTool {
-        // Convert JsonObjectSchema to MutableMap<String, Any>
-        val parametersMap = mutableMapOf<String, Any>()
-
-        // Add type and required properties
-        parametersMap["type"] = "object"
-
-        // Add properties
-        val propertiesMap = mutableMapOf<String, Any>()
-        this.parameters.properties().forEach { (name, schema) ->
-            propertiesMap[name] = mapJsonSchemaToMap(schema)
-        }
-
-        parametersMap["properties"] = propertiesMap
-
-        // Add required fields if present
-        this.parameters.required()?.let {
-            if (it.isNotEmpty()) {
-                parametersMap["required"] = it
-            }
-        }
-
-        // Create and return the FunctionTool
-        return ChatCompletionTool
-            .builder()
-            .type(JsonValue.from("function"))
-            .function(
-                FunctionDefinition
-                    .builder()
-                    .name(this.name)
-                    .description(this.description)
-                    .parameters(
-                        objectMapper.convertValue(parametersMap, FunctionParameters::class.java),
-                    ).build(),
-            ).build()
     }
 
     /**

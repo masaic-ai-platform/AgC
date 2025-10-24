@@ -1,10 +1,15 @@
 package ai.masaic.openresponses.tool.mcp
 
+import ai.masaic.openresponses.api.model.FunctionTool
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolHosting
 import ai.masaic.openresponses.tool.ToolProgressEventMeta
 import ai.masaic.openresponses.tool.ToolProtocol
-import dev.langchain4j.model.chat.request.json.JsonObjectSchema
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.openai.core.JsonValue
+import com.openai.models.FunctionDefinition
+import com.openai.models.FunctionParameters
+import com.openai.models.chat.completions.ChatCompletionTool
 import kotlinx.serialization.Serializable
 import java.util.*
 
@@ -51,7 +56,7 @@ data class McpToolDefinition(
     override val hosting: ToolHosting,
     override val name: String,
     override val description: String,
-    val parameters: JsonObjectSchema,
+    val parameters: MutableMap<String, Any>,
     val serverInfo: MCPServerInfo,
     override val eventMeta: ToolProgressEventMeta? = null,
 ) : ToolDefinition(id, protocol, hosting, name, description, eventMeta) {
@@ -67,7 +72,7 @@ data class McpToolDefinition(
      * @param mcpServerInfo Information about the MCP server hosting this tool
      */
     constructor(
-        parameters: JsonObjectSchema,
+        parameters: MutableMap<String, Any>,
         protocol: ToolProtocol = ToolProtocol.MCP,
         name: String,
         description: String,
@@ -82,6 +87,32 @@ data class McpToolDefinition(
         parameters,
         mcpServerInfo,
     )
+
+    companion object {
+        fun toFunctionTool(toolDefinition: McpToolDefinition) =
+            FunctionTool(
+                name = toolDefinition.name,
+                description = toolDefinition.description,
+                parameters = toolDefinition.parameters,
+                strict = false,
+            )
+
+        fun toChatCompletionTool(
+            objectMapper: ObjectMapper,
+            toolDefinition: McpToolDefinition,
+        ) = ChatCompletionTool
+            .builder()
+            .type(JsonValue.from("function"))
+            .function(
+                FunctionDefinition
+                    .builder()
+                    .name(toolDefinition.name)
+                    .description(toolDefinition.description)
+                    .parameters(
+                        objectMapper.convertValue(toolDefinition.parameters, FunctionParameters::class.java),
+                    ).build(),
+            ).build()
+    }
 
     override fun toString(): String = "McpTool(name='$name', description='$description', protocol=$protocol, parametersType=${parameters.javaClass.simpleName})"
 }

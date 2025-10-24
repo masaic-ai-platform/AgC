@@ -4,7 +4,6 @@ import ai.masaic.openresponses.tool.mcp.*
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.ResponseCreateParams
-import dev.langchain4j.model.chat.request.json.JsonObjectSchema
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -36,7 +35,7 @@ class ToolServiceTest {
     private val mcpToolExecutor = mockk<MCPToolExecutor>()
     private val resourceLoader = mockk<ResourceLoader>()
     private val nativeToolRegistry = mockk<NativeToolRegistry>()
-    private val mcpClientFactory = mockk<SimpleMcpClientFactory>()
+    private val mcpClientFactory = mockk<McpWebFluxClientFactory>()
 
     @BeforeEach
     fun setUp() {
@@ -74,7 +73,7 @@ class ToolServiceTest {
                     hosting = ToolHosting.MASAIC_MANAGED,
                     name = "Test Tool 1",
                     description = "A test tool",
-                    parameters = JsonObjectSchema.builder().build(),
+                    parameters = mutableMapOf(),
                     serverInfo = MCPServerInfo("test"),
                 ),
                 McpToolDefinition(
@@ -83,7 +82,7 @@ class ToolServiceTest {
                     hosting = ToolHosting.MASAIC_MANAGED,
                     name = "Test Tool 2",
                     description = "A test tool",
-                    parameters = JsonObjectSchema.builder().build(),
+                    parameters = mutableMapOf(),
                     serverInfo = MCPServerInfo("test"),
                 ),
             )
