@@ -28,15 +28,22 @@ public class ToolRegistration {
             while (urls.hasMoreElements()) {
                 URL url = urls.nextElement();
                 if (!"file".equals(url.getProtocol())) continue;
-                File[] files = new File(url.getPath()).listFiles();
-                if (files == null) continue;
-                for (File f : files) {
-                    String n = f.getName();
-                    if (!f.isFile() || !n.endsWith(".class") || n.indexOf('$') >= 0) continue;
-                    loadIfTool(basePackage + '.' + n.substring(0, n.length() - 6), cl);
-                }
+                loadFromDirectory(new File(url.getPath()), basePackage, cl);
             }
         } catch (IOException ignored) {}
+    }
+
+    private static void loadFromDirectory(File directory, String packageName, ClassLoader cl) {
+        File[] files = directory.listFiles();
+        if (files == null) return;
+        for (File f : files) {
+            String n = f.getName();
+            if (f.isDirectory()) {
+                loadFromDirectory(f, packageName + '.' + n, cl);  // Recursively load from subdirectories
+            } else if (f.isFile() && n.endsWith(".class") && n.indexOf('$') < 0) {
+                loadIfTool(packageName + '.' + n.substring(0, n.length() - 6), cl);
+            }
+        }
     }
 
     private static void loadIfTool(String className, ClassLoader cl) {

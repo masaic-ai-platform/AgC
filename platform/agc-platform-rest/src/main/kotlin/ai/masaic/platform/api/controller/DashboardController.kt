@@ -17,9 +17,12 @@ import ai.masaic.platform.api.service.createCompletion
 import ai.masaic.platform.api.service.messages
 import ai.masaic.platform.api.tools.FunDefGenerationTool
 import ai.masaic.platform.api.tools.SystemPromptGeneratorTool
+import ai.masaic.platform.api.tools.TemporalConfig
 import ai.masaic.platform.api.user.UserInfoProvider
 import ai.masaic.platform.api.utils.DownloadPackagingUtil
 import ai.masaic.platform.api.utils.DownloadRequest
+import ai.masaic.platform.api.utils.Utilities
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import mu.KotlinLogging
@@ -47,6 +50,7 @@ class DashboardController(
     private val systemPromptGeneratorTool: SystemPromptGeneratorTool,
     private val functionRegistryService: FunctionRegistryService,
     private val mcpoAuthService: MCPOAuthService,
+    private val temporalConfig: TemporalConfig?,
 ) {
     private val mapper = jacksonObjectMapper()
     private val modelProviders: Set<ModelProvider> = PlatformCoreConfig.loadProviders()
@@ -427,6 +431,28 @@ ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF
             .contentLength(zipBytes.size.toLong())
             .contentType(MediaType.parseMediaType(MediaType.APPLICATION_OCTET_STREAM_VALUE))
             .body(resource)
+    }
+
+    @GetMapping("/tools/{type}/credentials", produces = [MediaType.TEXT_PLAIN_VALUE])
+    suspend fun getToolsCredentials(
+        @PathVariable type: String,
+    ): ResponseEntity<String> {
+        if (type.lowercase() == "client_side") {
+            val userId = UserInfoProvider.userId() ?: throw ResponseProcessingException("User ID not available")
+            val credentials = mutableMapOf<String, String>()
+            credentials["userId"] = userId
+            // Add temporal config if available
+            temporalConfig?.let { config ->
+                config.target?.let { credentials["target"] = it }
+                config.namespace?.let { credentials["namespace"] = it }
+                config.apiKey?.let { credentials["apiKey"] = it }
+            }
+            val jsonString = ObjectMapper().writeValueAsString(credentials)
+            val response = mapOf("creds" to Utilities.encryptCredentials(jsonString))
+            return ResponseEntity.ok(ObjectMapper().writeValueAsString(response))
+        } else {
+            throw ResponseProcessingException("Unsupported tool type: $type. Only 'client_side' is supported.")
+        }
     }
 }
 
