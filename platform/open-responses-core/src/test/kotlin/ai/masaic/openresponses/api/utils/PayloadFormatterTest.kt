@@ -20,10 +20,7 @@ import com.openai.models.responses.ResponseCreatedEvent
 import com.openai.models.responses.ResponseFailedEvent
 import com.openai.models.responses.ResponseInProgressEvent
 import com.openai.models.responses.ResponseStreamEvent
-import io.mockk.coEvery
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
+import io.mockk.*
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.*
 import org.springframework.web.server.ResponseStatusException
@@ -77,7 +74,7 @@ class PayloadFormatterTest {
             val replacedTool: FunctionTool = mockk()
 
             // Mock the tool service to return a valid tool for "myManagedTool"
-            every { toolService.getFunctionTool("myManagedTool") } returns replacedTool
+            coEvery { toolService.getFunctionTool("myManagedTool") } returns replacedTool
 
             val request = CreateResponseRequest(tools = listOf(masaicTool), input = mockk(), model = "gpt-4o")
 
@@ -91,13 +88,13 @@ class PayloadFormatterTest {
             )
 
             // Verify the mock was called
-            verify(exactly = 1) { toolService.getFunctionTool("myManagedTool") }
+            coVerify(exactly = 1) { toolService.getFunctionTool("myManagedTool") }
         }
 
         @Test
         fun `formatResponseRequest - with MasaicManagedTool not found in tool service throws BAD_REQUEST`() {
             val masaicTool = MasaicManagedTool(type = "unknownTool")
-            every { toolService.getFunctionTool("unknownTool") } returns null
+            coEvery { toolService.getFunctionTool("unknownTool") } returns null
 
             val request = CreateResponseRequest(tools = listOf(masaicTool), input = mockk(), model = "gpt-4o")
 

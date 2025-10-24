@@ -10,7 +10,6 @@ import ai.masaic.openresponses.tool.PlugableToolAdapter
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.openresponses.tool.mcp.MCPToolRegistry
-import ai.masaic.openresponses.tool.mcp.McpClientFactory
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.observation.ObservationRegistry
@@ -56,9 +55,15 @@ class ServerConfiguration {
         resourceLoader: ResourceLoader,
         nativeToolRegistry: NativeToolRegistry,
         objectMapper: ObjectMapper,
-        mcpClientFactory: McpClientFactory,
         plugableToolAdapter: PlugableToolAdapter,
-    ) = ToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, objectMapper, mcpClientFactory, plugableToolAdapter)
+    ) = ToolService(
+        mcpToolRegistry,
+        mcpToolExecutor,
+        resourceLoader,
+        nativeToolRegistry,
+        objectMapper,
+        plugableToolAdapter,
+    )
 }
 
 data class DeploymentSettings(

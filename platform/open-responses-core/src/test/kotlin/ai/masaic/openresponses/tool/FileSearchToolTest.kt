@@ -7,10 +7,8 @@ import ai.masaic.openresponses.tool.mcp.McpWebFluxClientFactory
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.ResponseCreateParams
-import io.mockk.coEvery
-import io.mockk.coVerify
-import io.mockk.every
-import io.mockk.mockk
+import io.mockk.*
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
@@ -37,9 +35,8 @@ class FileSearchToolTest {
         resourceLoader = mockk()
         nativeToolRegistry = mockk()
         vectorStoreService = mockk()
-        mcpClientFactory = mockk()
         
-        toolService = ToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, ObjectMapper(), mcpClientFactory, NoOpPlugableToolAdapter())
+        toolService = ToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, ObjectMapper(), NoOpPlugableToolAdapter())
     }
 
     @Test
@@ -113,35 +110,36 @@ class FileSearchToolTest {
         }
 
     @Test
-    fun `getFileSearchTool should return proper FunctionTool`() {
-        // Given
-        val toolName = "file_search"
-        val toolDefinition =
-            NativeToolDefinition(
-                name = toolName,
-                description = "Search through vector stores for relevant file content",
-                parameters =
-                    mutableMapOf(
-                        "type" to "object",
-                        "properties" to mapOf("query" to mapOf("type" to "string")),
-                        "required" to listOf("query"),
-                    ),
-            )
+    fun `getFileSearchTool should return proper FunctionTool`() =
+        runBlocking {
+            // Given
+            val toolName = "file_search"
+            val toolDefinition =
+                NativeToolDefinition(
+                    name = toolName,
+                    description = "Search through vector stores for relevant file content",
+                    parameters =
+                        mutableMapOf(
+                            "type" to "object",
+                            "properties" to mapOf("query" to mapOf("type" to "string")),
+                            "required" to listOf("query"),
+                        ),
+                )
         
-        every { nativeToolRegistry.findByName(toolName) } returns toolDefinition
+            every { nativeToolRegistry.findByName(toolName) } returns toolDefinition
         
-        // When
-        val result = toolService.getFunctionTool(toolName)
+            // When
+            val result = toolService.getFunctionTool(toolName)
         
-        // Then
-        assertNotNull(result)
-        assertEquals(toolName, result.name)
-        assertEquals("Search through vector stores for relevant file content", result.description)
+            // Then
+            assertNotNull(result)
+            assertEquals(toolName, result.name)
+            assertEquals("Search through vector stores for relevant file content", result.description)
         
-        // Parameters should be preserved
-        @Suppress("UNCHECKED_CAST")
-        val properties = result.parameters["properties"] as? Map<String, Any>
-        assertNotNull(properties)
-        assertTrue(properties.containsKey("query"))
-    }
+            // Parameters should be preserved
+            @Suppress("UNCHECKED_CAST")
+            val properties = result.parameters["properties"] as? Map<String, Any>
+            assertNotNull(properties)
+            assertTrue(properties.containsKey("query"))
+        }
 } 
