@@ -23,6 +23,7 @@ interface LocalToolModalProps {
   onOpenChange: (open: boolean) => void;
   onSave: (tool: LocalTool) => void;
   initialTool?: LocalTool | null;
+  selectedTools?: any[]; // Add selected tools prop
 }
 
 interface LocalTool {
@@ -59,6 +60,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
   onOpenChange,
   onSave,
   initialTool,
+  selectedTools = [],
 }) => {
   // Nudge links (customize as needed)
   const CLIENT_TOOL_DOWNLOAD_URL = '/client_side_tool.zip';
@@ -516,6 +518,13 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     }
   };
 
+  // Helper function to get names of currently selected client-side tools
+  const getSelectedClientSideToolNames = () => {
+    return selectedTools
+      .filter(tool => tool.id === 'client_side_tool' && tool.clientSideToolConfig)
+      .map(tool => tool.clientSideToolConfig.name);
+  };
+
   const handleDownloadClientRuntime = async () => {
     try {
       const effectiveName = (name && name.trim()) || (lastCreatedToolName && lastCreatedToolName.trim()) || '';
@@ -529,10 +538,17 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
         localStorage.getItem('platform_sessionId') ||
         '';
 
+      // Get names of currently selected client-side tools (excluding current function)
+      const selectedClientSideToolNames = getSelectedClientSideToolNames()
+        .filter(toolName => toolName !== effectiveName); // Exclude current function to avoid duplication
+      
+      // Create array of function names (current function + selected tools)
+      const allToolNames = [effectiveName, ...selectedClientSideToolNames];
+
       const response = await apiClient.rawRequest('/v1/dashboard/download', {
         method: 'POST',
         body: JSON.stringify({
-          functionName: effectiveName,
+          functionNames: allToolNames, // Array of function names
           profile: profileId,
           type: 'download_code_snippet',
           format: 'zip',
