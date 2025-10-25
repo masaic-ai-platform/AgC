@@ -11,8 +11,8 @@ import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 object Utilities {
-    fun encryptCredentials(jsonString: String): String =
-        try {
+    fun encryptCredentials(jsonString: String): String {
+        return try {
             // Convert JSON string to bytes
             val jsonBytes = jsonString.toByteArray(Charsets.UTF_8)
             // Create salt (8 bytes)
@@ -39,16 +39,16 @@ object Utilities {
             val encryptedBytes = cipher.doFinal(jsonBytes)
 
             // Combine "Salted__" + salt + encrypted data (OpenSSL format)
-            val combined =
-                ByteArrayOutputStream().use { baos ->
-                    baos.write("Salted__".toByteArray(Charsets.US_ASCII)) // OpenSSL header
-                    baos.write(salt)
-                    baos.write(encryptedBytes)
-                    baos.toByteArray()
-                }
+            val combined = ByteArrayOutputStream().use { baos ->
+                baos.write("Salted__".toByteArray(Charsets.US_ASCII)) // OpenSSL header
+                baos.write(salt)
+                baos.write(encryptedBytes)
+                baos.toByteArray()
+            }
             // Encode to base64
             Base64.getEncoder().encodeToString(combined)
         } catch (e: Exception) {
             throw ResponseProcessingException("Failed to encrypt credentials: ${e.message}")
         }
+    }
 }

@@ -39,6 +39,7 @@ public class SelectRetentionCohort implements AgCClientSideTool {
             }
             RetentionCohortRequest p = MAPPER.readValue(request.getArguments(), RetentionCohortRequest.class);
             List<RetentionCohortResponse.CohortItem> cohort = cohortSelectorService.select(p);
+            logger.info("Found total cohort-retention-count {}",cohort.size());
             // Applying the risk scores and create response
             List<RetentionCohortResponse.CohortItem> roundedCohort = cohort.stream()
                     .map(item -> new RetentionCohortResponse.CohortItem(item.id_hash, round3(item.risk_score)))
