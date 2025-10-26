@@ -11,7 +11,7 @@
 
 **Platform Server** is an agentic orchestration API layer that provides drop-in replacement for `/responses`, `/chat/completions`, and `/embeddings` — now with:
 
-- 🔧 **Built-in agentic tool/function calling**
+- 🔧 **Built-in agentic tool/function calling with [client side tool execution](Autonomy-With-AgC.md)**
 - ✅ **Built-in Remote MCP server Integrations**
 - 🔍 **Built-in Search + RAG**
 - 🧠 **Built-in Agentic state + memory**
@@ -96,14 +96,12 @@ curl --location 'http://localhost:6644/v1/responses' \
 
 ## Core Capabilities
 
-| Feature | Description | Benefit |
-|---------|-------------|---------|
-| **Agentic Orchestration** | Multi-agent workflows and collaboration | Build complex agent systems with minimal code |
-| **Automated Tracing** | Comprehensive request and response monitoring | Track performance and usage without additional code |
-| **Integrated RAG** | Contextual information retrieval | Enhance responses with relevant external data automatically |
-| **Pre-built Tool Integrations** | Web search, GitHub access, and more | Deploy advanced capabilities instantly |
-| **Self-Hosted Architecture** | Full control of deployment infrastructure | Maintain complete data sovereignty |
-| **OpenAI-Compatible Interface** | Drop-in replacement for existing OpenAI implementations | Minimal code changes for migration |
+| Feature | Description                                             | Benefit                                                                                                  |
+|---------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| **Agentic Orchestration** | Agentic loop with tool execution                        | Build complex agent systems with minimal plumbing. [Check tool autonomoy with AgC](Autonomy-With-AgC.md) |
+| **Automated Tracing** | Comprehensive request and response monitoring           | Track performance and usage without additional code                                                      |
+| **Integrated RAG** | Contextual information retrieval                        | Enhance responses with relevant external data automatically                                              |
+| **Self-Hosted Architecture** | Full control of deployment infrastructure               | Maintain complete data sovereignty                                                                       |
 
 ## API Reference
 

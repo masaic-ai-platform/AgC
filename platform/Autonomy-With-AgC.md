@@ -308,3 +308,8 @@ AgC Approach:
 
 That's the AgC difference.
 
+
+### Production grade reference example: [Telco Revenue Retention System](examples/telco-revenue-retention/README.md)
+1. Connect your existing system/services
+2. Invoke agent as a code.
+
