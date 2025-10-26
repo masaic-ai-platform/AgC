@@ -27,5 +27,5 @@ class ToolStoreConfig {
 @ConfigurationProperties("open-responses.tool.store.caffeine")
 data class ToolsCaffeineCacheConfig(
     val maxSize: Long = 500,
-    val ttlMinutes: Long = 2,
+    val ttlMinutes: Long = 10,
 )

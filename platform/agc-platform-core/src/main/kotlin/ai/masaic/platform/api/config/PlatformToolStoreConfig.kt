@@ -77,5 +77,5 @@ class PlatformInMemoryToolStoreConfig {
 
 @ConfigurationProperties("open-responses.tool.store.redis")
 data class ToolsRedisCacheConfig(
-    val ttlMinutes: Long = 2,
+    val ttlMinutes: Long = 10,
 )
