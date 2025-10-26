@@ -17,8 +17,6 @@
 - 🧠 **Built-in Agentic state + memory**
 - 🎯 **Built-in agent orchestration capabilities**
 
-Works even if your model lacks native support — like [OpenAI's Responses API](https://platform.openai.com/docs/api-reference/responses).
-
 ## 🔧 Key Engineering Wins
 
 🧠 **Built-In Agentic Tools, Server-Side**  
@@ -29,6 +27,8 @@ Supports any model, stateful responses, and tool/function calling — lightweigh
 
 🎯 **Agentic Orchestration**  
 Multi-agent workflows, collaboration, and agent-to-agent messaging capabilities built-in.
+
+## Try AgC's hosted version at https://platform.agc.dev
 
 ## 📦 Module Architecture
 
