@@ -25,9 +25,10 @@ repositories {
 
 dependencies {
     api(project(":open-responses-core"))
-    api("io.temporal:temporal-sdk:1.31.0")
-    api("io.grpc:grpc-netty-shaded:1.76.0")
-    implementation("org.redisson:redisson-spring-boot-starter:3.40.0")
+    compileOnly("org.springframework.boot:spring-boot-starter-data-mongodb-reactive")
+    compileOnly("io.temporal:temporal-sdk:1.31.0")
+    compileOnly("io.grpc:grpc-netty-shaded:1.76.0")
+    compileOnly("org.redisson:redisson-spring-boot-starter:3.40.0")
 }
 
 kotlin {
