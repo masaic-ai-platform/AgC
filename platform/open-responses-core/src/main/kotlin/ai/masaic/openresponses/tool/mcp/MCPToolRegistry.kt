@@ -4,10 +4,13 @@ import ai.masaic.openresponses.api.model.MCPTool
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolHosting
 import ai.masaic.openresponses.tool.ToolParamsAccessor
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import com.openai.client.OpenAIClient
 import org.slf4j.LoggerFactory
 import org.springframework.http.codec.ServerSentEvent
 import org.springframework.stereotype.Component
+import java.time.Duration
 
 /**
  * Component responsible for executing MCP tools.
@@ -21,7 +24,10 @@ class MCPToolExecutor(
     private val mcpToolRegistry: MCPToolRegistry,
 ) {
     private val log = LoggerFactory.getLogger(MCPToolExecutor::class.java)
-    private val mcpClients = mutableMapOf<String, McpClient>()
+    private val mcpClients: Cache<String, McpClient> = Caffeine.newBuilder()
+        .maximumSize(500)
+        .expireAfterWrite(Duration.ofMinutes(60))
+        .build()
 
     /**
      * Connects to an MCP server based on the provided configuration.
@@ -35,7 +41,7 @@ class MCPToolExecutor(
         mcpServer: MCPServer,
     ): McpClient {
         val mcpClient = mcpClientFactory.init(serverName, mcpServer)
-        mcpClients[serverName] = mcpClient
+        mcpClients.put(serverName, mcpClient)
         return mcpClient
     }
 
@@ -43,7 +49,7 @@ class MCPToolExecutor(
         serverName: String,
         mcpClient: McpClient,
     ) {
-        mcpClients[serverName] = mcpClient
+        mcpClients.put(serverName, mcpClient)
     }
 
     suspend fun initMcp(mcpTool: MCPTool): List<McpToolDefinition> {
@@ -82,9 +88,9 @@ class MCPToolExecutor(
         }
 
         val mcpClient =
-            mcpClients[serverId] ?: run {
+            mcpClients.getIfPresent(serverId) ?: run {
                 mcpTool?.let { initMcp(it) }
-                mcpClients[serverId]
+                mcpClients.getIfPresent(serverId)
             } ?: return null
         return mcpClient.executeTool(tool.copy(name = toolName), arguments, paramsAccessor, openAIClient, headers = mcpToolDef.serverInfo.headers, eventEmitter)
     }
@@ -93,7 +99,7 @@ class MCPToolExecutor(
      * Shuts down all MCP clients, releasing resources.
      */
     suspend fun shutdown() {
-        mcpClients.forEach { (_, mcpClient) ->
+        mcpClients.asMap().forEach { (_, mcpClient) ->
             mcpClient.close()
         }
     }
