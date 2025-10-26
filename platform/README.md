@@ -28,8 +28,6 @@ Supports any model, stateful responses, and tool/function calling — lightweigh
 🎯 **Agentic Orchestration**  
 Multi-agent workflows, collaboration, and agent-to-agent messaging capabilities built-in.
 
-## Try AgC's hosted version at https://platform.agc.dev
-
 ## 📦 Module Architecture
 
 The platform is organized into modular components, each serving a specific purpose:
