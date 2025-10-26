@@ -33,6 +33,7 @@ class AgCPlatformServerConfig {
         @Value("\${platform.deployment.agc-cs-runtime.securitykey:na}") securityKey: String,
         @Value("\${platform.deployment.multiplug.enabled:false}") multiPlugEnabled: Boolean,
         @Value("\${platform.deployment.environment:local}") env: String,
+        @Value("\${spring.application.name:agc-platform}") appName: String,
     ): PlatformInfo {
         val vectorStoreInfo =
             if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
@@ -43,6 +44,7 @@ class AgCPlatformServerConfig {
 
         return PlatformInfo(
             env = env,
+            appName = appName,
             version = "v${buildProperties.version}",
             buildTime = buildProperties.time,
             modelSettings = ModelSettings(modelSettings.settingsType, "", ""),

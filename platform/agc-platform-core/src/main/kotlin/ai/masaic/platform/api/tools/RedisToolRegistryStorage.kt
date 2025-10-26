@@ -6,10 +6,9 @@ import ai.masaic.platform.api.config.PlatformInfo
 import ai.masaic.platform.api.config.ToolsRedisCacheConfig
 import ai.masaic.platform.api.user.UserInfoProvider
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import kotlinx.coroutines.reactive.awaitSingle
+import kotlinx.coroutines.reactive.awaitFirstOrNull
 import mu.KotlinLogging
-import org.springframework.data.redis.connection.ReactiveRedisConnectionFactory
-import org.springframework.data.redis.core.ReactiveStringRedisTemplate
+import org.redisson.api.RedissonReactiveClient
 import java.time.Duration
 
 /**
@@ -17,7 +16,7 @@ import java.time.Duration
  *
  * This implementation provides shared storage across multiple instances in a clustered environment.
  * Features:
- * - Distributed caching with Redis
+ * - Distributed caching with Redis via Redisson
  * - Sliding expiration: TTL is reset on every get operation
  * - Polymorphic tool definition serialization/deserialization
  * - Multi-tenant support with automatic user context resolution
@@ -31,15 +30,12 @@ import java.time.Duration
  * - name: Tool name
  */
 class RedisToolRegistryStorage(
-    connectionFactory: ReactiveRedisConnectionFactory,
+    private val redissonClient: RedissonReactiveClient,
     private val platformInfo: PlatformInfo,
     private val cacheConfig: ToolsRedisCacheConfig,
 ) : ToolRegistryStorage {
     private val log = KotlinLogging.logger { }
     private val objectMapper = jacksonObjectMapper()
-
-    private val redisTemplate: ReactiveStringRedisTemplate =
-        ReactiveStringRedisTemplate(connectionFactory)
 
     override suspend fun <T : ToolDefinition> add(
         toolDefinition: T,
@@ -47,10 +43,10 @@ class RedisToolRegistryStorage(
     ) {
         val key = buildKey(toolDefinition.name, type)
         val json = objectMapper.writeValueAsString(toolDefinition)
-        redisTemplate
-            .opsForValue()
-            .set(key, json, Duration.ofMinutes(cacheConfig.ttlMinutes))
-            .awaitSingle()
+        val bucket = redissonClient.getBucket<String>(key)
+        bucket
+            .set(json, Duration.ofMinutes(cacheConfig.ttlMinutes))
+            .awaitFirstOrNull()
         log.debug("Added tool '${toolDefinition.name}' to Redis with key '$key'")
     }
 
@@ -61,18 +57,21 @@ class RedisToolRegistryStorage(
         val key = buildKey(name, type)
 
         // Direct GET operation - no scanning needed
-        val json =
-            redisTemplate
-                .opsForValue()
-                .get(key)
-                .awaitSingle()
+        val bucket = redissonClient.getBucket<String>(key)
+        val json = bucket.get().awaitFirstOrNull()
 
-        redisTemplate
-            .expire(key, Duration.ofMinutes(cacheConfig.ttlMinutes))
-            .awaitSingle()
+        if (json == null) {
+            log.debug("Tool '$name' not found in Redis with key '$key'")
+            return null
+        }
+
+        // Reset TTL for sliding expiration
+        bucket
+            .expire(Duration.ofMinutes(cacheConfig.ttlMinutes))
+            .awaitFirstOrNull()
         log.debug("Reset TTL for tool '$name' with key '$key'")
 
-        val tool = objectMapper.readValue(json, type::class.java)
+        val tool = objectMapper.readValue(json, type)
         val result = if (tool != null && type.isInstance(tool)) type.cast(tool) else null
         log.debug("Retrieved tool '$name' (type: ${type.canonicalName}) from Redis with key '$key': ${if (result != null) "found" else "deserialization failed"}")
         return result
@@ -83,9 +82,11 @@ class RedisToolRegistryStorage(
         type: Class<T>,
     ) {
         val key = buildKey(name, type)
-        redisTemplate
-            .delete(key)
-            .awaitSingle()
+        val bucket = redissonClient.getBucket<String>(key)
+        bucket
+            .delete()
+            .awaitFirstOrNull()
+        log.debug("Removed tool '$name' from Redis with key '$key'")
     }
 
     /**
@@ -99,9 +100,9 @@ class RedisToolRegistryStorage(
         val userId = UserInfoProvider.userId()
 
         return if (userId != null) {
-            "${platformInfo.env}:$userId:tool:${type.canonicalName}:$name"
+            "${platformInfo.env}:${platformInfo.appName}:$userId:tool:${type.canonicalName}:$name"
         } else {
-            "${platformInfo.env}:tool:${type.canonicalName}:$name"
+            "${platformInfo.env}:${platformInfo.appName}:tool:${type.canonicalName}:$name"
         }
     }
 }

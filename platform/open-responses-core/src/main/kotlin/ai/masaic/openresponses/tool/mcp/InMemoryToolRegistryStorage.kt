@@ -4,7 +4,7 @@ import ai.masaic.openresponses.api.config.ToolsCaffeineCacheConfig
 import ai.masaic.openresponses.tool.ToolDefinition
 import com.github.benmanes.caffeine.cache.Cache
 import com.github.benmanes.caffeine.cache.Caffeine
-import org.slf4j.LoggerFactory
+import mu.KotlinLogging
 import java.util.concurrent.TimeUnit
 
 /**
@@ -13,10 +13,10 @@ import java.util.concurrent.TimeUnit
  * This implementation provides fast in-memory access with optional TTL.
  * Suitable for single-instance deployments or development environments.
  */
-class CaffeineToolRegistryStorage(
+open class InMemoryToolRegistryStorage(
     caffeineCacheConfig: ToolsCaffeineCacheConfig,
 ) : ToolRegistryStorage {
-    private val log = LoggerFactory.getLogger(CaffeineToolRegistryStorage::class.java)
+    private val log = KotlinLogging.logger { }
 
     private val cache: Cache<String, ToolDefinition> =
         Caffeine
@@ -54,7 +54,7 @@ class CaffeineToolRegistryStorage(
         log.debug("Removed tool '$name' from cache")
     }
 
-    private fun buildKey(
+    open suspend fun buildKey(
         name: String,
         type: Class<*>,
     ) = "$name:${type.canonicalName}"

@@ -5,7 +5,6 @@ import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.api.user.Scope
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.*
-import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import ai.masaic.platform.api.config.*
 import ai.masaic.platform.api.interpreter.CodeExecResult
 import ai.masaic.platform.api.interpreter.CodeExecuteReq
@@ -18,6 +17,7 @@ import ai.masaic.platform.api.service.messages
 import ai.masaic.platform.api.tools.FunDefGenerationTool
 import ai.masaic.platform.api.tools.SystemPromptGeneratorTool
 import ai.masaic.platform.api.tools.TemporalConfig
+import ai.masaic.platform.api.tools.oauth.MCPOAuthService
 import ai.masaic.platform.api.user.UserInfoProvider
 import ai.masaic.platform.api.utils.DownloadPackagingUtil
 import ai.masaic.platform.api.utils.DownloadRequest
@@ -234,9 +234,8 @@ ${request.description}
     suspend fun getPlatformInfo() = PlatformInfo.publicInfo(platformInfo)
 
     @GetMapping("/platform/features", produces = [MediaType.APPLICATION_JSON_VALUE])
-    suspend fun getFeatures(): PlatformInfo {
-        val userInfo = UserInfoProvider.userInfo()
-        return UserInfoProvider.userInfo()?.let {
+    suspend fun getFeatures(): PlatformInfo =
+        UserInfoProvider.userInfo()?.let {
             if (it.grantedScope == Scope.RESTRICTED) {
                 val partners =
                     platformInfo.partners.details.map { partner ->
@@ -254,7 +253,6 @@ ${request.description}
                 PlatformInfo.publicInfo(platformInfo)
             }
         } ?: PlatformInfo.publicInfo(platformInfo)
-    }
 
     @PostMapping("/agc/functions:suggest")
     suspend fun configureFunction(

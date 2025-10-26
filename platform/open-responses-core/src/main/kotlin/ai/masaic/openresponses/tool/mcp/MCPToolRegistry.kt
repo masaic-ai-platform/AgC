@@ -108,11 +108,9 @@ class MCPToolExecutor(
 @Component
 class MCPToolRegistry(
     private val toolStorage: ToolRegistryStorage,
+    private val serverStorage: McpServerInfoRegistryStorage,
 ) {
     private val log = LoggerFactory.getLogger(MCPToolRegistry::class.java)
-
-    // Keep serverRepository as is for now - will be migrated to storage later
-    private val serverRepository = mutableMapOf<String, MCPServerInfo>()
 
     /**
      * Registers MCP tools from the given client.
@@ -140,16 +138,16 @@ class MCPToolRegistry(
 
     suspend fun invalidateTool(tool: McpToolDefinition) {
         toolStorage.remove<McpToolDefinition>(tool.name)
-        serverRepository.remove(tool.serverInfo.serverIdentifier())
+        serverStorage.remove(tool.serverInfo.serverIdentifier())
         log.debug("Invalidated tool '${tool.name}' from registry")
     }
 
-    fun addMcpServer(mcpServerInfo: MCPServerInfo) {
-        serverRepository[mcpServerInfo.serverIdentifier()] = mcpServerInfo
+    suspend fun addMcpServer(mcpServerInfo: MCPServerInfo) {
+        serverStorage.add(mcpServerInfo)
     }
 
-    fun removeMcpServer(mcpServerInfo: MCPServerInfo) {
-        serverRepository.remove(mcpServerInfo.serverIdentifier())
+    suspend fun removeMcpServer(mcpServerInfo: MCPServerInfo) {
+        serverStorage.remove(mcpServerInfo.serverIdentifier())
     }
 
     /**
@@ -160,5 +158,5 @@ class MCPToolRegistry(
      */
     suspend fun findByName(name: String): ToolDefinition? = toolStorage.get<McpToolDefinition>(name)
 
-    fun findServerById(id: String): MCPServerInfo? = serverRepository[id]
+    suspend fun findServerById(id: String): MCPServerInfo? = serverStorage.get(id)
 }
