@@ -29,6 +29,8 @@ All of this is delivered in a fully deployable platform with a single goal:
 > **Empower developers and organizations to run agents like cloud-native workloads — at scale, and without lock-in.**
 
 ---
+## Try AgC's hosted version at https://platform.agc.dev
+---
 
 ## 🏗️ Project Structure
 
