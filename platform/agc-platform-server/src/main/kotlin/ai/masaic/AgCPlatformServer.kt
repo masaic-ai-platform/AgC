@@ -1,9 +1,6 @@
 package ai.masaic
 
 import org.springframework.boot.autoconfigure.SpringBootApplication
-import org.springframework.boot.autoconfigure.data.mongo.MongoReactiveDataAutoConfiguration
-import org.springframework.boot.autoconfigure.data.mongo.MongoReactiveRepositoriesAutoConfiguration
-import org.springframework.boot.autoconfigure.mongo.MongoReactiveAutoConfiguration
 import org.springframework.boot.context.properties.ConfigurationPropertiesScan
 import org.springframework.boot.runApplication
 import org.springframework.scheduling.annotation.EnableScheduling
@@ -14,14 +11,16 @@ import reactor.core.publisher.Hooks
  *
  * This class serves as the entry point for the application and is annotated with
  * [SpringBootApplication] to enable Spring Boot's autoconfiguration.
- * We explicitly exclude both MongoDB auto-configurations to prevent Spring from automatically
- * connecting to MongoDB when it's not explicitly enabled via properties.
+ * We explicitly exclude MongoDB and Redis auto-configurations to prevent Spring from automatically
+ * connecting to these services when they're not explicitly enabled via properties.
+ * Redisson will only be configured when open-responses.tool.store.type=redis.
  */
 @SpringBootApplication(
-    exclude = [
-        MongoReactiveAutoConfiguration::class,
-        MongoReactiveDataAutoConfiguration::class,
-        MongoReactiveRepositoriesAutoConfiguration::class,
+    excludeName = [
+        "org.springframework.boot.autoconfigure.mongo.MongoReactiveAutoConfiguration",
+        "org.springframework.boot.autoconfigure.data.mongo.MongoReactiveDataAutoConfiguration",
+        "org.springframework.boot.autoconfigure.data.mongo.MongoReactiveRepositoriesAutoConfiguration",
+        "org.redisson.spring.starter.RedissonAutoConfigurationV2",
     ],
 )
 @ConfigurationPropertiesScan

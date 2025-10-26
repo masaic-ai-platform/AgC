@@ -13,7 +13,6 @@ import ai.masaic.openresponses.tool.mcp.MCPServerInfo
 import ai.masaic.openresponses.tool.mcp.McpClient
 import ai.masaic.openresponses.tool.mcp.McpToolDefinition
 import ai.masaic.openresponses.tool.mcp.McpWebFluxClientFactory
-import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import ai.masaic.platform.api.repository.McpMockServerRepository
 import ai.masaic.platform.api.repository.MockFunctionRepository
 import ai.masaic.platform.api.repository.MocksRepository
@@ -186,8 +185,7 @@ open class PlatformMcpClientFactory(
     private val mocksRepository: MocksRepository,
     private val modelSettings: ModelSettings,
     private val modelService: ModelService,
-    mcpoAuthService: MCPOAuthService,
-) : McpWebFluxClientFactory(mcpoAuthService) {
+) : McpWebFluxClientFactory() {
     override suspend fun init(
         serverName: String,
         url: String,

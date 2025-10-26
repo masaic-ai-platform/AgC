@@ -1,8 +1,11 @@
-package ai.masaic.openresponses.tool.mcp.oauth
+package ai.masaic.platform.api.tools.oauth
 
 import ai.masaic.openresponses.api.model.MCPTool
+import ai.masaic.openresponses.api.utils.AgCLoopContext
 import ai.masaic.openresponses.tool.mcp.McpUnAuthorizedException
+import ai.masaic.platform.api.user.UserInfoProvider
 import kotlinx.coroutines.reactor.awaitSingle
+import kotlinx.coroutines.withContext
 import mu.KotlinLogging
 import org.springframework.http.MediaType
 import org.springframework.stereotype.Service
@@ -33,7 +36,7 @@ class MCPOAuthServiceImpl(
 
         val (verifier, challenge) = generatePkce()
         val state = randomState()
-        mcpAuthFlowMetaInfoRepository.save(state, AuthFlowMetaInfo(verifier, mcpHost.toString(), oAuthFlowMetaInfo, mcpTool, redirectUri, dynamicClientId, Instant.now()))
+        mcpAuthFlowMetaInfoRepository.save(state, AuthFlowMetaInfo(verifier, mcpHost.toString(), oAuthFlowMetaInfo, mcpTool, redirectUri, dynamicClientId, UserInfoProvider.userId()))
         val authUri =
             URI.create(
                 oAuthFlowMetaInfo.authorizationEndpoint +
@@ -54,43 +57,52 @@ class MCPOAuthServiceImpl(
     ): MCPTool {
         log.debug { "callback handler, received: code = $code and state = $state" }
         val rec = mcpAuthFlowMetaInfoRepository.consume(state) ?: throw IllegalStateException("invalid_state")
-        val form =
-            mapOf(
-                "grant_type" to "authorization_code",
-                "code" to code,
-                "redirect_uri" to rec.redirectUri.toURL().toString(),
-                "code_verifier" to rec.codeVerifier,
-                // public client (no secret) per instruction
-                "client_id" to (rec.dynamicClientId),
-            )
-
-        log.debug { "token form url encoded request=$form" }
+        val ctx = AgCLoopContext(userId = rec.userId)
         val token =
-            try {
-                http
-                    .post()
-                    .uri(rec.oAuthFlowMetaInfo.tokenEndpoint)
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .bodyValue(form.entries.joinToString("&") { (k, v) -> "$k=" + encode(v) })
-                    .retrieve()
-                    .bodyToMono(Map::class.java)
-                    .map { body ->
-                        val access = body["access_token"].toString()
-                        val refresh = (body["refresh_token"] as? String)
-                        val expiresIn = (body["expires_in"] as? Number)?.toLong() ?: 3600L
-                        val tokens = TokenSet(access, refresh, Instant.now().plusSeconds(expiresIn), McpTokenServerMetaInfo(rec.oAuthFlowMetaInfo.tokenEndpoint, rec.dynamicClientId))
-                        mcpAuthTokenRepository.put(rec.mcpTool.toMCPServerInfo(), tokens)
-                        tokens
-                    }.awaitSingle()
-            } catch (e: WebClientResponseException) {
-                val errorMessage = "Exception while getting tokens: statsuCode=${e.statusCode}, response=${e.responseBodyAsString}"
-                if (e.statusCode.value() == 401) {
-                    throw McpUnAuthorizedException(errorMessage)
-                }
-                log.error { errorMessage }
-                throw e
-            }
+            withContext(ctx) {
+                val form =
+                    mapOf(
+                        "grant_type" to "authorization_code",
+                        "code" to code,
+                        "redirect_uri" to rec.redirectUri.toURL().toString(),
+                        "code_verifier" to rec.codeVerifier,
+                        // public client (no secret) per instruction
+                        "client_id" to (rec.dynamicClientId),
+                    )
 
+                log.debug { "token form url encoded request=$form" }
+                try {
+                    val tokens =
+                        http
+                            .post()
+                            .uri(rec.oauthFlowMetaInfo.tokenEndpoint)
+                            .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                            .bodyValue(form.entries.joinToString("&") { (k, v) -> "$k=" + encode(v) })
+                            .retrieve()
+                            .bodyToMono(Map::class.java)
+                            .map { body ->
+                                val access = body["access_token"].toString()
+                                val refresh = (body["refresh_token"] as? String)
+                                val expiresIn = (body["expires_in"] as? Number)?.toLong() ?: 3600L
+                                TokenSet(
+                                    access,
+                                    refresh,
+                                    Instant.now().plusSeconds(expiresIn),
+                                    McpTokenServerMetaInfo(rec.oauthFlowMetaInfo.tokenEndpoint, rec.dynamicClientId),
+                                )
+                            }.awaitSingle()
+                    mcpAuthTokenRepository.put(rec.mcpTool.toMCPServerInfo(), tokens)
+                    tokens
+                } catch (e: WebClientResponseException) {
+                    val errorMessage =
+                        "Exception while getting tokens: statsuCode=${e.statusCode}, response=${e.responseBodyAsString}"
+                    if (e.statusCode.value() == 401) {
+                        throw McpUnAuthorizedException(errorMessage)
+                    }
+                    log.error { errorMessage }
+                    throw e
+                }
+            }
         log.debug { "Tokens=$token" }
         return rec.mcpTool.copy(headers = mapOf("accessToken" to token.accessToken))
     }
@@ -112,21 +124,22 @@ class MCPOAuthServiceImpl(
         log.debug { "refresh token request=$form" }
         val accessToken =
             try {
-                http
-                    .post()
-                    .uri(tokens.tokenServer.tokenEndpoint)
-                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                    .bodyValue(form.entries.joinToString("&") { (k, v) -> "$k=" + encode(v) })
-                    .retrieve()
-                    .bodyToMono(Map::class.java)
-                    .map { body ->
-                        val access = body["access_token"].toString()
-                        val newRefresh = (body["refresh_token"] as? String) ?: refresh
-                        val expiresIn = (body["expires_in"] as? Number)?.toLong() ?: 3600L
-                        val updated = TokenSet(access, newRefresh, Instant.now().plusSeconds(expiresIn), McpTokenServerMetaInfo(tokens.tokenServer.tokenEndpoint, tokens.tokenServer.clientId))
-                        mcpAuthTokenRepository.put(mcpTool.toMCPServerInfo(), updated)
-                        updated.accessToken
-                    }.awaitSingle()
+                val updated =
+                    http
+                        .post()
+                        .uri(tokens.tokenServer.tokenEndpoint)
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                        .bodyValue(form.entries.joinToString("&") { (k, v) -> "$k=" + encode(v) })
+                        .retrieve()
+                        .bodyToMono(Map::class.java)
+                        .map { body ->
+                            val access = body["access_token"].toString()
+                            val newRefresh = (body["refresh_token"] as? String) ?: refresh
+                            val expiresIn = (body["expires_in"] as? Number)?.toLong() ?: 3600L
+                            TokenSet(access, newRefresh, Instant.now().plusSeconds(expiresIn), McpTokenServerMetaInfo(tokens.tokenServer.tokenEndpoint, tokens.tokenServer.clientId))
+                        }.awaitSingle()
+                mcpAuthTokenRepository.put(mcpTool.toMCPServerInfo(), updated)
+                updated.accessToken
             } catch (e: WebClientResponseException) {
                 val errorMessage = "Exception while getting tokens: statsuCode=${e.statusCode}, response=${e.responseBodyAsString}"
                 if (e.statusCode.value() == 401) {
