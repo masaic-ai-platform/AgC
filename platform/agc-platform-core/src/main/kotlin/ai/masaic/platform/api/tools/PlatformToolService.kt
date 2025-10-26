@@ -5,7 +5,6 @@ import ai.masaic.openresponses.api.utils.SupportedToolsFormatter
 import ai.masaic.openresponses.tool.*
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.openresponses.tool.mcp.MCPToolRegistry
-import ai.masaic.openresponses.tool.mcp.McpClientFactory
 import ai.masaic.platform.api.user.UserInfoProvider
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -20,10 +19,9 @@ class PlatformToolService(
     private val resourceLoader: ResourceLoader,
     private val nativeToolRegistry: NativeToolRegistry,
     private val objectMapper: ObjectMapper,
-    private val mcpClientFactory: McpClientFactory,
     private val plugableToolAdapter: PlugableToolAdapter,
     private val pluggedToolsRegistry: PluggedToolsRegistry,
-) : ToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, objectMapper, mcpClientFactory, plugableToolAdapter) {
+) : ToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, objectMapper, plugableToolAdapter) {
     private val mapper = jacksonObjectMapper()
 
     suspend fun derivePluggableTool(functionTool: FunctionTool): FunctionTool? {
@@ -116,6 +114,7 @@ data class ClientSideTool(
                         maxRetryAttempts = maxRetryAttempts,
                         waitTimeInMillis = waitTimeInMillis,
                     ),
+                eventMeta = ToolProgressEventMeta(infix = "agc"),
             )
         }
     }

@@ -1,7 +1,6 @@
 package ai.masaic.platform.regression.api.tools
 
 import ai.masaic.openresponses.api.service.ResponseNotFoundException
-import ai.masaic.openresponses.api.service.ResponseStoreService
 import ai.masaic.openresponses.tool.NativeToolDefinition
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolHosting
@@ -10,16 +9,15 @@ import ai.masaic.openresponses.tool.mcp.MCPServerInfo
 import ai.masaic.openresponses.tool.mcp.McpClient
 import ai.masaic.openresponses.tool.mcp.McpToolDefinition
 import ai.masaic.openresponses.tool.mcp.nativeToolDefinition
-import ai.masaic.platform.api.utils.JsonSchemaMapper
+import ai.masaic.platform.regression.api.service.RegSuiteResponseStoreFacade
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.client.OpenAIClient
-import dev.langchain4j.model.chat.request.json.JsonObjectSchema
 import mu.KotlinLogging
 import org.springframework.http.codec.ServerSentEvent
 
 class RegSuiteMcpClient(
-    private val responseStoreService: ResponseStoreService,
+    private val responseStoreFacade: RegSuiteResponseStoreFacade,
 ) : McpClient {
     private val log = KotlinLogging.logger { }
     private val mapper = jacksonObjectMapper()
@@ -87,7 +85,7 @@ class RegSuiteMcpClient(
                 log.info { "received respondId:$responseId" }
                 val inputItems =
                     try {
-                        responseStoreService.listInputItems(responseId = responseId, limit = 40, order = "desc", after = null, before = null)
+                        responseStoreFacade.listInputItems(responseId = responseId, limit = 40, order = "desc", after = null, before = null)
                     } catch (ex: ResponseNotFoundException) {
                         toolResult = "No conversational trail is available against responseId=$responseId"
                         null
@@ -139,7 +137,7 @@ class RegSuiteMcpClient(
 
                 val response =
                     try {
-                        responseStoreService.getResponse(responseId = responseId)
+                        responseStoreFacade.getResponse(responseId = responseId)
                     } catch (ex: ResponseNotFoundException) {
                         toolResult = "No conversational trail is available against responseId=$responseId"
                         null
@@ -211,16 +209,14 @@ class RegSuiteMcpClient(
     private fun toMcpToolDef(
         nativeTool: NativeToolDefinition,
         mcpServerInfo: MCPServerInfo,
-    ): McpToolDefinition {
-        val parameters = JsonSchemaMapper.mapToJsonSchemaElement(nativeTool.parameters) as JsonObjectSchema
-        return McpToolDefinition(
+    ): McpToolDefinition =
+        McpToolDefinition(
             id = nativeTool.id,
             hosting = ToolHosting.REMOTE,
             name = mcpServerInfo.qualifiedToolName(nativeTool.name),
             description = nativeTool.description,
-            parameters = parameters,
+            parameters = nativeTool.parameters,
             serverInfo = mcpServerInfo,
             eventMeta = nativeTool.eventMeta,
         )
-    }
 }

@@ -28,7 +28,7 @@ class AgentService(
         agent: PlatformAgent,
         isUpdate: Boolean,
     ) {
-        val updatedAgent = agent.copy(name = PlatformAgent.persistenceName(agent.name))
+        var updatedAgent = agent.copy(name = PlatformAgent.persistenceName(agent.name))
         val existingAgent = agentRepository.findByName(updatedAgent.name)
         // For updates, verify the agent exists
         if (isUpdate && existingAgent == null) {
@@ -44,6 +44,7 @@ class AgentService(
             if (!AccessManager.isAccessPermitted(existingAgent.accessControlJson).update) {
                 throw AccessDeniedException("Access denied to agent: ${updatedAgent.name}")
             }
+            updatedAgent = updatedAgent.copy(suggestedQueries = existingAgent.suggestedQueries)
         }
 
         // Compute access control for new agents, preserve for updates
@@ -227,6 +228,18 @@ class AgentService(
                 val function = funRegService.getFunction(pyFunTool.id)
                 tools.add(PyFunTool(type = "py_fun_tool", functionDetails = FunctionDetails(name = function.name, description = function.description, parameters = function.inputSchema), code = function.code, deps = function.deps))
             }
+
+            meta.functionTools.forEach { func ->
+                val functionTool =
+                    FunctionTool(
+                        type = "function",
+                        name = func.name,
+                        description = func.description,
+                        parameters = func.parameters,
+                        strict = func.strict,
+                    )
+                tools.add(functionTool)
+            }
         }
         
         return tools
@@ -237,6 +250,7 @@ class AgentService(
         val fileSearchTools = mutableListOf<FileSearchToolMeta>()
         val agenticSearchTools = mutableListOf<AgenticSearchToolMeta>()
         val pyFunTools = mutableListOf<PyFunToolMeta>()
+        val functionTools = mutableListOf<FunctionToolMeta>()
 
         tools.forEach { tool ->
             when (tool) {
@@ -296,6 +310,16 @@ class AgentService(
                     pyFunTools.add(PyFunToolMeta(id = function.name))
                 }
 
+                is FunctionTool -> {
+                    val functionToolMeta =
+                        FunctionToolMeta(
+                            description = tool.description,
+                            name = tool.name,
+                            parameters = tool.parameters,
+                            strict = tool.strict,
+                        )
+                    functionTools.add(functionToolMeta)
+                }
                 else -> {
                     throw ResponseProcessingException("Unknown tool type: ${tool.type}")
                 }
@@ -307,6 +331,7 @@ class AgentService(
             fileSearchTools = fileSearchTools,
             agenticSearchTools = agenticSearchTools,
             pyFunTools = pyFunTools,
+            functionTools = functionTools,
         )
     }
 

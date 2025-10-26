@@ -1,6 +1,5 @@
 package ai.masaic.openresponses.tool.mcp
 
-import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.modelcontextprotocol.client.McpClient
 import io.modelcontextprotocol.client.transport.WebClientStreamableHttpTransport
@@ -16,9 +15,7 @@ import java.time.Duration
  * Factory for creating MCP clients using the official SDK.
  * Handles dynamic transport selection (SSE->HTTP fallback) and authentication via headers.
  */
-open class McpWebFluxClientFactory(
-    private val mcpoAuthService: MCPOAuthService,
-) : McpClientFactory {
+open class McpWebFluxClientFactory : McpClientFactory {
     private val log = KotlinLogging.logger {}
     private val objectMapper = ObjectMapper()
 

@@ -6,10 +6,8 @@ import ai.masaic.openresponses.tool.mcp.MCPServerInfo
 import ai.masaic.openresponses.tool.mcp.McpToolDefinition
 import ai.masaic.openresponses.tool.mcp.nativeToolDefinition
 import ai.masaic.platform.api.repository.MockFunctionRepository
-import ai.masaic.platform.api.utils.JsonSchemaMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.openai.client.OpenAIClient
-import dev.langchain4j.model.chat.request.json.JsonObjectSchema
 import mu.KotlinLogging
 import org.springframework.data.annotation.Id
 import org.springframework.http.codec.ServerSentEvent
@@ -80,17 +78,15 @@ data class MockFunctionDefinition(
     val createdAt: Instant = Instant.now(),
     val accessControlJson: String? = null,
 ) {
-    fun toMcpToolDefinition(serverInfo: MCPServerInfo): McpToolDefinition {
-        val schemaElement = JsonSchemaMapper.mapToJsonSchemaElement(functionBody.parameters) as JsonObjectSchema
-        return McpToolDefinition(
+    fun toMcpToolDefinition(serverInfo: MCPServerInfo): McpToolDefinition =
+        McpToolDefinition(
             id = id,
             hosting = ToolHosting.REMOTE,
             name = serverInfo.qualifiedToolName(functionBody.name),
             description = functionBody.description,
-            parameters = schemaElement,
+            parameters = functionBody.parameters,
             serverInfo = serverInfo,
         )
-    }
 }
 
 data class FunctionBody(

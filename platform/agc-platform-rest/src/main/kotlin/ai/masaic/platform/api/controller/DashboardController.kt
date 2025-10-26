@@ -5,7 +5,6 @@ import ai.masaic.openresponses.api.service.ResponseProcessingException
 import ai.masaic.openresponses.api.user.Scope
 import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.*
-import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import ai.masaic.platform.api.config.*
 import ai.masaic.platform.api.interpreter.CodeExecResult
 import ai.masaic.platform.api.interpreter.CodeExecuteReq
@@ -17,10 +16,18 @@ import ai.masaic.platform.api.service.createCompletion
 import ai.masaic.platform.api.service.messages
 import ai.masaic.platform.api.tools.FunDefGenerationTool
 import ai.masaic.platform.api.tools.SystemPromptGeneratorTool
+import ai.masaic.platform.api.tools.TemporalConfig
+import ai.masaic.platform.api.tools.oauth.MCPOAuthService
 import ai.masaic.platform.api.user.UserInfoProvider
+import ai.masaic.platform.api.utils.DownloadPackagingUtil
+import ai.masaic.platform.api.utils.DownloadRequest
+import ai.masaic.platform.api.utils.Utilities
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import mu.KotlinLogging
+import org.springframework.core.io.ByteArrayResource
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -43,6 +50,7 @@ class DashboardController(
     private val systemPromptGeneratorTool: SystemPromptGeneratorTool,
     private val functionRegistryService: FunctionRegistryService,
     private val mcpoAuthService: MCPOAuthService,
+    private val temporalConfig: TemporalConfig?,
 ) {
     private val mapper = jacksonObjectMapper()
     private val modelProviders: Set<ModelProvider> = PlatformCoreConfig.loadProviders()
@@ -223,12 +231,11 @@ ${request.description}
     }
 
     @GetMapping("/platform/info", produces = [MediaType.APPLICATION_JSON_VALUE])
-    suspend fun getPlatformInfo() = platformInfo
+    suspend fun getPlatformInfo() = PlatformInfo.publicInfo(platformInfo)
 
     @GetMapping("/platform/features", produces = [MediaType.APPLICATION_JSON_VALUE])
-    suspend fun getFeatures(): PlatformInfo {
-        val userInfo = UserInfoProvider.userInfo()
-        return UserInfoProvider.userInfo()?.let {
+    suspend fun getFeatures(): PlatformInfo =
+        UserInfoProvider.userInfo()?.let {
             if (it.grantedScope == Scope.RESTRICTED) {
                 val partners =
                     platformInfo.partners.details.map { partner ->
@@ -241,12 +248,11 @@ ${request.description}
                             else -> partner
                         }
                     }
-                platformInfo.copy(partners = Partners(details = partners), pyInterpreterSettings = PyInterpreterSettings(isEnabled = false))
+                PlatformInfo.publicInfo(platformInfo.copy(partners = Partners(details = partners), pyInterpreterSettings = PyInterpreterSettings(isEnabled = false)))
             } else {
-                platformInfo
+                PlatformInfo.publicInfo(platformInfo)
             }
-        } ?: platformInfo
-    }
+        } ?: PlatformInfo.publicInfo(platformInfo)
 
     @PostMapping("/agc/functions:suggest")
     suspend fun configureFunction(
@@ -402,6 +408,49 @@ ${String(Base64.getDecoder().decode(request.encodedCode), charset = Charsets.UTF
                 code = response.code,
             )
         return ResponseEntity.ok(funDetails)
+    }
+
+    @PostMapping("/download", produces = [MediaType.APPLICATION_OCTET_STREAM_VALUE])
+    suspend fun downloadFile(
+        @RequestBody request: DownloadRequest,
+    ): ResponseEntity<ByteArrayResource> {
+        val zipBytes = DownloadPackagingUtil.buildZip(request, platformInfo.agentClientSideRuntimeConfig)
+        val resource = ByteArrayResource(zipBytes)
+        val fileName = "agc-runtime.zip"
+        val headers = HttpHeaders()
+        headers.add(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"$fileName\"")
+        headers.add(
+            "X-Download-Metadata",
+            mapper.writeValueAsString(request.downloadMetadata ?: emptyMap<String, Any>()),
+        )
+        return ResponseEntity
+            .ok()
+            .headers(headers)
+            .contentLength(zipBytes.size.toLong())
+            .contentType(MediaType.parseMediaType(MediaType.APPLICATION_OCTET_STREAM_VALUE))
+            .body(resource)
+    }
+
+    @GetMapping("/tools/{type}/credentials", produces = [MediaType.TEXT_PLAIN_VALUE])
+    suspend fun getToolsCredentials(
+        @PathVariable type: String,
+    ): ResponseEntity<String> {
+        if (type.lowercase() == "client_side") {
+            val userId = UserInfoProvider.userId() ?: throw ResponseProcessingException("User ID not available")
+            val credentials = mutableMapOf<String, String>()
+            credentials["userId"] = userId
+            // Add temporal config if available
+            temporalConfig?.let { config ->
+                config.target?.let { credentials["target"] = it }
+                config.namespace?.let { credentials["namespace"] = it }
+                config.apiKey?.let { credentials["apiKey"] = it }
+            }
+            val jsonString = ObjectMapper().writeValueAsString(credentials)
+            val response = mapOf("creds" to Utilities.encryptCredentials(jsonString))
+            return ResponseEntity.ok(ObjectMapper().writeValueAsString(response))
+        } else {
+            throw ResponseProcessingException("Unsupported tool type: $type. Only 'client_side' is supported.")
+        }
     }
 }
 

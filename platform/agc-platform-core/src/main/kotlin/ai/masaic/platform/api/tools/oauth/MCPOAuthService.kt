@@ -1,4 +1,4 @@
-package ai.masaic.openresponses.tool.mcp.oauth
+package ai.masaic.platform.api.tools.oauth
 
 import ai.masaic.openresponses.api.model.MCPTool
 import ai.masaic.openresponses.tool.mcp.MCPServerInfo
@@ -21,11 +21,11 @@ data class McpTokenServerMetaInfo(
 data class AuthFlowMetaInfo(
     val codeVerifier: String,
     val host: String,
-    val oAuthFlowMetaInfo: OAuthFlowMetaInfo,
+    val oauthFlowMetaInfo: OAuthFlowMetaInfo,
     val mcpTool: MCPTool,
     val redirectUri: URI,
     val dynamicClientId: String,
-    val createdAt: Instant,
+    val userId: String? = null,
 )
 
 data class OAuthFlowMetaInfo(
@@ -45,21 +45,21 @@ data class ProtectedResourceMetadata(
 )
 
 interface McpAuthTokenRepository {
-    fun put(
+    suspend fun put(
         mcpServerInfo: MCPServerInfo,
         tokens: TokenSet,
     )
 
-    fun get(mcpServerInfo: MCPServerInfo): TokenSet?
+    suspend fun get(mcpServerInfo: MCPServerInfo): TokenSet?
 }
 
 interface McpAuthFlowMetaInfoRepository {
-    fun save(
+    suspend fun save(
         state: String,
         rec: AuthFlowMetaInfo,
     )
 
-    fun consume(state: String): AuthFlowMetaInfo?
+    suspend fun consume(state: String): AuthFlowMetaInfo?
 }
 
 interface MCPOAuthService {

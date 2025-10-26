@@ -15,6 +15,8 @@ import { API_URL } from '@/config';
 import { apiClient } from '@/lib/api';
 import { usePlatformInfo } from '@/contexts/PlatformContext';
 import { ResponsesChat, buildToolsPayload, ResponsesChatRef } from '@/chat';
+import { hasClientSideTools } from '@/lib/utils';
+import ClientSideToolsPrerequisiteDialog from './ClientSideToolsPrerequisiteDialog';
 
 interface ToolExecution {
   serverName: string;
@@ -64,6 +66,7 @@ interface Tool {
   fileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[] }; // For file search tools
   agenticFileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[]; iterations: number; maxResults: number }; // For agentic file search tools
   pyFunctionConfig?: any; // For Py function tools
+  clientSideToolConfig?: any; // For Client-side tools
 }
 
 const getProviderApiKey = (provider: string): string => {
@@ -172,6 +175,9 @@ const AiPlayground: React.FC = () => {
 
   // Suggested queries state
   const [suggestedQueries, setSuggestedQueries] = useState<string[]>([]);
+
+  // Prerequisite dialog state
+  const [prerequisiteDialogOpen, setPrerequisiteDialogOpen] = useState(false);
 
   // Chat header state
   const [copiedResponseId, setCopiedResponseId] = useState(false);
@@ -311,6 +317,7 @@ const AiPlayground: React.FC = () => {
     const savedFileSearchTools = loadFileSearchToolsFromStorage();
     const savedAgenticFileSearchTools = loadAgenticFileSearchToolsFromStorage();
     const savedPyFunctionTools = loadPyFunctionToolsFromStorage();
+    const savedClientSideTools = loadClientSideToolsFromStorage();
     
     // Don't load apiKey from localStorage - it's managed by getProviderApiKey function
     setBaseUrl(savedBaseUrl);
@@ -328,7 +335,7 @@ const AiPlayground: React.FC = () => {
     setTextFormat(savedTextFormat);
     setToolChoice(savedToolChoice);
     setPromptMessages(savedPromptMessages);
-    setSelectedTools([...savedOtherTools, ...savedMCPTools, ...savedFileSearchTools, ...savedAgenticFileSearchTools, ...savedPyFunctionTools]);
+    setSelectedTools([...savedOtherTools, ...savedMCPTools, ...savedFileSearchTools, ...savedAgenticFileSearchTools, ...savedPyFunctionTools, ...savedClientSideTools]);
   }, []);
 
   // Save settings to localStorage whenever they change
@@ -355,17 +362,20 @@ const AiPlayground: React.FC = () => {
     const fileSearchTools = selectedTools.filter(tool => tool.id === 'file_search');
     const agenticFileSearchTools = selectedTools.filter(tool => tool.id === 'agentic_file_search');
     const pyFunctionTools = selectedTools.filter(tool => tool.id === 'py_fun_tool');
+    const clientSideTools = selectedTools.filter(tool => tool.id === 'client_side_tool');
     const otherTools = selectedTools.filter(tool => 
       tool.id !== 'mcp_server' && 
       tool.id !== 'file_search' && 
       tool.id !== 'agentic_file_search' &&
-      tool.id !== 'py_fun_tool'
+      tool.id !== 'py_fun_tool' &&
+      tool.id !== 'client_side_tool'
     );
     
     saveMCPToolsToStorage(mcpTools);
     saveFileSearchToolsToStorage(fileSearchTools);
     saveAgenticFileSearchToolsToStorage(agenticFileSearchTools);
     savePyFunctionToolsToStorage(pyFunctionTools);
+    saveClientSideToolsToStorage(clientSideTools);
     localStorage.setItem('aiPlayground_otherTools', JSON.stringify(otherTools));
   }, [apiKey, baseUrl, modelProvider, modelName, imageModelProvider, imageModelName, imageProviderKey, selectedVectorStore, instructions, temperature, maxTokens, topP, storeLogs, textFormat, toolChoice, promptMessages, selectedTools]);
 
@@ -635,6 +645,56 @@ const AiPlayground: React.FC = () => {
     localStorage.setItem('platform_py_fun_tools', JSON.stringify(pyFunctionToolsMap));
   };
 
+  // Client-side tools persistence
+  const loadClientSideToolsFromStorage = (): Tool[] => {
+    try {
+      const stored = localStorage.getItem('platform_client_side_tools');
+      if (!stored) return [];
+      
+      const clientSideToolsMap = JSON.parse(stored);
+      const clientSideTools: Tool[] = [];
+      
+      // Handle both array and object formats for backward compatibility
+      if (Array.isArray(clientSideToolsMap)) {
+        clientSideToolsMap.forEach((tool: any) => {
+          clientSideTools.push({
+            id: 'client_side_tool',
+            name: tool.name,
+            icon: Puzzle,
+            clientSideToolConfig: tool
+          });
+        });
+      } else {
+        // Object format with function names as keys
+        Object.values(clientSideToolsMap).forEach((tool: any) => {
+          clientSideTools.push({
+            id: 'client_side_tool',
+            name: tool.name,
+            icon: Puzzle,
+            clientSideToolConfig: tool
+          });
+        });
+      }
+      
+      return clientSideTools;
+    } catch (error) {
+      console.error('Failed to load client-side tools from storage:', error);
+      return [];
+    }
+  };
+
+  const saveClientSideToolsToStorage = (tools: Tool[]) => {
+    const clientSideTools = tools.filter(tool => tool.id === 'client_side_tool' && tool.clientSideToolConfig);
+    const clientSideToolsMap: Record<string, any> = {};
+    
+    clientSideTools.forEach(tool => {
+      const functionName = tool.clientSideToolConfig!.name;
+      clientSideToolsMap[functionName] = tool.clientSideToolConfig;
+    });
+    
+    localStorage.setItem('platform_client_side_tools', JSON.stringify(clientSideToolsMap));
+  };
+
   // REMOVED: Old chat generateResponse function (was ~900 lines of legacy code)
 
   // Retry logic for error messages
@@ -695,6 +755,21 @@ const AiPlayground: React.FC = () => {
           name: `Function: ${tool.tool_def?.name || 'Python Function'}`,
           icon: Code,
           pyFunctionConfig: tool
+        };
+      } else if (tool.type === 'function' && 
+                 tool.parameters?.properties?.execution_specs?.properties?.type?.enum?.[0] === 'client_side') {
+        // This is a client-side tool
+        return {
+          id: 'client_side_tool',
+          name: tool.name || 'Client-Side Function',
+          icon: Puzzle,
+          clientSideToolConfig: {
+            type: tool.type,
+            name: tool.name,
+            description: tool.description,
+            parameters: tool.parameters,
+            strict: tool.strict
+          }
         };
       }
       // Handle other tool types with their default configurations
@@ -925,6 +1000,16 @@ const AiPlayground: React.FC = () => {
       setActiveTab('responses');
 
       toast.success(`Agent "${agent.name}" loaded successfully`);
+
+      // Debug: Log agent tools structure
+      console.log('Agent tools:', agent.tools);
+      console.log('Has client-side tools:', hasClientSideTools(agent));
+
+      // Check if agent has client-side tools and show prerequisite dialog
+      if (hasClientSideTools(agent)) {
+        console.log('Showing prerequisite dialog for agent:', agent.name);
+        setPrerequisiteDialogOpen(true);
+      }
     } catch (error) {
       console.error('Error setting up agent:', error);
       toast.error('Failed to setup agent');
@@ -1670,6 +1755,12 @@ const AiPlayground: React.FC = () => {
       baseUrl={apiUrl}
     />
 
+    {/* Prerequisite Dialog */}
+    <ClientSideToolsPrerequisiteDialog
+      open={prerequisiteDialogOpen}
+      onOpenChange={setPrerequisiteDialogOpen}
+      agentName={agentData?.name || ''}
+    />
 
     </>
   );

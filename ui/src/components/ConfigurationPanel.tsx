@@ -80,6 +80,7 @@ interface Tool {
   fileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[] }; // For file search tools
   agenticFileSearchConfig?: { selectedFiles: string[]; selectedVectorStores: string[]; vectorStoreNames: string[]; iterations: number; maxResults: number }; // For agentic file search tools
   pyFunctionConfig?: any; // For Py function tools
+  clientSideToolConfig?: any; // For Client-side tools
 }
 
 interface ConfigurationPanelProps {
@@ -253,6 +254,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
   const [editingFileSearch, setEditingFileSearch] = useState<Tool | null>(null);
   const [editingAgenticFileSearch, setEditingAgenticFileSearch] = useState<Tool | null>(null);
   const [editingPyFunction, setEditingPyFunction] = useState<Tool | null>(null);
+  const [editingClientSideTool, setEditingClientSideTool] = useState<Tool | null>(null);
   const [apiKeysModalOpen, setApiKeysModalOpen] = useState(false);
   const [requiredProvider, setRequiredProvider] = useState<string | undefined>(undefined);
   const [pendingModelSelection, setPendingModelSelection] = useState<string | null>(null);
@@ -457,6 +459,17 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
         // Add the new Py function
         onSelectedToolsChange([...selectedTools, tool]);
       }
+    } else if (tool.id === 'client_side_tool') {
+      // If editing an existing Client-side tool, remove the old one first
+      if (editingClientSideTool) {
+        const updatedTools = selectedTools.filter(t => 
+          !(t.id === 'client_side_tool' && t.clientSideToolConfig?.name === editingClientSideTool.clientSideToolConfig?.name)
+        );
+        onSelectedToolsChange([...updatedTools, tool]);
+      } else {
+        // Add the new Client-side tool
+        onSelectedToolsChange([...selectedTools, tool]);
+      }
     } else {
       // For other tools, check by id only
       if (!selectedTools.find(t => t.id === tool.id)) {
@@ -513,6 +526,43 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
       }
       
       onSelectedToolsChange(updatedTools);
+    } else if (toolId === 'client_side_tool' && toolIndex !== undefined) {
+      // For Client-side tools, remove by index since we allow multiple
+      const updatedTools = selectedTools.filter((_, index) => index !== toolIndex);
+      
+      // Also remove the Client-side tool from localStorage
+      try {
+        const toolToRemove = selectedTools[toolIndex];
+        if (toolToRemove && toolToRemove.clientSideToolConfig) {
+          const existingTools = localStorage.getItem('platform_client_side_tools');
+          if (existingTools) {
+            const toolsMap = JSON.parse(existingTools);
+            const functionNameToRemove = toolToRemove.clientSideToolConfig.name;
+            
+            // Handle both array and object formats for backward compatibility
+            if (Array.isArray(toolsMap)) {
+              // Old array format - convert to object and remove
+              const newToolsMap: { [key: string]: any } = {};
+              toolsMap.forEach((tool: any) => {
+                if (tool.name !== functionNameToRemove) {
+                  newToolsMap[tool.name] = tool;
+                }
+              });
+              localStorage.setItem('platform_client_side_tools', JSON.stringify(newToolsMap));
+            } else {
+              // New object format - remove by key
+              if (toolsMap[functionNameToRemove]) {
+                delete toolsMap[functionNameToRemove];
+                localStorage.setItem('platform_client_side_tools', JSON.stringify(toolsMap));
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to remove Client-side tool from localStorage:', error);
+      }
+      
+      onSelectedToolsChange(updatedTools);
     } else {
       // Remove by id for other tools
       const updatedTools = selectedTools.filter(tool => tool.id !== toolId);
@@ -538,6 +588,10 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
 
   const handlePyFunctionEdit = (tool: Tool) => {
     setEditingPyFunction(tool);
+  };
+
+  const handleClientSideToolEdit = (tool: Tool) => {
+    setEditingClientSideTool(tool);
   };
 
   // Get tool color based on type
@@ -870,6 +924,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                 if (tool.id === 'py_fun_tool' && tool.pyFunctionConfig) {
                   return tool.pyFunctionConfig.tool_def.name || 'Python Function';
                 }
+                if (tool.id === 'client_side_tool' && tool.clientSideToolConfig) {
+                  return tool.clientSideToolConfig.name || 'Client-Side Function';
+                }
                 return tool.name;
               };
               
@@ -879,8 +936,9 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
               const isFileSearch = tool.id === 'file_search';
               const isAgenticFileSearch = tool.id === 'agentic_file_search';
               const isPyFunction = tool.id === 'py_fun_tool';
-              const isClickable = isFunction || isMCP || isFileSearch || isAgenticFileSearch || isPyFunction;
-              const toolKey = (isFunction || isMCP || isPyFunction) ? `${tool.id}-${index}` : tool.id;
+              const isClientSideTool = tool.id === 'client_side_tool';
+              const isClickable = isFunction || isMCP || isFileSearch || isAgenticFileSearch || isPyFunction || isClientSideTool;
+              const toolKey = (isFunction || isMCP || isPyFunction || isClientSideTool) ? `${tool.id}-${index}` : tool.id;
               
               // Check if file search tools should be disabled
               const isToolDisabled = (isFileSearch || isAgenticFileSearch) && !isVectorStoreEnabled;
@@ -905,6 +963,7 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                       isFileSearch ? () => handleFileSearchEdit(tool) :
                       isAgenticFileSearch ? () => handleAgenticFileSearchEdit(tool) :
                       isPyFunction ? () => handlePyFunctionEdit(tool) :
+                      isClientSideTool ? () => handleClientSideToolEdit(tool) :
                       undefined
                     ) : (e) => {
                       e.preventDefault();
@@ -927,6 +986,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
                       } else if (tool.id === 'mcp_server') {
                         handleToolRemove(tool.id, undefined, index);
                       } else if (tool.id === 'py_fun_tool') {
+                        handleToolRemove(tool.id, undefined, index);
+                      } else if (tool.id === 'client_side_tool') {
                         handleToolRemove(tool.id, undefined, index);
                       } else {
                         handleToolRemove(tool.id);
@@ -974,6 +1035,8 @@ const ConfigurationPanel: React.FC<ConfigurationPanelProps> = ({
               onEditingAgenticFileSearchChange={setEditingAgenticFileSearch}
               editingPyFunction={editingPyFunction}
               onEditingPyFunctionChange={setEditingPyFunction}
+              editingClientSideTool={editingClientSideTool}
+              onEditingClientSideToolChange={setEditingClientSideTool}
               onOpenE2BModal={() => onE2bModalChange(true)}
               getMCPToolByLabel={getMCPToolByLabel}
             >

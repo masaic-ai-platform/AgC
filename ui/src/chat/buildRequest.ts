@@ -157,6 +157,21 @@ export function buildToolsPayload(
         code: tool.pyFunctionConfig.code,
         code_interpreter: codeInterpreter
       };
+    } else if (tool.id === 'client_side_tool' && tool.clientSideToolConfig) {
+      const toolPayload: any = {
+        type: tool.clientSideToolConfig.type || 'function',
+        name: tool.clientSideToolConfig.name,
+        description: tool.clientSideToolConfig.description,
+        parameters: tool.clientSideToolConfig.parameters,
+        strict: tool.clientSideToolConfig.strict
+      };
+
+      // Include execution specs in API request if they exist
+      if (tool.clientSideToolConfig.executionSpecs) {
+        toolPayload.execution_specs = tool.clientSideToolConfig.executionSpecs;
+      }
+
+      return toolPayload;
     }
     
     // Return null for unknown tool types - they will be filtered out

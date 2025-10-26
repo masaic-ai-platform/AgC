@@ -29,12 +29,22 @@ class AgCPlatformServerConfig {
         partners: Partners,
         @Value("\${platform.deployment.oauth.redirectAgcHost:na}") agcPlatformRedirectBaseUrl: String = "na",
         @Value("\${platform.deployment.oauth.agcUiHost:na}") agcUiHost: String = "na",
+        @Value("\${platform.deployment.agc-cs-runtime.path:/app/agc-client-runtime/java-sdk}") agcRuntimePath: String,
+        @Value("\${platform.deployment.agc-cs-runtime.securitykey:na}") securityKey: String,
+        @Value("\${platform.deployment.multiplug.enabled:false}") multiPlugEnabled: Boolean,
+        @Value("\${platform.deployment.environment:local}") env: String,
+        @Value("\${spring.application.name:agc-platform}") appName: String,
     ): PlatformInfo {
         val vectorStoreInfo =
             if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
 
         val oAuthRedirectSpecs = if (agcPlatformRedirectBaseUrl != "na" && agcUiHost != "na") OAuthRedirectSpecs(URI(agcPlatformRedirectBaseUrl), URI(agcUiHost)) else OAuthRedirectSpecs()
+
+        if (multiPlugEnabled && securityKey == "na") throw IllegalStateException("property platform.deployment.agc-cs-runtime.securityKey is not defined")
+
         return PlatformInfo(
+            env = env,
+            appName = appName,
             version = "v${buildProperties.version}",
             buildTime = buildProperties.time,
             modelSettings = ModelSettings(modelSettings.settingsType, "", ""),
@@ -51,6 +61,7 @@ class AgCPlatformServerConfig {
                 },
             partners = partners,
             oAuthRedirectSpecs = oAuthRedirectSpecs,
+            agentClientSideRuntimeConfig = AgentClientSideRuntimeConfig(agcRuntimePath, securityKey, multiPlugEnabled),
         )
     }
 

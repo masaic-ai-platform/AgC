@@ -32,6 +32,10 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("com.google.api-client:google-api-client:2.7.0")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.boot:spring-boot-starter-data-mongodb-reactive")
+    runtimeOnly("io.temporal:temporal-sdk:1.31.0")
+    runtimeOnly("io.grpc:grpc-netty-shaded:1.76.0")
+    runtimeOnly("org.redisson:redisson-spring-boot-starter:3.40.0")
 }
 
 tasks.withType<org.springframework.boot.gradle.tasks.bundling.BootJar> {
