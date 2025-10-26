@@ -223,6 +223,9 @@ class PlatformCoreConfig {
     }
 
     @Bean
+    fun mcpClientStore() = PlatformCaffeineMcpClientStore()
+
+    @Bean
     fun agentService(
         agentRepository: AgentRepository,
         functionRegistryService: FunctionRegistryService,
