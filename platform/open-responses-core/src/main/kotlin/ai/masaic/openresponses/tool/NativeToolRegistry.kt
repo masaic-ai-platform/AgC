@@ -5,6 +5,8 @@ import ai.masaic.openresponses.api.extensions.isImageContent
 import ai.masaic.openresponses.api.model.*
 import ai.masaic.openresponses.api.service.search.VectorStoreService
 import ai.masaic.openresponses.tool.agentic.AgenticSearchService
+import ai.masaic.openresponses.tool.mcp.ToolRegistryStorage
+import ai.masaic.openresponses.tool.mcp.get
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.client.okhttp.OpenAIOkHttpClient
@@ -22,6 +24,7 @@ import kotlin.jvm.optionals.getOrNull
 open class NativeToolRegistry(
     private val objectMapper: ObjectMapper,
     private val responseStore: ResponseStore,
+    private val toolStorage: ToolRegistryStorage,
 ) {
     private val log = LoggerFactory.getLogger(NativeToolRegistry::class.java)
     protected final val toolRepository = mutableMapOf<String, ToolDefinition>()
@@ -50,12 +53,10 @@ open class NativeToolRegistry(
             )
     }
 
-    fun findByName(name: String): ToolDefinition? = toolRepository[name]
+    suspend fun findByName(name: String): ToolDefinition? = toolRepository[name] ?: toolStorage.get<FileSearchToolDefinition>(name) ?: toolStorage.get<PyFunToolDefinition>(name)
 
-    fun findAll(): List<ToolDefinition> = toolRepository.values.toList()
-
-    fun add(tool: ToolDefinition) {
-        toolRepository[tool.name] = tool
+    suspend fun add(tool: ToolDefinition) {
+        toolStorage.add(tool, tool.javaClass)
     }
 
     /**

@@ -1,6 +1,10 @@
 package ai.masaic.platform.api.tools
 
 import ai.masaic.openresponses.tool.PlugableToolDefinition
+import ai.masaic.openresponses.tool.mcp.ToolRegistryStorage
+import ai.masaic.openresponses.tool.mcp.add
+import ai.masaic.openresponses.tool.mcp.get
+import ai.masaic.openresponses.tool.mcp.remove
 import ai.masaic.platform.api.user.UserInfoProvider
 import org.springframework.stereotype.Component
 
@@ -15,21 +19,21 @@ interface PluggedToolsRegistry {
 }
 
 @Component
-class UserContextAwarePluggedToolsRegistry : PluggedToolsRegistry {
-    private val store = mutableMapOf<String, PlugableToolDefinition>()
-
+class UserContextAwarePluggedToolsRegistry(
+    private val toolStorage: ToolRegistryStorage,
+) : PluggedToolsRegistry {
     override suspend fun add(plugableToolDefinition: PlugableToolDefinition) {
-        store[toolKey(plugableToolDefinition.name)] = plugableToolDefinition
+        toolStorage.add<PlugableToolDefinition>(plugableToolDefinition)
     }
 
-    override suspend fun get(name: String): PlugableToolDefinition? = store[toolKey(name)]
+    override suspend fun get(name: String): PlugableToolDefinition? = toolStorage.get<PlugableToolDefinition>(name)
 
     override suspend fun invalidate(name: String) {
-        store.remove(toolKey(name))
+        toolStorage.remove<PlugableToolDefinition>(name)
     }
 
     override suspend fun toolKey(name: String): String {
-        val userId = UserInfoProvider.userId() ?: throw MultiPlugAdapterException("unable to find userId in the request context.")
+        val userId = UserInfoProvider.userId() ?: throw MultiPlugUntraceableToolException("unable to find userId in the request context.")
         return "$userId.$name"
     }
 }

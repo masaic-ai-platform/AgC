@@ -29,6 +29,10 @@ class SimpleMultiPlugAdapter(
     private suspend fun findApplicableAdapter(name: String) = adapters.firstOrNull { it.plugIn(name) != null }
 }
 
-class MultiPlugAdapterException(
+open class MultiPlugAdapterException(
     message: String,
 ) : RuntimeException(message)
+
+class MultiPlugUntraceableToolException(
+    message: String,
+) : MultiPlugAdapterException(message)

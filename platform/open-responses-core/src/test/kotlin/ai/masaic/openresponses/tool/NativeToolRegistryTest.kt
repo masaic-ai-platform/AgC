@@ -1,10 +1,13 @@
 package ai.masaic.openresponses.tool
 
+import ai.masaic.openresponses.api.config.ToolsCaffeineCacheConfig
 import ai.masaic.openresponses.api.service.search.VectorStoreService
+import ai.masaic.openresponses.tool.mcp.InMemoryToolRegistryStorage
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.Tool
 import io.mockk.*
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -14,7 +17,6 @@ import org.springframework.test.util.ReflectionTestUtils
 import java.util.Optional
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
 @ExtendWith(MockitoExtension::class)
 class NativeToolRegistryTest {
@@ -24,45 +26,41 @@ class NativeToolRegistryTest {
     @BeforeEach
     fun setUp() {
         vectorStoreService = mockk()
-        nativeToolRegistry = NativeToolRegistry(jacksonObjectMapper(), mockk(relaxed = true))
+        nativeToolRegistry =
+            NativeToolRegistry(
+                jacksonObjectMapper(),
+                mockk(relaxed = true),
+                InMemoryToolRegistryStorage(
+                    ToolsCaffeineCacheConfig(),
+                ),
+            )
         // Set vectorStoreService via reflection since it's private
         ReflectionTestUtils.setField(nativeToolRegistry, "vectorStoreService", vectorStoreService)
     }
 
     @Test
-    fun `findByName should return think tool when name is think`() {
-        // When
-        val tool = nativeToolRegistry.findByName("think")
+    fun `findByName should return think tool when name is think`() =
+        runBlocking {
+            // When
+            val tool = nativeToolRegistry.findByName("think")
 
-        // Then
-        assertNotNull(tool)
-        assertEquals("think", tool.name)
-        assertEquals(ToolProtocol.NATIVE, tool.protocol)
-    }
-
-    @Test
-    fun `findByName should return file_search tool when name is file_search`() {
-        // When
-        val tool = nativeToolRegistry.findByName("file_search")
-
-        // Then
-        assertNotNull(tool)
-        assertEquals("file_search", tool.name)
-        assertEquals(ToolProtocol.NATIVE, tool.protocol)
-    }
+            // Then
+            assertNotNull(tool)
+            assertEquals("think", tool.name)
+            assertEquals(ToolProtocol.NATIVE, tool.protocol)
+        }
 
     @Test
-    fun `findAll should return all registered tools`() {
-        // When
-        val tools = nativeToolRegistry.findAll()
+    fun `findByName should return file_search tool when name is file_search`() =
+        runBlocking {
+            // When
+            val tool = nativeToolRegistry.findByName("file_search")
 
-        // Then
-        assertEquals(4, tools.size)
-        assertTrue(tools.any { it.name == "think" })
-        assertTrue(tools.any { it.name == "file_search" })
-        assertTrue(tools.any { it.name == "agentic_search" })
-        assertTrue(tools.any { it.name == "image_generation" })
-    }
+            // Then
+            assertNotNull(tool)
+            assertEquals("file_search", tool.name)
+            assertEquals(ToolProtocol.NATIVE, tool.protocol)
+        }
 
     @Test
     fun `executeTool should return thought log message for think tool`() =

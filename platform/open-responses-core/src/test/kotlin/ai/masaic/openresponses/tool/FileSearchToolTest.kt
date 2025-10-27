@@ -59,7 +59,7 @@ class FileSearchToolTest {
             every { toolDefinition.protocol } returns ToolProtocol.NATIVE
 
             // Setup mock for findByName to return the tool definition
-            every { nativeToolRegistry.findByName(toolName) } returns toolDefinition
+            coEvery { nativeToolRegistry.findByName(toolName) } returns toolDefinition
 
             // Setup for NativeToolRegistry
             val responseJson = """{
@@ -125,8 +125,8 @@ class FileSearchToolTest {
                             "required" to listOf("query"),
                         ),
                 )
-        
-            every { nativeToolRegistry.findByName(toolName) } returns toolDefinition
+
+            coEvery { nativeToolRegistry.findByName(toolName) } returns toolDefinition
         
             // When
             val result = toolService.getFunctionTool(toolName)

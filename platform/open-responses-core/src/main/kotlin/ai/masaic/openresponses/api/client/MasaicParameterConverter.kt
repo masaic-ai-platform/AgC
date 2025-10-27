@@ -301,7 +301,7 @@ class MasaicParameterConverter(
      * @param completionBuilder The builder to add tool configuration to
      * @param params The source parameters
      */
-    private fun applyToolConfiguration(
+    private suspend fun applyToolConfiguration(
         completionBuilder: ChatCompletionCreateParams.Builder,
         params: ResponseCreateParams,
     ) {
@@ -367,7 +367,7 @@ class MasaicParameterConverter(
      * @param tools The tools from response parameters
      * @return List of ChatCompletionTool for the completion request
      */
-    private fun convertTools(tools: List<Tool>): List<ChatCompletionTool> {
+    private suspend fun convertTools(tools: List<Tool>): List<ChatCompletionTool> {
         logger.debug { "Converting ${tools.size} tools" }
         val result = mutableListOf<ChatCompletionTool>()
 

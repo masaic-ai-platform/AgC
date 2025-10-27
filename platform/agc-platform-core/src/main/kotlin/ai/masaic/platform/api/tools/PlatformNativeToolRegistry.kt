@@ -3,6 +3,7 @@ package ai.masaic.platform.api.tools
 import ai.masaic.openresponses.api.client.ResponseStore
 import ai.masaic.openresponses.api.utils.AgCLoopContext
 import ai.masaic.openresponses.tool.*
+import ai.masaic.openresponses.tool.mcp.ToolRegistryStorage
 import ai.masaic.platform.api.interpreter.CodeExecuteReq
 import ai.masaic.platform.api.interpreter.CodeRunnerService
 import com.fasterxml.jackson.databind.ObjectMapper
@@ -16,7 +17,8 @@ class PlatformNativeToolRegistry(
     private val platformNativeTools: List<PlatformNativeTool>,
     private val codeRunnerService: CodeRunnerService,
     private val plugableToolAdapter: PlugableToolAdapter,
-) : NativeToolRegistry(objectMapper, responseStore) {
+    toolStorage: ToolRegistryStorage,
+) : NativeToolRegistry(objectMapper, responseStore, toolStorage) {
     private val log = KotlinLogging.logger {}
 
     init {
