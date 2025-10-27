@@ -136,7 +136,7 @@ class AtomMcpClient(
                 hosting = ToolHosting.REMOTE,
                 name = mcpServerInfo.qualifiedToolName(nativeTool.name),
                 description = nativeTool.description,
-                parameters = parameters,
+                parameters = nativeTool.parameters,
                 serverInfo = mcpServerInfo,
                 eventMeta = nativeTool.eventMeta,
             )

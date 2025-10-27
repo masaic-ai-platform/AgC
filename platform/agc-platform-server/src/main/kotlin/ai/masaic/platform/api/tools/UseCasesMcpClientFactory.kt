@@ -2,7 +2,6 @@ package ai.masaic.platform.usecases.api.tools
 
 import ai.masaic.openresponses.api.model.ModelSettings
 import ai.masaic.openresponses.tool.mcp.McpClient
-import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import ai.masaic.platform.api.repository.McpMockServerRepository
 import ai.masaic.platform.api.repository.MockFunctionRepository
 import ai.masaic.platform.api.repository.MocksRepository
@@ -19,9 +18,8 @@ class UseCasesMcpClientFactory(
     mocksRepository: MocksRepository,
     modelSettings: ModelSettings,
     modelService: ModelService,
-    mcpoAuthService: MCPOAuthService,
     private val temporalService: AtomTemporalWorkflowService,
-) : PlatformMcpClientFactory(mockServerRepository, mockFunRepository, mocksRepository, modelSettings, modelService, mcpoAuthService) {
+) : PlatformMcpClientFactory(mockServerRepository, mockFunRepository, mocksRepository, modelSettings, modelService) {
     override suspend fun init(
         serverName: String,
         url: String,
