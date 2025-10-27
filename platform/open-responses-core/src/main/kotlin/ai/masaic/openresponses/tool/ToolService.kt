@@ -207,7 +207,7 @@ open class ToolService(
         return pyFunToolDefinition.toFunctionTool()
     }
 
-    suspend fun deriveAndSavePyFunTool(pyFunTool: PyFunTool): PyFunToolDefinition {
+    private suspend fun deriveAndSavePyFunTool(pyFunTool: PyFunTool): PyFunToolDefinition {
         val toolDef = pyFunTool.functionDetails
         val pyFunToolDefinition =
             PyFunToolDefinition(

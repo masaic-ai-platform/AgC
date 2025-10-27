@@ -20,6 +20,7 @@ import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.openresponses.tool.mcp.MCPToolRegistry
 import ai.masaic.openresponses.tool.mcp.McpClientFactory
+import ai.masaic.openresponses.tool.mcp.ToolRegistryStorage
 import ai.masaic.platform.api.interpreter.CodeRunnerService
 import ai.masaic.platform.api.interpreter.PythonCodeRunnerService
 import ai.masaic.platform.api.model.ModelProvider
@@ -118,12 +119,14 @@ class PlatformCoreConfig {
         platformNativeTools: List<PlatformNativeTool>,
         @Lazy codeRunnerService: CodeRunnerService,
         plugableToolAdapter: PlugableToolAdapter,
+        toolStorage: ToolRegistryStorage,
     ) = PlatformNativeToolRegistry(
         objectMapper,
         responseStore,
         platformNativeTools,
         codeRunnerService,
         plugableToolAdapter,
+        toolStorage,
     )
 
     @Bean

@@ -1,12 +1,15 @@
 package ai.masaic.openresponses.tool
 
+import ai.masaic.openresponses.api.config.ToolsCaffeineCacheConfig
 import ai.masaic.openresponses.api.service.search.VectorStoreService
+import ai.masaic.openresponses.tool.mcp.InMemoryToolRegistryStorage
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.openai.client.OpenAIClient
 import com.openai.models.responses.ResponseCreateParams
 import com.openai.models.responses.Tool
 import io.mockk.*
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -28,22 +31,23 @@ class NativeToolRegistryAgenticSearchTest {
         vectorStoreService = mockk()
         openAIClient = mockk()
         objectMapper = jacksonObjectMapper()
-        nativeToolRegistry = NativeToolRegistry(objectMapper, mockk(relaxed = true))
+        nativeToolRegistry = NativeToolRegistry(objectMapper, mockk(relaxed = true), InMemoryToolRegistryStorage(ToolsCaffeineCacheConfig()))
 
         // Set vectorStoreService via reflection since it's private
         ReflectionTestUtils.setField(nativeToolRegistry, "vectorStoreService", vectorStoreService)
     }
 
     @Test
-    fun `agentic_search tool is registered and can be found`() {
-        // When
-        val tool = nativeToolRegistry.findByName("agentic_search")
+    fun `agentic_search tool is registered and can be found`() =
+        runBlocking {
+            // When
+            val tool = nativeToolRegistry.findByName("agentic_search")
 
-        // Then
-        assertNotNull(tool)
-        assertEquals("agentic_search", tool.name)
-        assertEquals(ToolProtocol.NATIVE, tool.protocol)
-    }
+            // Then
+            assertNotNull(tool)
+            assertEquals("agentic_search", tool.name)
+            assertEquals(ToolProtocol.NATIVE, tool.protocol)
+        }
 
     @Test
     fun `executeAgenticSearch handles empty vector store IDs`() =

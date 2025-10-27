@@ -47,16 +47,20 @@ interface ToolRegistryStorage {
  * Reified convenience extension for type-safe retrieval.
  * Usage: storage.get<McpToolDefinition>("weather_tool")
  */
-suspend inline fun <reified T : ToolDefinition> ToolRegistryStorage.get(name: String): T? = get(name, T::class.java) as? T
+suspend inline fun <reified T : ToolDefinition> ToolRegistryStorage.get(name: String): T? = get(name, T::class.java)
 
 /**
  * Reified convenience extension for type-safe removal.
  * Usage: storage.remove<McpToolDefinition>("weather_tool")
  */
-suspend inline fun <reified T : ToolDefinition> ToolRegistryStorage.remove(name: String): T? = remove(name, T::class.java) as? T
+suspend inline fun <reified T : ToolDefinition> ToolRegistryStorage.remove(name: String) {
+    remove(name, T::class.java)
+}
 
 /**
  * Reified convenience extension for type-safe addition.
  * Usage: storage.add<McpToolDefinition>("weather_tool")
  */
-suspend inline fun <reified T : ToolDefinition> ToolRegistryStorage.add(toolDefinition: T): T? = add(toolDefinition, T::class.java) as? T
+suspend inline fun <reified T : ToolDefinition> ToolRegistryStorage.add(toolDefinition: T) {
+    add(toolDefinition, T::class.java)
+}

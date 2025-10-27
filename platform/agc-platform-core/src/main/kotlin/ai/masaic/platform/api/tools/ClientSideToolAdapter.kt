@@ -41,7 +41,11 @@ class ClientSideToolAdapter(
 ) : PlugableToolAdapter {
     override suspend fun plugIn(name: String): PlugableToolDefinition? =
         if (isEnabled()) {
-            pluggedToolsRegistry.get(name)
+            try {
+                pluggedToolsRegistry.get(name)
+            } catch (ex: MultiPlugUntraceableToolException) {
+                null
+            }
         } else {
             null
         }

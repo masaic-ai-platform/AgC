@@ -4,10 +4,7 @@ import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.openresponses.tool.mcp.MCPToolRegistry
 import ai.masaic.openresponses.tool.mcp.McpWebFluxClientFactory
 import com.fasterxml.jackson.databind.ObjectMapper
-import io.mockk.coEvery
-import io.mockk.every
-import io.mockk.mockk
-import io.mockk.verify
+import io.mockk.*
 import kotlinx.coroutines.runBlocking
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -66,7 +63,7 @@ class FileSearchToolServiceTest {
                         ),
                 )
 
-            every { nativeToolRegistry.findByName("file_search") } returns toolDefinition
+            coEvery { nativeToolRegistry.findByName("file_search") } returns toolDefinition
             coEvery { mcpToolRegistry.findByName(any()) } returns null
 
             // When
@@ -78,7 +75,7 @@ class FileSearchToolServiceTest {
             assertEquals("file_search", result.name)
             assertEquals("Search through vector stores for relevant file content", result.description)
 
-            verify { nativeToolRegistry.findByName("file_search") }
+            coVerify { nativeToolRegistry.findByName("file_search") }
         }
 
     @Test
@@ -105,7 +102,7 @@ class FileSearchToolServiceTest {
                         ),
                 )
 
-            every { nativeToolRegistry.findByName("file_search") } returns toolDefinition
+            coEvery { nativeToolRegistry.findByName("file_search") } returns toolDefinition
             coEvery { mcpToolRegistry.findByName(any()) } returns null
 
             // When
@@ -133,6 +130,6 @@ class FileSearchToolServiceTest {
             val required = result.parameters["required"] as List<String>
             assertTrue(required.contains("query"))
 
-            verify { nativeToolRegistry.findByName("file_search") }
+            coVerify { nativeToolRegistry.findByName("file_search") }
         }
 }
