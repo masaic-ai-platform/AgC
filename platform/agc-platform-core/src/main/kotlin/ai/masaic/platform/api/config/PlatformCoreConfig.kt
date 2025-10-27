@@ -20,7 +20,6 @@ import ai.masaic.openresponses.tool.ToolService
 import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.openresponses.tool.mcp.MCPToolRegistry
 import ai.masaic.openresponses.tool.mcp.McpClientFactory
-import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import ai.masaic.platform.api.interpreter.CodeRunnerService
 import ai.masaic.platform.api.interpreter.PythonCodeRunnerService
 import ai.masaic.platform.api.model.ModelProvider
@@ -47,7 +46,10 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.info.BuildProperties
-import org.springframework.context.annotation.*
+import org.springframework.context.annotation.Bean
+import org.springframework.context.annotation.Configuration
+import org.springframework.context.annotation.Lazy
+import org.springframework.context.annotation.Profile
 import org.springframework.core.io.ClassPathResource
 import org.springframework.core.io.ResourceLoader
 import org.springframework.data.mongodb.core.ReactiveMongoTemplate
@@ -132,8 +134,7 @@ class PlatformCoreConfig {
         mocksRepository: MocksRepository,
         modelSettings: ModelSettings,
         @Lazy modelService: ModelService,
-        mcpoAuthService: MCPOAuthService,
-    ) = PlatformMcpClientFactory(mcpMockServerRepository, mockFunctionRepository, mocksRepository, modelSettings, modelService, mcpoAuthService)
+    ) = PlatformMcpClientFactory(mcpMockServerRepository, mockFunctionRepository, mocksRepository, modelSettings, modelService)
 
     @Bean
     fun platformMcpService(
@@ -155,10 +156,9 @@ class PlatformCoreConfig {
         resourceLoader: ResourceLoader,
         nativeToolRegistry: NativeToolRegistry,
         objectMapper: ObjectMapper,
-        mcpClientFactory: McpClientFactory,
         plugableToolAdapter: PlugableToolAdapter,
         pluggedToolsRegistry: PluggedToolsRegistry,
-    ) = PlatformToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, objectMapper, mcpClientFactory, plugableToolAdapter, pluggedToolsRegistry)
+    ) = PlatformToolService(mcpToolRegistry, mcpToolExecutor, resourceLoader, nativeToolRegistry, objectMapper, plugableToolAdapter, pluggedToolsRegistry)
 
     @Bean
     fun platformRequestValidator(
@@ -181,6 +181,8 @@ class PlatformCoreConfig {
         @Value("\${platform.deployment.agc-cs-runtime.path:/app/agc-client-runtime/java-sdk}") agcRuntimePath: String,
         @Value("\${platform.deployment.agc-cs-runtime.securitykey:na}") securityKey: String,
         @Value("\${platform.deployment.multiplug.enabled:false}") multiPlugEnabled: Boolean,
+        @Value("\${platform.deployment.environment:local}") env: String,
+        @Value("\${spring.application.name:agc-platform}") appName: String,
     ): PlatformInfo {
         val vectorStoreInfo =
             if (vectorSearchProviderType == "qdrant") VectorStoreInfo(true) else VectorStoreInfo(false)
@@ -198,6 +200,8 @@ class PlatformCoreConfig {
         if (multiPlugEnabled && securityKey == "na") throw IllegalStateException("property platform.deployment.agc-cs-runtime.securityKey is not defined")
 
         return PlatformInfo(
+            env = env,
+            appName = appName,
             version = "v${buildProperties.version}",
             buildTime = buildProperties.time,
             modelSettings = ModelSettings(modelSettings.settingsType, "", ""),
@@ -217,6 +221,9 @@ class PlatformCoreConfig {
             agentClientSideRuntimeConfig = AgentClientSideRuntimeConfig(agcRuntimePath, securityKey, multiPlugEnabled),
         )
     }
+
+    @Bean
+    fun mcpClientStore() = PlatformCaffeineMcpClientStore()
 
     @Bean
     fun agentService(
@@ -551,6 +558,8 @@ data class AuthConfig(
 )
 
 data class PlatformInfo(
+    val env: String = "local",
+    val appName: String = "agc-platform",
     val version: String,
     val buildTime: Instant,
     val modelSettings: ModelSettings,

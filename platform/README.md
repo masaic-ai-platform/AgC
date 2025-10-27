@@ -11,13 +11,11 @@
 
 **Platform Server** is an agentic orchestration API layer that provides drop-in replacement for `/responses`, `/chat/completions`, and `/embeddings` — now with:
 
-- 🔧 **Built-in agentic tool/function calling**
+- 🔧 **Built-in agentic tool/function calling with [client side tool execution](Autonomy-With-AgC.md)**
 - ✅ **Built-in Remote MCP server Integrations**
 - 🔍 **Built-in Search + RAG**
 - 🧠 **Built-in Agentic state + memory**
 - 🎯 **Built-in agent orchestration capabilities**
-
-Works even if your model lacks native support — like [OpenAI's Responses API](https://platform.openai.com/docs/api-reference/responses).
 
 ## 🔧 Key Engineering Wins
 
@@ -96,14 +94,12 @@ curl --location 'http://localhost:6644/v1/responses' \
 
 ## Core Capabilities
 
-| Feature | Description | Benefit |
-|---------|-------------|---------|
-| **Agentic Orchestration** | Multi-agent workflows and collaboration | Build complex agent systems with minimal code |
-| **Automated Tracing** | Comprehensive request and response monitoring | Track performance and usage without additional code |
-| **Integrated RAG** | Contextual information retrieval | Enhance responses with relevant external data automatically |
-| **Pre-built Tool Integrations** | Web search, GitHub access, and more | Deploy advanced capabilities instantly |
-| **Self-Hosted Architecture** | Full control of deployment infrastructure | Maintain complete data sovereignty |
-| **OpenAI-Compatible Interface** | Drop-in replacement for existing OpenAI implementations | Minimal code changes for migration |
+| Feature | Description                                             | Benefit                                                                                                  |
+|---------|---------------------------------------------------------|----------------------------------------------------------------------------------------------------------|
+| **Agentic Orchestration** | Agentic loop with tool execution                        | Build complex agent systems with minimal plumbing. [Check tool autonomoy with AgC](Autonomy-With-AgC.md) |
+| **Automated Tracing** | Comprehensive request and response monitoring           | Track performance and usage without additional code                                                      |
+| **Integrated RAG** | Contextual information retrieval                        | Enhance responses with relevant external data automatically                                              |
+| **Self-Hosted Architecture** | Full control of deployment infrastructure               | Maintain complete data sovereignty                                                                       |
 
 ## API Reference
 
@@ -197,7 +193,11 @@ The following environment variables can be configured to deploy a full-fledged A
 | `PLATFORM_DEPLOYMENT_AUTH_GOOGLE_AUDIENCE` | Google Auth audience when platform auth is enabled                                                                                                                   | -                                  | `your-google-auth-audience`        |
 | `PLATFORM_DEPLOYMENT_MULTIPLUG_ENABLED` | This is a flag to plug external (client-side) tools to AgC                                                                                                           | `false`                            | `true` or `false`                  |
 | `PLATFORM_DEPLOYMENT_AGC-CS-RUNTIME_PATH` | This is the path where agc-runtime SDK package is placed                                                                                                             | `/app/agc-client-runtime/java-sdk` | `/app/agc-client-runtime/java-sdk` |
-| `PLATFORM_DEPLOYMENT_AGC-CS-RUNTIME_SECURITYKEY` | This is the concatenated string generated using [Generate Key Utility](https://github.com/masaic-ai-platform/AgC/tree/main/platform/agc-client-runtime#generate-key) | -                                  | `to be generated`                   |
+| `PLATFORM_DEPLOYMENT_AGC-CS-RUNTIME_SECURITYKEY` | This is the concatenated string generated using [Generate Key Utility](https://github.com/masaic-ai-platform/AgC/tree/main/platform/agc-client-runtime#generate-key) | -                                  | `to be generated`                  |
+| `OPEN_RESPONSES_TOOL_STORE_TYPE` | Storage backend type for MCP tool registry                                                                                                                           | `in-memory`                        | `redis` or `in-memory`             |
+| `OPEN_RESPONSES_TOOL_STORE_CAFFEINE_MAXSIZE` | Maximum cache size for in-memory tool registry storage                                                                                                               | `500`                              | `500`                              |
+| `OPEN_RESPONSES_TOOL_STORE_CAFFEINE_TTLMINUTES` | Time-to-live in minutes for in-memory tool registry cache                                                                                                            | `10`                               | `your choice`                      |
+| `OPEN_RESPONSES_TOOL_STORE_REDIS_TTLMINUTES` | Time-to-live in minutes for Redis tool registry cache                                                                                                                | `10`                               | `your choice`                                |
 
 ## MCP Server Integration
 

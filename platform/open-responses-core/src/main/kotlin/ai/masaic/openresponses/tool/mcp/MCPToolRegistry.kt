@@ -1,5 +1,6 @@
 package ai.masaic.openresponses.tool.mcp
 
+import ai.masaic.openresponses.api.model.MCPTool
 import ai.masaic.openresponses.tool.ToolDefinition
 import ai.masaic.openresponses.tool.ToolHosting
 import ai.masaic.openresponses.tool.ToolParamsAccessor
@@ -17,9 +18,10 @@ import org.springframework.stereotype.Component
 @Component
 class MCPToolExecutor(
     private val mcpClientFactory: McpClientFactory,
+    private val mcpToolRegistry: MCPToolRegistry,
+    private val mcpClientStore: McpClientStore,
 ) {
     private val log = LoggerFactory.getLogger(MCPToolExecutor::class.java)
-    private val mcpClients = mutableMapOf<String, McpClient>()
 
     /**
      * Connects to an MCP server based on the provided configuration.
@@ -33,15 +35,26 @@ class MCPToolExecutor(
         mcpServer: MCPServer,
     ): McpClient {
         val mcpClient = mcpClientFactory.init(serverName, mcpServer)
-        mcpClients[serverName] = mcpClient
+        mcpClientStore.add(serverName, mcpClient)
         return mcpClient
     }
 
-    fun addMcpClient(
+    suspend fun addMcpClient(
         serverName: String,
         mcpClient: McpClient,
     ) {
-        mcpClients[serverName] = mcpClient
+        mcpClientStore.add(serverName, mcpClient)
+    }
+
+    suspend fun initMcp(mcpTool: MCPTool): List<McpToolDefinition> {
+        val mcpClient = mcpClientFactory.init(mcpTool.serverLabel, mcpTool.serverUrl, mcpTool.headers)
+        val availableTools = mcpClient.listTools(MCPServerInfo(mcpTool.serverLabel, mcpTool.serverUrl, mcpTool.headers))
+        availableTools.forEach {
+            mcpToolRegistry.addTool(it)
+        }
+        mcpToolRegistry.addMcpServer(MCPServerInfo(mcpTool.serverLabel, mcpTool.serverUrl, mcpTool.headers, availableTools.map { it.name }))
+        addMcpClient(mcpTool.toMCPServerInfo().serverIdentifier(), mcpClient)
+        return availableTools
     }
 
     /**
@@ -58,23 +71,29 @@ class MCPToolExecutor(
         openAIClient: OpenAIClient?,
         eventEmitter: ((ServerSentEvent<String>) -> Unit)?,
     ): String? {
-        val mcpTool = tool as McpToolDefinition
-        var serverId = mcpTool.serverInfo.id
-        var toolName = mcpTool.name
-        if (mcpTool.hosting == ToolHosting.REMOTE) {
-            serverId = mcpTool.serverInfo.serverIdentifier()
-            toolName = mcpTool.serverInfo.unQualifiedToolName(mcpTool.name)
+        val mcpToolDef = tool as McpToolDefinition
+        var serverId = mcpToolDef.serverInfo.id
+        var toolName = mcpToolDef.name
+        var mcpTool: MCPTool? = null
+        if (mcpToolDef.hosting == ToolHosting.REMOTE) {
+            serverId = mcpToolDef.serverInfo.serverIdentifier()
+            toolName = mcpToolDef.serverInfo.unQualifiedToolName(mcpToolDef.name)
+            mcpTool = MCPTool(type = "mcp", serverLabel = mcpToolDef.serverInfo.id, serverUrl = mcpToolDef.serverInfo.url, headers = mcpToolDef.serverInfo.headers, allowedTools = mcpToolDef.serverInfo.tools)
         }
 
-        val mcpClient = mcpClients[serverId] ?: return null
-        return mcpClient.executeTool(tool.copy(name = toolName), arguments, paramsAccessor, openAIClient, headers = mcpTool.serverInfo.headers, eventEmitter)
+        val mcpClient =
+            mcpClientStore.getIfPresent(serverId) ?: run {
+                mcpTool?.let { initMcp(it) }
+                mcpClientStore.getIfPresent(serverId)
+            } ?: return null
+        return mcpClient.executeTool(tool.copy(name = toolName), arguments, paramsAccessor, openAIClient, headers = mcpToolDef.serverInfo.headers, eventEmitter)
     }
 
     /**
      * Shuts down all MCP clients, releasing resources.
      */
     suspend fun shutdown() {
-        mcpClients.forEach { (_, mcpClient) ->
+        mcpClientStore.asMap().forEach { (_, mcpClient) ->
             mcpClient.close()
         }
     }
@@ -87,9 +106,11 @@ class MCPToolExecutor(
  * methods to register, find, and clean up tools.
  */
 @Component
-class MCPToolRegistry {
-    private val toolRepository = mutableMapOf<String, ToolDefinition>()
-    private val serverRepository = mutableMapOf<String, MCPServerInfo>()
+class MCPToolRegistry(
+    private val toolStorage: ToolRegistryStorage,
+    private val serverStorage: McpServerInfoRegistryStorage,
+) {
+    private val log = LoggerFactory.getLogger(MCPToolRegistry::class.java)
 
     /**
      * Registers MCP tools from the given client.
@@ -110,21 +131,23 @@ class MCPToolRegistry {
      *
      * @param tool Tool definition to add
      */
-    fun addTool(tool: ToolDefinition) {
-        toolRepository[tool.name] = tool
+    suspend fun addTool(tool: ToolDefinition) {
+        toolStorage.add<McpToolDefinition>(tool as McpToolDefinition)
+        log.debug("Added tool '${tool.name}' to registry")
     }
 
-    fun invalidateTool(tool: McpToolDefinition) {
-        toolRepository.remove(tool.name)
-        serverRepository.remove(tool.serverInfo.serverIdentifier())
+    suspend fun invalidateTool(tool: McpToolDefinition) {
+        toolStorage.remove<McpToolDefinition>(tool.name)
+        serverStorage.remove(tool.serverInfo.serverIdentifier())
+        log.debug("Invalidated tool '${tool.name}' from registry")
     }
 
-    fun addMcpServer(mcpServerInfo: MCPServerInfo) {
-        serverRepository[mcpServerInfo.serverIdentifier()] = mcpServerInfo
+    suspend fun addMcpServer(mcpServerInfo: MCPServerInfo) {
+        serverStorage.add(mcpServerInfo)
     }
 
-    fun removeMcpServer(mcpServerInfo: MCPServerInfo) {
-        serverRepository.remove(mcpServerInfo.serverIdentifier())
+    suspend fun removeMcpServer(mcpServerInfo: MCPServerInfo) {
+        serverStorage.remove(mcpServerInfo.serverIdentifier())
     }
 
     /**
@@ -133,21 +156,7 @@ class MCPToolRegistry {
      * @param name Name of the tool to find
      * @return Tool definition if found, null otherwise
      */
-    fun findByName(name: String): ToolDefinition? = toolRepository[name]
+    suspend fun findByName(name: String): ToolDefinition? = toolStorage.get<McpToolDefinition>(name)
 
-    fun findServerById(id: String): MCPServerInfo? = serverRepository[id]
-
-    /**
-     * Returns all registered tools.
-     *
-     * @return List of all tool definitions
-     */
-    fun findAll(): List<ToolDefinition> = toolRepository.values.toList()
-
-    /**
-     * Clears the tool repository.
-     */
-    fun cleanUp() {
-        toolRepository.clear()
-    }
+    suspend fun findServerById(id: String): MCPServerInfo? = serverStorage.get(id)
 }

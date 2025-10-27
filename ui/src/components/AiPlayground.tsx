@@ -15,6 +15,8 @@ import { API_URL } from '@/config';
 import { apiClient } from '@/lib/api';
 import { usePlatformInfo } from '@/contexts/PlatformContext';
 import { ResponsesChat, buildToolsPayload, ResponsesChatRef } from '@/chat';
+import { hasClientSideTools } from '@/lib/utils';
+import ClientSideToolsPrerequisiteDialog from './ClientSideToolsPrerequisiteDialog';
 
 interface ToolExecution {
   serverName: string;
@@ -173,6 +175,9 @@ const AiPlayground: React.FC = () => {
 
   // Suggested queries state
   const [suggestedQueries, setSuggestedQueries] = useState<string[]>([]);
+
+  // Prerequisite dialog state
+  const [prerequisiteDialogOpen, setPrerequisiteDialogOpen] = useState(false);
 
   // Chat header state
   const [copiedResponseId, setCopiedResponseId] = useState(false);
@@ -995,6 +1000,16 @@ const AiPlayground: React.FC = () => {
       setActiveTab('responses');
 
       toast.success(`Agent "${agent.name}" loaded successfully`);
+
+      // Debug: Log agent tools structure
+      console.log('Agent tools:', agent.tools);
+      console.log('Has client-side tools:', hasClientSideTools(agent));
+
+      // Check if agent has client-side tools and show prerequisite dialog
+      if (hasClientSideTools(agent)) {
+        console.log('Showing prerequisite dialog for agent:', agent.name);
+        setPrerequisiteDialogOpen(true);
+      }
     } catch (error) {
       console.error('Error setting up agent:', error);
       toast.error('Failed to setup agent');
@@ -1740,6 +1755,12 @@ const AiPlayground: React.FC = () => {
       baseUrl={apiUrl}
     />
 
+    {/* Prerequisite Dialog */}
+    <ClientSideToolsPrerequisiteDialog
+      open={prerequisiteDialogOpen}
+      onOpenChange={setPrerequisiteDialogOpen}
+      agentName={agentData?.name || ''}
+    />
 
     </>
   );

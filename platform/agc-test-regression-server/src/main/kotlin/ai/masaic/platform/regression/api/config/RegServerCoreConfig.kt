@@ -1,7 +1,6 @@
 package ai.masaic.platform.regression.api.config
 
 import ai.masaic.openresponses.api.model.ModelSettings
-import ai.masaic.openresponses.tool.mcp.oauth.MCPOAuthService
 import ai.masaic.platform.api.repository.McpMockServerRepository
 import ai.masaic.platform.api.repository.MockFunctionRepository
 import ai.masaic.platform.api.repository.MocksRepository
@@ -22,6 +21,5 @@ class RegServerCoreConfig {
         modelSettings: ModelSettings,
         @Lazy modelService: ModelService,
         @Lazy responseStoreFacade: RegSuiteResponseStoreFacade,
-        mcpoAuthService: MCPOAuthService,
-    ) = RegServerMcpClientFactory(mcpMockServerRepository, mockFunctionRepository, mocksRepository, modelSettings, modelService, mcpoAuthService, responseStoreFacade)
+    ) = RegServerMcpClientFactory(mcpMockServerRepository, mockFunctionRepository, mocksRepository, modelSettings, modelService, responseStoreFacade)
 }
