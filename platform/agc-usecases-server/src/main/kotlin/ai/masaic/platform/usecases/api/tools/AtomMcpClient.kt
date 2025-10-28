@@ -32,7 +32,7 @@ class AtomMcpClient(
                 parameters {
                     property(
                         name = "workflow_id",
-                        type = "enum",
+                        type = "string",
                         description = "Id of the workflow to be executed",
                         enum = listOf("ff8735d6-4bc0-4c3b-9dee-030776440c72"),
                         required = true,
@@ -50,7 +50,7 @@ class AtomMcpClient(
                         )
                         property(
                             name = "subject_option",
-                            type = "enum",
+                            type = "string",
                             description = "The subject, always picked from enum",
                             enum = listOf("Call"),
                             required = true,
@@ -84,7 +84,7 @@ class AtomMcpClient(
                         )
                         property(
                             name = "stage",
-                            type = "enum",
+                            type = "string",
                             description = "Stage of the opportunity",
                             enum = listOf("Propose"),
                             required = true,
@@ -103,7 +103,7 @@ class AtomMcpClient(
                 parameters {
                     property(
                         name = "workflow_id",
-                        type = "enum",
+                        type = "string",
                         description = "Id of the workflow to be executed",
                         enum = listOf("0f38396f-8f8b-4ffd-9ca4-4f753162a618"),
                         required = true,
