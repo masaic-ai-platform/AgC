@@ -23,7 +23,6 @@ class AskAgentService(
     private val pyInterpreterSettings: PyInterpreterSettings,
 ) {
     private val log = KotlinLogging.logger { }
-    private val modelProviders: Set<ModelProvider> = PlatformCoreConfig.loadProviders()
 
     /**
      * Asks an agent a question and returns the response synchronously (non-streaming).
@@ -44,7 +43,7 @@ class AskAgentService(
         log.debug { "Found agent: ${agent.name}, creating response request" }
         
         // Create the response request using the agent's configuration
-        val modelSettings = resolveModelSettings(agent.model)
+        val modelSettings = PlatformCoreConfig.resolveModelSettings(modelSettings, agent.model)
         val updateTools = updateToolsWithApplicableCredentials(agent)
         val responseRequest =
             CreateResponseRequest(
@@ -128,29 +127,6 @@ class AskAgentService(
         } ?: throw AgentRunException("No output from agent.")
     }
 
-    private fun resolveModelSettings(model: String?): ModelSettings {
-        val provider =
-            model?.let {
-                ModelSettings.findProvider(model)
-                    ?: modelProviders
-                        .find { provider ->
-                            provider.supportedModels?.firstOrNull { it.name == model } != null
-                        }?.name
-            }
-
-        val finalSettings =
-            provider?.let { modelSettings.providerApiKeys[provider]?.apiKey }?.let {
-                val qualifiedModelName = if (model.contains("@")) model else "$provider@$model"
-                ModelSettings(modelApiKey = it, model = qualifiedModelName)
-            }
-        if (finalSettings != null) {
-            return finalSettings
-        }
-
-        if (modelSettings.settingsType == SystemSettingsType.RUNTIME) throw AgentRunException("Model and api key not available to run agent.")
-        return modelSettings
-    }
-
     private fun resolveInterpreterServer(): PyInterpreterServer {
         if (pyInterpreterSettings.systemSettingsType == SystemSettingsType.RUNTIME) throw AgentRunException("Missing E2B server URL and api key")
         return pyInterpreterSettings.pyInterpreterServer ?: throw AgentRunException("Missing E2B server URL and api key")
@@ -161,11 +137,11 @@ class AskAgentService(
             agent.tools.map { tool ->
                 when (tool) {
                     is FileSearchTool -> {
-                        val modelSettings = resolveModelSettings(tool.modelInfo?.model)
+                        val modelSettings = PlatformCoreConfig.resolveModelSettings(modelSettings, tool.modelInfo?.model)
                         tool.copy(modelInfo = ModelInfo(bearerToken = modelSettings.bearerToken, model = modelSettings.qualifiedModelName))
                     }
                     is AgenticSeachTool -> {
-                        val modelSettings = resolveModelSettings(tool.modelInfo?.model)
+                        val modelSettings = PlatformCoreConfig.resolveModelSettings(modelSettings, tool.modelInfo?.model)
                         tool.copy(modelInfo = ModelInfo(bearerToken = modelSettings.bearerToken, model = modelSettings.qualifiedModelName))
                     }
                     is PyFunTool -> {

@@ -73,6 +73,30 @@ class PlatformCoreConfig {
             val providersList: List<ModelProvider> = jacksonObjectMapper().readValue(jsonContent)
             return providersList.toSet()
         }
+
+        private val modelProviders: Set<ModelProvider> = PlatformCoreConfig.loadProviders()
+        fun resolveModelSettings(modelSettings: ModelSettings, model: String?): ModelSettings {
+            val provider =
+                model?.let {
+                    ModelSettings.findProvider(model)
+                        ?: modelProviders
+                            .find { provider ->
+                                provider.supportedModels?.firstOrNull { it.name == model } != null
+                            }?.name
+                }
+
+            val finalSettings =
+                provider?.let { modelSettings.providerApiKeys[provider]?.apiKey }?.let {
+                    val qualifiedModelName = if (model.contains("@")) model else "$provider@$model"
+                    ModelSettings(modelApiKey = it, model = qualifiedModelName)
+                }
+            if (finalSettings != null) {
+                return finalSettings
+            }
+
+            if (modelSettings.settingsType == SystemSettingsType.RUNTIME) throw AgentRunException("Model and api key not available to run agent.")
+            return modelSettings
+        }
     }
 
     @Bean
@@ -287,13 +311,7 @@ class PlatformCoreConfig {
 
     @Bean
     @ConditionalOnProperty(name = ["platform.deployment.agent.bootstrap.enabled"], havingValue = "true", matchIfMissing = true)
-    fun agentB(
-        agentService: AgentService,
-        platformMcpService: PlatformMcpService,
-        mockFunctionRepository: MockFunctionRepository,
-        mocksRepository: MocksRepository,
-        functionRegistryService: FunctionRegistryService,
-    ) = AgentBootstrapService(agentService, platformMcpService, mockFunctionRepository, mocksRepository, functionRegistryService)
+    fun agentBootStrapService(agentBootStrapKit: AgentBootStrapKit) = AgentBootstrapService(agentBootStrapKit)
 
     @Configuration
     @EnableConfigurationProperties(CodeInterpreterServerProperties::class)
