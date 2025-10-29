@@ -10,7 +10,7 @@ plugins {
 }
 
 allprojects {
-    group = "ai.masaic"
+    group = "ai.masaic.agc"
     version = "0.8.0-dev"
 
     repositories {
@@ -54,6 +54,17 @@ subprojects {
                     } else if (javaComponent != null) {
                         // Fallback to java component even if jar task state is unknown
                         from(javaComponent)
+                    }
+                }
+            }
+            
+            repositories {
+                maven {
+                    name = "GitHubPackages"
+                    url = uri("https://maven.pkg.github.com/masaic-ai-platform/AgC")
+                    credentials {
+                        username = System.getenv("GITHUB_ACTOR") ?: findProperty("gpr.user") as String?
+                        password = System.getenv("GITHUB_TOKEN") ?: findProperty("gpr.key") as String?
                     }
                 }
             }

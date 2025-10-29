@@ -1,0 +1,290 @@
+name: Publish Release Pipeline
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_tests:
+        description: 'Skip tests during build'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'true'
+          - 'false'
+
+env:
+  JAVA_VERSION: '21'
+  JAVA_DISTRIBUTION: 'adopt'
+
+jobs:
+  publish:
+    name: Build and Publish Artifacts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      # ============================================
+      # Step 1: Checkout Source
+      # ============================================
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ============================================
+      # Step 2: Extract Versions from Build Files
+      # ============================================
+      - name: Extract versions
+        id: versions
+        run: |
+          # Extract Gradle version from platform/build.gradle.kts
+          GRADLE_VERSION=$(grep 'version = "' platform/build.gradle.kts | head -1 | cut -d'"' -f2)
+          echo "gradle_version=$GRADLE_VERSION" >> $GITHUB_OUTPUT
+          echo "📦 Gradle/Kotlin version: $GRADLE_VERSION"
+          
+          # Extract UI version from ui/package.json
+          UI_VERSION=$(grep '"version":' ui/package.json | head -1 | cut -d'"' -f4)
+          echo "ui_version=$UI_VERSION" >> $GITHUB_OUTPUT
+          echo "🎨 UI version: $UI_VERSION"
+          
+          # Determine if this is a stable or dev release
+          if [[ "$GRADLE_VERSION" =~ -dev|-alpha|-beta|-rc|-SNAPSHOT ]]; then
+            echo "is_stable=false" >> $GITHUB_OUTPUT
+            echo "gradle_tag_suffix=dev" >> $GITHUB_OUTPUT
+            echo "🔧 Release Type: Development/Snapshot"
+          else
+            echo "is_stable=true" >> $GITHUB_OUTPUT
+            echo "gradle_tag_suffix=latest" >> $GITHUB_OUTPUT
+            echo "✅ Release Type: Stable"
+          fi
+          
+          if [[ "$UI_VERSION" =~ -dev|-alpha|-beta|-rc|-SNAPSHOT ]]; then
+            echo "ui_tag_suffix=dev" >> $GITHUB_OUTPUT
+          else
+            echo "ui_tag_suffix=latest" >> $GITHUB_OUTPUT
+          fi
+
+      # ============================================
+      # Step 3: Setup Java (OpenJDK 21)
+      # ============================================
+      - name: Set up OpenJDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: 'gradle'
+
+      # ============================================
+      # Step 4: Make Gradlew Executable
+      # ============================================
+      - name: Make gradlew executable
+        run: chmod +x ./platform/gradlew
+        working-directory: .
+
+      # ============================================
+      # Step 5: Build All Gradle Modules
+      # ============================================
+      - name: Build with Gradle
+        run: |
+          if [ "${{ github.event.inputs.skip_tests }}" == "true" ]; then
+            ./gradlew build -x test
+          else
+            ./gradlew build
+          fi
+        working-directory: ./platform
+
+      # ============================================
+      # Step 6: Publish JARs to GitHub Packages
+      # ============================================
+      - name: Publish to GitHub Packages
+        run: ./gradlew publish
+        working-directory: ./platform
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
+
+      # ============================================
+      # Step 7: Set up Docker Buildx (Multi-platform)
+      # ============================================
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # ============================================
+      # Step 8: Login to Docker Hub
+      # ============================================
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # ============================================
+      # Step 9: Build and Push open-responses-server
+      # ============================================
+      - name: Build and push open-responses-server
+        uses: docker/build-push-action@v6
+        with:
+          context: ./platform
+          file: ./platform/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            masaicai/open-responses:${{ steps.versions.outputs.gradle_version }}
+            masaicai/open-responses:${{ steps.versions.outputs.gradle_tag_suffix }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ============================================
+      # Step 10: Build and Push agc-platform-server
+      # ============================================
+      - name: Build and push agc-platform-server
+        uses: docker/build-push-action@v6
+        with:
+          context: ./platform
+          file: ./platform/Dockerfile-platform
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            masaicai/agc-platform-server:${{ steps.versions.outputs.gradle_version }}
+            masaicai/agc-platform-server:${{ steps.versions.outputs.gradle_tag_suffix }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ============================================
+      # Step 11: Build and Push UI
+      # ============================================
+      - name: Build and push platform-ui
+        uses: docker/build-push-action@v6
+        with:
+          context: ./ui
+          file: ./ui/Dockerfile
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            masaicai/platform-ui:${{ steps.versions.outputs.ui_version }}
+            masaicai/platform-ui:${{ steps.versions.outputs.ui_tag_suffix }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ============================================
+      # Step 12: Security Scan with Trivy
+      # ============================================
+      - name: Run Trivy security scan on open-responses
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: masaicai/open-responses:${{ steps.versions.outputs.gradle_version }}
+          format: 'sarif'
+          output: 'trivy-open-responses.sarif'
+        continue-on-error: true
+
+      - name: Run Trivy security scan on agc-platform-server
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: masaicai/agc-platform-server:${{ steps.versions.outputs.gradle_version }}
+          format: 'sarif'
+          output: 'trivy-agc-platform.sarif'
+        continue-on-error: true
+
+      - name: Run Trivy security scan on platform-ui
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: masaicai/platform-ui:${{ steps.versions.outputs.ui_version }}
+          format: 'sarif'
+          output: 'trivy-ui.sarif'
+        continue-on-error: true
+
+      # ============================================
+      # Step 13: Log Image Digests (Audit Trail)
+      # ============================================
+      - name: Log image digests for audit
+        run: |
+          echo "## Image Digests (Audit Trail)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### open-responses:${{ steps.versions.outputs.gradle_version }}" >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect masaicai/open-responses:${{ steps.versions.outputs.gradle_version }} --format '{{json .Manifest}}' | jq -r '.digest' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### agc-platform-server:${{ steps.versions.outputs.gradle_version }}" >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect masaicai/agc-platform-server:${{ steps.versions.outputs.gradle_version }} --format '{{json .Manifest}}' | jq -r '.digest' >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### platform-ui:${{ steps.versions.outputs.ui_version }}" >> $GITHUB_STEP_SUMMARY
+          docker buildx imagetools inspect masaicai/platform-ui:${{ steps.versions.outputs.ui_version }} --format '{{json .Manifest}}' | jq -r '.digest' >> $GITHUB_STEP_SUMMARY
+
+      # ============================================
+      # Step 14: Upload Trivy Results
+      # ============================================
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: '.'
+        continue-on-error: true
+
+      # ============================================
+      # Step 15: Summary
+      # ============================================
+      - name: Publish Summary
+        run: |
+          echo "## 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Release Type:** ${{ steps.versions.outputs.is_stable == 'true' && '✅ Stable' || '🔧 Development' }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Published Artifacts" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### JAR Artifacts (GitHub Packages)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ai.masaic.agc:open-responses-core:${{ steps.versions.outputs.gradle_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ai.masaic.agc:open-responses-rest:${{ steps.versions.outputs.gradle_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ai.masaic.agc:open-responses-server:${{ steps.versions.outputs.gradle_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ai.masaic.agc:agc-platform-core:${{ steps.versions.outputs.gradle_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ai.masaic.agc:agc-platform-rest:${{ steps.versions.outputs.gradle_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`ai.masaic.agc:agc-platform-server:${{ steps.versions.outputs.gradle_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "#### Docker Images (Docker Hub)" >> $GITHUB_STEP_SUMMARY
+          echo "- \`masaicai/open-responses:${{ steps.versions.outputs.gradle_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`masaicai/open-responses:${{ steps.versions.outputs.gradle_tag_suffix }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`masaicai/agc-platform-server:${{ steps.versions.outputs.gradle_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`masaicai/agc-platform-server:${{ steps.versions.outputs.gradle_tag_suffix }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`masaicai/platform-ui:${{ steps.versions.outputs.ui_version }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- \`masaicai/platform-ui:${{ steps.versions.outputs.ui_tag_suffix }}\`" >> $GITHUB_STEP_SUMMARY
+
+  # ============================================
+  # Future: Push to AWS ECR
+  # ============================================
+  # Uncomment and configure when AWS ECR is ready
+  # push-ecr:
+  #   name: Push to AWS ECR
+  #   runs-on: ubuntu-latest
+  #   needs: publish
+  #   if: github.event.inputs.push_to_ecr == 'true'
+  #   steps:
+  #     - name: Configure AWS credentials
+  #       uses: aws-actions/configure-aws-credentials@v4
+  #       with:
+  #         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  #         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  #         aws-region: ap-south-1
+  #
+  #     - name: Login to Amazon ECR
+  #       id: login-ecr
+  #       uses: aws-actions/amazon-ecr-login@v2
+  #
+  #     - name: Tag and push images to ECR
+  #       env:
+  #         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+  #         GRADLE_VERSION: ${{ needs.publish.outputs.gradle_version }}
+  #         UI_VERSION: ${{ needs.publish.outputs.ui_version }}
+  #       run: |
+  #         # Pull from Docker Hub
+  #         docker pull masaicai/open-responses:${GRADLE_VERSION}
+  #         docker pull masaicai/agc-platform-server:${GRADLE_VERSION}
+  #         docker pull masaicai/platform-ui:${UI_VERSION}
+  #         
+  #         # Tag for ECR
+  #         docker tag masaicai/open-responses:${GRADLE_VERSION} ${ECR_REGISTRY}/open-responses:${GRADLE_VERSION}
+  #         docker tag masaicai/agc-platform-server:${GRADLE_VERSION} ${ECR_REGISTRY}/agc-platform-server:${GRADLE_VERSION}
+  #         docker tag masaicai/platform-ui:${UI_VERSION} ${ECR_REGISTRY}/platform-ui:${UI_VERSION}
+  #         
+  #         # Push to ECR
+  #         docker push ${ECR_REGISTRY}/open-responses:${GRADLE_VERSION}
+  #         docker push ${ECR_REGISTRY}/agc-platform-server:${GRADLE_VERSION}
+  #         docker push ${ECR_REGISTRY}/platform-ui:${UI_VERSION}
+
