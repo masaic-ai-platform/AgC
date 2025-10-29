@@ -3,7 +3,7 @@ package ai.masaic.openevals.api.service.runner
 import ai.masaic.openevals.api.model.TestingCriterion
 import ai.masaic.openevals.api.model.TextSimilarityGrader
 import ai.masaic.openevals.api.utils.TemplateUtils
-import com.mitchellbosecke.pebble.PebbleEngine
+import io.pebbletemplates.pebble.PebbleEngine
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 

@@ -3,8 +3,8 @@ package ai.masaic.openevals.api.service.runner
 import ai.masaic.openevals.api.model.StringCheckGrader
 import ai.masaic.openevals.api.model.TestingCriterion
 import ai.masaic.openevals.api.utils.TemplateUtils
-import com.mitchellbosecke.pebble.PebbleEngine
 import io.mockk.*
+import io.pebbletemplates.pebble.PebbleEngine
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith

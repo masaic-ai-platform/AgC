@@ -30,7 +30,7 @@ dependencies {
     }
     api("com.fasterxml.jackson.module:jackson-module-kotlin")
     api("com.fasterxml.jackson.module:jackson-module-jsonSchema")
-    implementation("io.pebbletemplates:pebble:3.1.5")
+    implementation("io.pebbletemplates:pebble:3.2.4")
     api("com.github.ben-manes.caffeine:caffeine:3.2.0")
 //    implementation("org.springframework.boot:spring-boot-starter-aop")
     api("io.projectreactor.kotlin:reactor-kotlin-extensions")
@@ -58,7 +58,7 @@ dependencies {
     api("io.micrometer:micrometer-core")
     implementation("io.micrometer:micrometer-observation")
     implementation("org.apache.tika:tika-core:3.1.0")
-    implementation("org.apache.tika:tika-parsers-standard-package:3.1.0")
+    implementation("org.apache.tika:tika-parsers-standard-package:3.2.3")
     compileOnly("org.springframework.boot:spring-boot-starter-data-mongodb-reactive")
     implementation("net.logstash.logback:logstash-logback-encoder:7.4")
     api("io.github.microutils:kotlin-logging-jvm:3.0.5")
@@ -76,7 +76,7 @@ dependencies {
 
     api(platform("io.modelcontextprotocol.sdk:mcp-bom:0.13.0"))
     api("io.modelcontextprotocol.sdk:mcp-spring-webflux")
-
+    api("io.netty:netty-codec-http2:4.1.124.Final")
 }
 
 kotlin {
