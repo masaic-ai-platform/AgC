@@ -2,7 +2,7 @@ package ai.masaic.openevals.api.utils
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import com.mitchellbosecke.pebble.PebbleEngine
+import io.pebbletemplates.pebble.PebbleEngine
 import org.slf4j.LoggerFactory
 import java.io.StringWriter
 

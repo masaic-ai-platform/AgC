@@ -6,8 +6,8 @@ import com.fasterxml.jackson.core.JsonParseException
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
-import com.mitchellbosecke.pebble.PebbleEngine
-import com.mitchellbosecke.pebble.template.PebbleTemplate
+import io.pebbletemplates.pebble.PebbleEngine
+import io.pebbletemplates.pebble.template.PebbleTemplate
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 import java.io.StringWriter

@@ -1,6 +1,6 @@
 package ai.masaic.openevals.api.config
 
-import com.mitchellbosecke.pebble.PebbleEngine
+import io.pebbletemplates.pebble.PebbleEngine
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 

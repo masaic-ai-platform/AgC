@@ -6,9 +6,9 @@ import ai.masaic.openevals.api.model.SimpleInputMessage
 import ai.masaic.openevals.api.model.TestingCriterion
 import ai.masaic.openevals.api.service.ModelClientService
 import ai.masaic.openevals.api.utils.TemplateUtils
-import com.mitchellbosecke.pebble.PebbleEngine
 import com.openai.models.chat.completions.ChatCompletionCreateParams
 import io.mockk.*
+import io.pebbletemplates.pebble.PebbleEngine
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.extension.ExtendWith
