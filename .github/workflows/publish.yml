@@ -49,20 +49,35 @@ jobs:
         id: versions
         run: |
           GRADLE_VERSION=$(grep 'version = "' platform/build.gradle.kts | head -1 | cut -d'"' -f2)
-          echo "gradle_version=$GRADLE_VERSION" >> $GITHUB_OUTPUT
           UI_VERSION=$(grep '"version":' ui/package.json | head -1 | cut -d'"' -f4)
-          echo "ui_version=$UI_VERSION" >> $GITHUB_OUTPUT
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          
+          # Check if Gradle version is unstable
           if [[ "$GRADLE_VERSION" =~ -dev|-alpha|-beta|-rc|-SNAPSHOT ]]; then
             echo "is_stable=false" >> $GITHUB_OUTPUT
             echo "gradle_tag_suffix=dev" >> $GITHUB_OUTPUT
+            # Append commit SHA to unstable versions for uniqueness
+            GRADLE_VERSION="${GRADLE_VERSION}-${COMMIT_SHA}"
+            echo "gradle_version=$GRADLE_VERSION" >> $GITHUB_OUTPUT
+            echo "📦 Unstable Gradle version detected: $GRADLE_VERSION (with commit SHA)" >> $GITHUB_STEP_SUMMARY
           else
             echo "is_stable=true" >> $GITHUB_OUTPUT
             echo "gradle_tag_suffix=latest" >> $GITHUB_OUTPUT
+            echo "gradle_version=$GRADLE_VERSION" >> $GITHUB_OUTPUT
+            echo "📦 Stable Gradle version detected: $GRADLE_VERSION" >> $GITHUB_STEP_SUMMARY
           fi
+          
+          # Check if UI version is unstable
           if [[ "$UI_VERSION" =~ -dev|-alpha|-beta|-rc|-SNAPSHOT ]]; then
             echo "ui_tag_suffix=dev" >> $GITHUB_OUTPUT
+            # Append commit SHA to unstable UI versions for uniqueness
+            UI_VERSION="${UI_VERSION}-${COMMIT_SHA}"
+            echo "ui_version=$UI_VERSION" >> $GITHUB_OUTPUT
+            echo "🎨 Unstable UI version detected: $UI_VERSION (with commit SHA)" >> $GITHUB_STEP_SUMMARY
           else
             echo "ui_tag_suffix=latest" >> $GITHUB_OUTPUT
+            echo "ui_version=$UI_VERSION" >> $GITHUB_OUTPUT
+            echo "🎨 Stable UI version detected: $UI_VERSION" >> $GITHUB_STEP_SUMMARY
           fi
 
       - name: Set up OpenJDK 21
@@ -78,63 +93,15 @@ jobs:
       - name: Build with Gradle
         run: |
           if [ "${{ github.event.inputs.skip_tests }}" == "true" ]; then
-            ./gradlew build -x test
+            ./gradlew build -x test -Pversion="${{ steps.versions.outputs.gradle_version }}"
           else
-            ./gradlew build
+            ./gradlew build -Pversion="${{ steps.versions.outputs.gradle_version }}"
           fi
         working-directory: ./platform
 
-      - name: Delete existing unstable packages
-        if: steps.versions.outputs.is_stable == 'false'
-        run: |
-          VERSION="${{ steps.versions.outputs.gradle_version }}"
-          PACKAGES=(
-            "open-responses-core"
-            "open-responses-rest"
-            "open-responses-server"
-            "agc-platform-core"
-            "agc-platform-rest"
-            "agc-platform-server"
-            "agc-test-regression-server"
-            "agc-usecases-server"
-          )
-          
-          echo "🗑️  Deleting unstable version packages: $VERSION"
-          echo "This allows overriding unstable versions (dev/alpha/beta/rc/SNAPSHOT)"
-          echo ""
-          
-          for PACKAGE in "${PACKAGES[@]}"; do
-            PACKAGE_NAME="ai.masaic.agc.$PACKAGE"
-            echo "📦 Processing: $PACKAGE_NAME"
-            
-            # Get the package version ID
-            VERSION_ID=$(gh api \
-              -H "Accept: application/vnd.github+json" \
-              -H "X-GitHub-Api-Version: 2022-11-28" \
-              "/orgs/masaic-ai-platform/packages/maven/$PACKAGE_NAME/versions" \
-              --jq ".[] | select(.name == \"$VERSION\") | .id" 2>/dev/null || echo "")
-            
-            if [ -z "$VERSION_ID" ]; then
-              echo "   ℹ️  Version $VERSION not found (first publish or already deleted)"
-            else
-              echo "   🗑️  Deleting version $VERSION (ID: $VERSION_ID)"
-              gh api \
-                --method DELETE \
-                -H "Accept: application/vnd.github+json" \
-                -H "X-GitHub-Api-Version: 2022-11-28" \
-                "/orgs/masaic-ai-platform/packages/maven/$PACKAGE_NAME/versions/$VERSION_ID" \
-                2>/dev/null && echo "   ✅ Deleted successfully" || echo "   ⚠️  Delete failed (may not have permission)"
-            fi
-            echo ""
-          done
-          
-          echo "✅ Cleanup complete - ready for fresh publish"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        continue-on-error: true
 
       - name: Publish to GitHub Packages
-        run: ./gradlew publish
+        run: ./gradlew publish -Pversion="${{ steps.versions.outputs.gradle_version }}"
         working-directory: ./platform
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -273,7 +240,7 @@ jobs:
           echo "**Release Type:** ${{ needs.build-artifacts.outputs.is_stable == 'true' && '✅ Stable' || '🔧 Development' }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           if [ "${{ needs.build-artifacts.outputs.is_stable }}" == "false" ]; then
-            echo "> 💡 **Note:** Unstable versions automatically delete existing packages before publishing, allowing version overrides." >> $GITHUB_STEP_SUMMARY
+            echo "> 💡 **Note:** Unstable versions include commit SHA for uniqueness (e.g., \`0.8.0-dev-fd0ae13\`). This allows multiple builds without conflicts." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
           echo "### Published Artifacts" >> $GITHUB_STEP_SUMMARY
