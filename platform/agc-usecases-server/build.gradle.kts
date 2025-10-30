@@ -7,8 +7,6 @@ plugins {
     id("org.jmailen.kotlinter")
 }
 
-version = "0.5.3-uc"
-
 java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(21))
