@@ -48,9 +48,25 @@ jobs:
       - name: Extract versions
         id: versions
         run: |
-          GRADLE_VERSION=$(grep 'version = "' platform/build.gradle.kts | head -1 | cut -d'"' -f2)
+          # Extract version from the fallback default in build.gradle.kts (?: "x.x.x")
+          GRADLE_VERSION=$(grep '?: "' platform/build.gradle.kts | head -1 | sed 's/.*?: "\([^"]*\)".*/\1/')
           UI_VERSION=$(grep '"version":' ui/package.json | head -1 | cut -d'"' -f4)
           COMMIT_SHA=$(git rev-parse --short HEAD)
+          
+          # Validate versions were extracted
+          if [ -z "$GRADLE_VERSION" ]; then
+            echo "❌ Error: Failed to extract Gradle version from build.gradle.kts"
+            exit 1
+          fi
+          if [ -z "$UI_VERSION" ]; then
+            echo "❌ Error: Failed to extract UI version from package.json"
+            exit 1
+          fi
+          
+          echo "📋 Extracted base versions:"
+          echo "   Gradle: $GRADLE_VERSION"
+          echo "   UI: $UI_VERSION"
+          echo "   Commit: $COMMIT_SHA"
           
           # Check if Gradle version is unstable
           if [[ "$GRADLE_VERSION" =~ -dev|-alpha|-beta|-rc|-SNAPSHOT ]]; then
