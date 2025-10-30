@@ -93,15 +93,15 @@ jobs:
       - name: Build with Gradle
         run: |
           if [ "${{ github.event.inputs.skip_tests }}" == "true" ]; then
-            ./gradlew build -x test -Pversion="${{ steps.versions.outputs.gradle_version }}"
+            ./gradlew build -x test -PbuildVersion="${{ steps.versions.outputs.gradle_version }}"
           else
-            ./gradlew build -Pversion="${{ steps.versions.outputs.gradle_version }}"
+            ./gradlew build -PbuildVersion="${{ steps.versions.outputs.gradle_version }}"
           fi
         working-directory: ./platform
 
 
       - name: Publish to GitHub Packages
-        run: ./gradlew publish -Pversion="${{ steps.versions.outputs.gradle_version }}"
+        run: ./gradlew publish -PbuildVersion="${{ steps.versions.outputs.gradle_version }}"
         working-directory: ./platform
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
