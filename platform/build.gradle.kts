@@ -11,7 +11,8 @@ plugins {
 
 allprojects {
     group = "ai.masaic.agc"
-    version = "0.8.0-dev"
+    // Allow version override from command line (e.g., -Pversion=0.8.0-dev-fd0ae13)
+    version = findProperty("version") as String? ?: "0.8.0-dev"
 
     repositories {
         mavenCentral()
