@@ -649,6 +649,7 @@ const ToolsSelectionModal: React.FC<ToolsSelectionModalProps> = ({
         }}
         onSave={handleClientSideToolSave}
         initialTool={editingClientSideTool?.clientSideToolConfig || null}
+        selectedTools={selectedTools}
       />
     </>
   );

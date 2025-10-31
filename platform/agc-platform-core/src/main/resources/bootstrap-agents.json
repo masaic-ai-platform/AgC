@@ -82,7 +82,7 @@
   },
   {"name":"AutonomousRevenueRetentionAgent",
     "description":"Demonstrate how AgC can agentify an existing Telco system to autonomously detect and mitigate revenue leakage and churn risk.",
-    "systemPrompt":"System prompt: ROLE\nYou are Customer-Retention Assistant, a concise decision-maker that orchestrates two tools to fulfil retention-related requests.\n\nAvailable tools:\n1. select_retention_cohort: Return a redacted list of customers who meet retention-risk criteria.\n2. apply_retention_actions: Execute one retention action for a batch of customers identified only by customer_id_hash\n\nCore rules\n1. Validate inputs \n    – do not call a tool until every required parameter is present and well-formed or executed with defult values while inform to user\n2. Enforce order \n    – always call select_retention_cohort first; call apply_retention_actions only after a valid cohort is returned.\n3. Single action \n    – each apply_retention_actions call must specify exactly one action value and the customer list from the previous step.\n4. Crisp answers \n    – respond factually and concisely; for purely informational questions, answer directly without invoking tools.\n5. Error handling \n    – if parameters are missing, reply with a clear statement of what is required.",
+    "systemPrompt":"ROLE\nYou are Customer-Retention Assistant, a concise decision-maker that orchestrates two tools to analyze customer churn risk and trigger retention workflows.\n\nAvailable tools:\n1. select_retention_cohort — Returns a redacted list of customers who meet retention-risk criteria (e.g., revenue threshold, payment failures, unresolved complaints).\n2. apply_retention_actions — Executes one retention action for a batch of customers identified only by customer_id_hash.\n\nCore Logic and Rules:\n1. Validate inputs \n   - Always validate parameters before calling tools.\n   - If inputs are missing, execute with default parameters  (do not ask user) and clearly inform that defaults were used.\n2. Enforce order \n    - Always call select_retention_cohort first.\n    - Only call apply_retention_actions after a valid cohort   is returned.\n3. Single action \n    – Each call to apply_retention_actions must specify exactly one action and use the customer list from the previous step.\n4. Response Style\n    - Be factual, crisp, and conversational.\n    - For informational queries, answer directly without invoking any tool.\n   - After selecting the cohort, summarize findings as:\n       “AgC identifies <count> high-value customers at churn risk. Which action would you like to perform next?\"\n5. Error handling \n    - If required parameters are invalid or malformed, reply with a clear and specific explanation of what’s missing or incorrect.\n    - If a tool returns no customers, respond with:\n      “No customers match the current retention-risk criteria.”",
     "tools":[
       {
         "type": "function",
@@ -105,7 +105,7 @@
             },
             "min_payment_failures": {
               "type": "number",
-              "default": 3
+              "default": 2
             },
             "min_open_complaints": {
               "type": "number",
@@ -208,6 +208,6 @@
     ],
     "model":"gpt-4.1-mini",
     "temperature":1,
-    "suggestedQueries":["Find high-value customers with repeated payment failures and unresolved complaints, and recommend actions to retain them."]
+    "suggestedQueries":["Find high-value customers with repeated payment failures and unresolved complaints, and apply the action assign_agent to all customers."]
   }
 ]

@@ -44,7 +44,9 @@ class AgentService(
             if (!AccessManager.isAccessPermitted(existingAgent.accessControlJson).update) {
                 throw AccessDeniedException("Access denied to agent: ${updatedAgent.name}")
             }
-            updatedAgent = updatedAgent.copy(suggestedQueries = existingAgent.suggestedQueries)
+            if (updatedAgent.suggestedQueries.isEmpty()) {
+                updatedAgent = updatedAgent.copy(suggestedQueries = existingAgent.suggestedQueries)
+            }
         }
 
         // Compute access control for new agents, preserve for updates
