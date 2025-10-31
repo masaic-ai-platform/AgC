@@ -9,10 +9,13 @@ plugins {
     id("maven-publish")
 }
 
+// Determine the version - allow override from command line
+val projectVersion = (findProperty("buildVersion") as String?)
+    ?.takeIf { it.isNotBlank() } ?: "0.8.0-dev"
+
 allprojects {
     group = "ai.masaic.agc"
-    // Allow version override from command line (e.g., -Pversion=0.8.0-dev-fd0ae13)
-    version = findProperty("version") as String? ?: "0.8.0-dev"
+    version = projectVersion
 
     repositories {
         mavenCentral()
