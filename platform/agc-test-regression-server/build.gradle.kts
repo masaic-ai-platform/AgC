@@ -27,6 +27,7 @@ dependencies {
     implementation(project(":agc-platform-core"))
     implementation(project(":open-responses-rest"))
     implementation(project(":agc-platform-rest"))
+    implementation("org.springframework.boot:spring-boot-starter-data-mongodb-reactive")
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
 }
