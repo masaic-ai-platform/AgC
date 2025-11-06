@@ -636,15 +636,7 @@ class MasaicParameterConverter(
             val easyInputMessage = item.asEasyInputMessage()
             when {
                 easyInputMessage.content().isTextInput() -> {
-                    completionBuilder.addMessage(
-                        ChatCompletionUserMessageParam
-                            .builder()
-                            .content(
-                                ChatCompletionUserMessageParam.Content.ofText(
-                                    easyInputMessage.content().asTextInput(),
-                                ),
-                            ).build(),
-                    )
+                    completionBuilder.addUserMessage(easyInputMessage.content().asTextInput())
                 }
                 easyInputMessage.content().isResponseInputMessageContentList() -> {
                     val contentList = easyInputMessage.content().asResponseInputMessageContentList()
@@ -687,17 +679,19 @@ class MasaicParameterConverter(
             }
         } else if (item.isMessage()) {
             val message = item.asMessage()
-            completionBuilder.addMessage(
-                ChatCompletionUserMessageParam
-                    .builder()
-                    .content(
-                        ChatCompletionUserMessageParam.Content.ofArrayOfContentParts(
-                            prepareUserContent(
-                                message,
-                            ),
-                        ),
-                    ).build(),
-            )
+            val responseInputContents = mutableListOf<ResponseInputContent>()
+            message.content().forEach { content ->
+                if (content.isInputText() && content.asInputText().text().isNotEmpty()) {
+                    completionBuilder.addUserMessage(content.asInputText().text())
+                } else {
+                    responseInputContents.add(content)
+                }
+            }
+
+            if (responseInputContents.isNotEmpty()) {
+                val content = responseInputContents.map { processionInputContent(it) }
+                completionBuilder.addUserMessage(ChatCompletionUserMessageParam.Content.ofArrayOfContentParts(content))
+            }
         }
     }
 

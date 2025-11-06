@@ -89,7 +89,13 @@ object ChatCompletionChunkConverter {
                     .function()
                     .get()
                     .name()
-                    .isPresent
+                    .isPresent &&
+                toolCall
+                    .function()
+                    .get()
+                    .name()
+                    .get()
+                    .isNotEmpty()
             ) {
                 // Create an output item added event for a function call
                 createFunctionCallOutputItemEvent(toolCall, completionId)

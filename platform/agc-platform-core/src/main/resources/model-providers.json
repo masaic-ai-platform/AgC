@@ -98,5 +98,10 @@
     "name": "xAI",
     "description": "xAI models",
     "inferenceBaseUrl": "https://api.x.ai/v1"
+  },
+  {
+    "name": "baseten",
+    "description": "Base10 Inference",
+    "inferenceBaseUrl": "https://inference.baseten.co/v1"
   }
 ]
