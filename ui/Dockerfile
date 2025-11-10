@@ -1,9 +1,13 @@
 # ─── BUILD STAGE ───────────────────────────────────────────────────────────────
 FROM node:18-alpine AS build
+
+# Accept version as build argument
+ARG UI_VERSION=0.8.0-dev
+
 WORKDIR /app
 
 # Set environment variables for build
-ENV VITE_APP_VERSION=0.8.0-dev
+ENV VITE_APP_VERSION=${UI_VERSION}
 
 # Install dependencies for build
 COPY package*.json ./
@@ -17,10 +21,14 @@ RUN npm run build -- --mode prod
 
 # ─── PRODUCTION STAGE ──────────────────────────────────────────────────────────
 FROM gcr.io/distroless/nodejs18-debian12 AS production
+
+# Accept version as build argument
+ARG UI_VERSION=0.8.0-dev
+
 WORKDIR /app
 
 # Set environment variables for runtime
-ENV APP_VERSION=0.8.0-dev
+ENV APP_VERSION=${UI_VERSION}
 
 # Copy built frontend
 COPY --from=build /app/dist ./dist

@@ -156,6 +156,8 @@ jobs:
           file: ./platform/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            BUILD_VERSION=${{ needs.build-artifacts.outputs.gradle_version }}
           tags: |
             masaicai/open-responses:${{ needs.build-artifacts.outputs.gradle_version }}
             masaicai/open-responses:${{ needs.build-artifacts.outputs.gradle_tag_suffix }}
@@ -169,6 +171,8 @@ jobs:
           file: ./platform/Dockerfile-platform
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            BUILD_VERSION=${{ needs.build-artifacts.outputs.gradle_version }}
           tags: |
             masaicai/agc-platform-server:${{ needs.build-artifacts.outputs.gradle_version }}
             masaicai/agc-platform-server:${{ needs.build-artifacts.outputs.gradle_tag_suffix }}
@@ -182,6 +186,8 @@ jobs:
           file: ./ui/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
+          build-args: |
+            UI_VERSION=${{ needs.build-artifacts.outputs.ui_version }}
           tags: |
             masaicai/platform-ui:${{ needs.build-artifacts.outputs.ui_version }}
             masaicai/platform-ui:${{ needs.build-artifacts.outputs.ui_tag_suffix }}
