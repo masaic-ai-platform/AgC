@@ -15,14 +15,15 @@ import reactor.core.publisher.Hooks
  * connecting to these services when they're not explicitly enabled via properties.
  * Redisson will only be configured when open-responses.tool.store.type=redis.
  */
-@SpringBootApplication(
-    excludeName = [
-        "org.springframework.boot.autoconfigure.mongo.MongoReactiveAutoConfiguration",
-        "org.springframework.boot.autoconfigure.data.mongo.MongoReactiveDataAutoConfiguration",
-        "org.springframework.boot.autoconfigure.data.mongo.MongoReactiveRepositoriesAutoConfiguration",
-        "org.redisson.spring.starter.RedissonAutoConfigurationV2",
-    ],
-)
+@SpringBootApplication
+//    (
+//    excludeName = [
+//        "org.springframework.boot.autoconfigure.mongo.MongoReactiveAutoConfiguration",
+//        "org.springframework.boot.autoconfigure.data.mongo.MongoReactiveDataAutoConfiguration",
+//        "org.springframework.boot.autoconfigure.data.mongo.MongoReactiveRepositoriesAutoConfiguration",
+//        "org.redisson.spring.starter.RedissonAutoConfigurationV2",
+//    ],
+// )
 @ConfigurationPropertiesScan
 @EnableScheduling
 class AgCPlatformServer
