@@ -1,6 +1,6 @@
 package ai.masaic.openresponses.api.repository
 
-import ai.masaic.openresponses.api.config.MongoConfig
+import ai.masaic.openresponses.api.config.ResponseStoreConfig
 import ai.masaic.openresponses.api.model.FileCounts
 import ai.masaic.openresponses.api.model.VectorStore
 import ai.masaic.openresponses.api.model.VectorStoreFile
@@ -27,7 +27,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
 
-@SpringBootTest(classes = [MongoConfig::class, MongoVectorStoreRepository::class])
+@SpringBootTest(classes = [ResponseStoreConfig::class, MongoVectorStoreRepository::class])
 @Testcontainers
 @ActiveProfiles("test")
 @TestPropertySource(properties = ["open-responses.store.vector.repository.type=mongodb"])
