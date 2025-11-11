@@ -116,7 +116,7 @@ const ObjectPropertiesModal: React.FC<ObjectPropertiesModalProps> = ({
     const parsedDefaultValue = parseDefaultValue(propertyDefaultValue, propertyType);
     
     const newProperty: PropertyDefinition = {
-      type: propertyType,
+      type: propertyType === 'enum' ? 'string' : propertyType,
       description: propertyDescription.trim() || undefined,
       ...(parsedDefaultValue !== undefined && { default: parsedDefaultValue }),
       ...(propertyType === 'enum' && propertyEnumValues.length > 0 && { enum: propertyEnumValues }),
@@ -137,7 +137,8 @@ const ObjectPropertiesModal: React.FC<ObjectPropertiesModalProps> = ({
     const property = properties[propName];
     setPropertyName(propName);
     setPropertyNameError('');
-    setPropertyType(property.type);
+    // If property has enum values, treat it as enum type in UI (even if saved type is 'string')
+    setPropertyType(property.enum && property.enum.length > 0 ? 'enum' : property.type);
     setPropertyDescription(property.description || '');
     setPropertyDefaultValue(property.default !== undefined ? JSON.stringify(property.default) : '');
     setPropertyEnumValues(property.enum || []);

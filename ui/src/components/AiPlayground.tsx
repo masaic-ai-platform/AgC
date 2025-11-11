@@ -1006,7 +1006,20 @@ const AiPlayground: React.FC = () => {
       console.log('Has client-side tools:', hasClientSideTools(agent));
 
       // Check if agent has client-side tools and show prerequisite dialog
+      // Skip showing dialog if user has dismissed it within the last 14 days
       if (hasClientSideTools(agent)) {
+        const dismissedUntil = localStorage.getItem('clientSideToolsPrerequisiteDismissed');
+        if (dismissedUntil) {
+          const expiryDate = new Date(dismissedUntil);
+          const now = new Date();
+          if (now < expiryDate) {
+            console.log('Prerequisite dialog dismissed until:', expiryDate);
+            return;
+          } else {
+            // Expired, remove from localStorage
+            localStorage.removeItem('clientSideToolsPrerequisiteDismissed');
+          }
+        }
         console.log('Showing prerequisite dialog for agent:', agent.name);
         setPrerequisiteDialogOpen(true);
       }

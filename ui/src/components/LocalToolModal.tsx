@@ -17,6 +17,8 @@ import { apiClient } from '@/lib/api';
 import ObjectPropertiesModal from './ObjectPropertiesModal';
 import ArrayItemsModal from './ArrayItemsModal';
 import EnumValuesModal from './EnumValuesModal';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+// Removed radio group, using switch to match form styling
 
 interface LocalToolModalProps {
   open: boolean;
@@ -82,6 +84,11 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
   const [maxRetryAttempts, setMaxRetryAttempts] = useState(1);
   const [waitTimeInMillis, setWaitTimeInMillis] = useState(60000);
   const [includeExecutionSpecs, setIncludeExecutionSpecs] = useState(false);
+  const [activeTab, setActiveTab] = useState<'form' | 'json'>('form');
+  const [jsonInput, setJsonInput] = useState('');
+  const [isJsonValid, setIsJsonValid] = useState(false);
+  const [jsonError, setJsonError] = useState('');
+  const [executionSpecsEditableJson, setExecutionSpecsEditableJson] = useState(false);
 
   // Property editing state
   const [propertyName, setPropertyName] = useState('');
@@ -102,6 +109,8 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
   // Load existing tool configuration when editing
   useEffect(() => {
     if (open) {
+      // Always default to Form Editor when opening the modal
+      setActiveTab('form');
       if (initialTool) {
         setName(initialTool.name || '');
         setNameError('');
@@ -139,6 +148,7 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
       } else {
         resetForm();
       }
+      // Do not prefill JSON editor; placeholder acts as non-editable hint until user types
     }
   }, [open, initialTool]);
 
@@ -154,6 +164,50 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
       return 'Function name must start with a letter and can only contain letters, numbers, and underscores (e.g., add_two_numbers)';
     }
     return '';
+  };
+
+  const handleSaveFromJson = () => {
+    const parsed = parseOpenAiFunctionSchema(jsonInput);
+    if (!parsed) return;
+
+    const props = { ...parsed.parameters.properties } as Record<string, PropertyDefinition>;
+    (props as any).execution_specs = buildExecutionSpecsProperty();
+
+    const tool: LocalTool = {
+      ...parsed,
+      parameters: {
+        ...parsed.parameters,
+        properties: props,
+        required: (parsed.parameters.required || []).filter((r) => r !== 'execution_specs'),
+      },
+    };
+
+    const existingTools = localStorage.getItem('platform_client_side_tools');
+    let toolsMap: { [key: string]: LocalTool } = {};
+    if (existingTools) {
+      try {
+        const existingArray = JSON.parse(existingTools);
+        if (Array.isArray(existingArray)) {
+          existingArray.forEach((t: LocalTool) => {
+            toolsMap[t.name] = t;
+          });
+        } else {
+          toolsMap = existingArray;
+        }
+      } catch (error) {
+        console.error('Failed to parse existing tools:', error);
+      }
+    }
+
+    toolsMap[tool.name] = tool;
+    localStorage.setItem('platform_client_side_tools', JSON.stringify(toolsMap));
+
+    toast.success(`Client-side tool "${tool.name}" saved successfully!`);
+    setShowDownloadButton(true);
+    onSave(tool);
+    setLastCreatedToolName(tool.name);
+    onOpenChange(false);
+    if (!isEditing) setDownloadModalOpen(true);
   };
 
   const handleNameChange = (value: string) => {
@@ -305,6 +359,11 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     setMaxRetryAttempts(1);
     setWaitTimeInMillis(60000);
     setIncludeExecutionSpecs(false);
+    // Ensure JSON editor is clean for create mode
+    setJsonInput('');
+    setJsonError('');
+    setIsJsonValid(false);
+    setExecutionSpecsEditableJson(false);
   };
 
   const handleAddProperty = () => {
@@ -448,7 +507,8 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     }
 
     // Build parameters object
-    const finalParameters = { ...parameters };
+    const finalParameters = { ...parameters } as Record<string, PropertyDefinition>;
+    (finalParameters as any).execution_specs = buildExecutionSpecsProperty();
     
     // Create execution specs object - always save the current values
     const executionSpecs = {
@@ -634,6 +694,148 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
     return JSON.stringify(tool, null, 2);
   };
 
+  const buildExecutionSpecsProperty = (): PropertyDefinition => {
+    return {
+      type: 'object',
+      properties: {
+        type: { type: 'string', enum: [executionType] } as any,
+        maxRetryAttempts: { type: 'number', enum: [maxRetryAttempts] } as any,
+        waitTimeInMillis: { type: 'number', enum: [waitTimeInMillis] } as any,
+      } as any,
+    } as any;
+  };
+
+  const parseOpenAiFunctionSchema = (raw: string): LocalTool | null => {
+    let obj: any;
+    try {
+      obj = JSON.parse(raw);
+    } catch (e) {
+      toast.error('Invalid JSON');
+      return null;
+    }
+
+    let fn: any = null;
+    if (obj && obj.type === 'function' && obj.function && typeof obj.function === 'object') {
+      fn = obj.function;
+    } else if (obj && obj.type === 'function' && obj.name && obj.parameters) {
+      fn = { name: obj.name, description: obj.description, parameters: obj.parameters, strict: obj.strict };
+    } else if (obj && obj.name && obj.parameters) {
+      fn = obj;
+    }
+
+    if (!fn) {
+      toast.error('Schema must be an OpenAI function tool');
+      return null;
+    }
+
+    const candidateName = (fn.name || '').trim();
+    const nameValidationError = validateFunctionName(candidateName);
+    if (nameValidationError) {
+      toast.error(nameValidationError);
+      return null;
+    }
+
+    if (!fn.description || typeof fn.description !== 'string' || !fn.description.trim()) {
+      toast.error('Function description is required');
+      return null;
+    }
+
+    const params = fn.parameters;
+    if (!params || typeof params !== 'object' || params.type !== 'object') {
+      toast.error('parameters.type must be "object"');
+      return null;
+    }
+
+    const props: Record<string, PropertyDefinition> = (params.properties || {}) as any;
+    const req: string[] = Array.isArray(params.required) ? params.required : [];
+    const addl: boolean = !!params.additionalProperties;
+    const strictFlag: boolean = fn.strict === undefined ? true : !!fn.strict;
+
+    if (props.execution_specs) {
+      delete (props as any).execution_specs;
+    }
+
+    const tool: LocalTool = {
+      type: 'function',
+      name: candidateName,
+      description: fn.description.trim(),
+      parameters: {
+        type: 'object',
+        properties: props,
+        required: req.filter((r) => r !== 'execution_specs'),
+        additionalProperties: addl,
+      },
+      strict: strictFlag,
+      executionSpecs: {
+        type: executionType,
+        maxRetryAttempts,
+        waitTimeInMillis,
+      },
+    };
+
+    return tool;
+  };
+
+  const getAugmentedJsonPreviewFromJsonInput = () => {
+    try {
+      const parsed = parseOpenAiFunctionSchema(jsonInput);
+      if (!parsed) return '';
+      const props = { ...parsed.parameters.properties } as Record<string, PropertyDefinition>;
+      (props as any).execution_specs = buildExecutionSpecsProperty();
+      const tool = {
+        type: 'function',
+        name: parsed.name,
+        description: parsed.description,
+        parameters: {
+          type: 'object',
+          properties: props,
+          required: (parsed.parameters.required || []).filter((r) => r !== 'execution_specs'),
+          additionalProperties: parsed.parameters.additionalProperties,
+        },
+        strict: parsed.strict,
+      } as any;
+      return JSON.stringify(tool, null, 2);
+    } catch {
+      return '';
+    }
+  };
+
+  // Silent validation for enabling the save button in JSON tab
+  const getOpenAiSchemaValidationError = (raw: string): string => {
+    if (!raw.trim()) return 'Paste a function schema to continue';
+    try {
+      const obj = JSON.parse(raw);
+      let fn: any = null;
+      if (obj && obj.type === 'function' && obj.function && typeof obj.function === 'object') {
+        fn = obj.function;
+      } else if (obj && obj.type === 'function' && obj.name && obj.parameters) {
+        fn = { name: obj.name, description: obj.description, parameters: obj.parameters, strict: obj.strict };
+      } else if (obj && obj.name && obj.parameters) {
+        fn = obj;
+      }
+      if (!fn) return 'Schema must be an OpenAI function tool';
+      const candidateName = (fn.name || '').trim();
+      const nameErr = validateFunctionName(candidateName);
+      if (nameErr) return nameErr;
+      if (!fn.description || typeof fn.description !== 'string' || !fn.description.trim()) return 'Function description is required';
+      const params = fn.parameters;
+      if (!params || typeof params !== 'object') return 'parameters must be an object';
+      if (params.type !== 'object') return 'parameters.type must be "object"';
+      return '';
+    } catch (e: any) {
+      const msg = typeof e?.message === 'string' ? e.message.split('\n')[0] : 'Invalid JSON';
+      return `Invalid JSON: ${msg}`;
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'json') {
+      const err = getOpenAiSchemaValidationError(jsonInput);
+      setJsonError(err);
+      setIsJsonValid(!err);
+    }
+  }, [activeTab, jsonInput]);
+
   return (
     <>
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -675,7 +877,9 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-6">
+        {isEditing ? (
+          // Edit mode: show only Form Editor content
+          <div className="grid grid-cols-2 gap-6">
           {/* Left Column - Configuration */}
           <div className="space-y-6">
             {/* Function Name */}
@@ -1142,7 +1346,519 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
               </pre>
             </div>
           </div>
+          </div>
+        ) : (
+          // Create mode: show tabs for Form and JSON editors
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} defaultValue="form">
+            <div className="flex items-center justify-between mb-2">
+              <TabsList>
+                <TabsTrigger value="form" className="data-[state=active]:bg-positive-trend data-[state=active]:text-white">Form Editor</TabsTrigger>
+                <TabsTrigger value="json" className="data-[state=active]:bg-positive-trend data-[state=active]:text-white">JSON Editor</TabsTrigger>
+              </TabsList>
+            </div>
+
+            <TabsContent value="form">
+        <div className="grid grid-cols-2 gap-6">
+          {/* Left Column - Configuration */}
+          <div className="space-y-6">
+            {/* Function Name */}
+            <div className="space-y-2">
+              <Label htmlFor="name" className="text-sm font-medium">
+                Function Name *
+              </Label>
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => handleNameChange(e.target.value)}
+                placeholder="add_two_numbers"
+                readOnly={isEditing}
+                disabled={isEditing}
+                className={`bg-muted/50 border focus:border-positive-trend/60 ${
+                  nameError ? 'border-red-500 focus:border-red-500' : 'border-border'
+                } ${isEditing ? 'opacity-70 cursor-not-allowed' : ''}`}
+              />
+              {nameError && (
+                <p className="text-xs text-red-500 mt-1">{nameError}</p>
+              )}
+            </div>
+            {/* Description */}
+            <div className="space-y-2">
+              <Label htmlFor="description" className="text-sm font-medium">
+                Description *
+              </Label>
+              <Textarea
+                id="description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Describe what this function does..."
+                className="min-h-[80px] bg-muted/50 border border-border focus:border-positive-trend/60"
+              />
+            </div>
+            {/* Add/Edit Property Section */}
+            <div className="space-y-3 p-4 bg-muted/30 rounded-lg border border-border">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">
+                  {editingPropertyName ? 'Edit Parameter' : 'Add Parameter'}
+                </Label>
+                {editingPropertyName && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleCancelEdit}
+                    className="h-6 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Cancel Edit
+                  </Button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <Input
+                    value={propertyName}
+                    onChange={(e) => handlePropertyNameChange(e.target.value)}
+                    placeholder="Property name (e.g., 'a')"
+                    className={`bg-background ${
+                      propertyNameError ? 'border-red-500 focus:border-red-500' : ''
+                    }`}
+                    disabled={editingPropertyName !== null}
+                  />
+                  {propertyNameError && (
+                    <p className="text-xs text-red-500">{propertyNameError}</p>
+                  )}
+                </div>
+                <select
+                  value={propertyType}
+                  onChange={(e) => setPropertyType(e.target.value)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="string">String</option>
+                  <option value="number">Number</option>
+                  <option value="boolean">Boolean</option>
+                  <option value="object">Object</option>
+                  <option value="array">Array</option>
+                  <option value="enum">Enum</option>
+                </select>
+              </div>
+              <Input
+                value={propertyDescription}
+                onChange={(e) => setPropertyDescription(e.target.value)}
+                placeholder="Description (optional)"
+                className="bg-background"
+              />
+              <div className="space-y-1">
+                <Input
+                  value={propertyDefaultValue}
+                  onChange={(e) => setPropertyDefaultValue(e.target.value)}
+                  placeholder={
+                    propertyType === 'string' ? 'Enter default string value' :
+                    propertyType === 'number' ? 'Enter default number (e.g., 42)' :
+                    propertyType === 'boolean' ? 'Enter default boolean value (true or false)' :
+                    propertyType === 'object' ? 'Enter default JSON object (e.g., {"key": "value"})' :
+                    propertyType === 'array' ? 'Enter default JSON array (e.g., ["item1", "item2"])' :
+                    propertyType === 'enum' ? 'Enter default enum value from the list below' :
+                    'Enter default value'
+                  }
+                  className="bg-background text-sm"
+                />
+              </div>
+              {propertyType === 'enum' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Enum Values</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={addEnumValue}
+                      className="h-6 text-xs"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Value
+                    </Button>
+                  </div>
+                  {propertyEnumValues.length > 0 ? (
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                      {propertyEnumValues.map((value, index) => (
+                        <div key={index} className="flex items-center justify-between p-2 bg-muted/50 rounded border">
+                          <span className="text-sm font-mono">{value}</span>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => removeEnumValue(index)}
+                            className="h-6 w-6 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      No enum values defined. Click "Add Value" to add options.
+                    </p>
+                  )}
+                </div>
+              )}
+              {propertyType === 'object' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Object Properties</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setObjectModalOpen(true)}
+                      className="h-6 text-xs"
+                    >
+                      {Object.keys(propertyObjectProperties).length > 0 ? (
+                        <>
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Edit Properties
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-3 w-3 mr-1" />
+                          Define Properties
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {Object.keys(propertyObjectProperties).length > 0 ? (
+                    <div className="space-y-1 max-h-24 overflow-y-auto">
+                      {Object.entries(propertyObjectProperties).map(([propName, propDef]) => (
+                        <div key={propName} className="flex items-center justify-between p-2 bg-muted/50 rounded border">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-sm font-mono">{propName}</span>
+                            <span className="text-xs text-muted-foreground px-1 py-0.5 bg-background rounded">
+                              {propDef.type}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      No properties defined. Click "Define Properties" to add object structure.
+                    </p>
+                  )}
+                </div>
+              )}
+              {propertyType === 'array' && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs text-muted-foreground">Array Items</Label>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setArrayModalOpen(true)}
+                      className="h-6 text-xs"
+                    >
+                      {propertyArrayItems ? (
+                        <>
+                          <Pencil className="h-3 w-3 mr-1" />
+                          Edit Items
+                        </>
+                      ) : (
+                        <>
+                          <Plus className="h-3 w-3 mr-1" />
+                          Define Items
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                  {propertyArrayItems ? (
+                    <div className="p-2 bg-muted/50 rounded border">
+                      <div className="flex items-center space-x-2">
+                        <span className="text-sm font-medium">Items Type:</span>
+                        <span className="text-xs text-muted-foreground px-2 py-0.5 bg-background rounded">
+                          {propertyArrayItems.type}
+                        </span>
+                      </div>
+                      {propertyArrayItems.description && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {propertyArrayItems.description}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">
+                      No items defined. Click "Define Items" to specify array item structure.
+                    </p>
+                  )}
+                </div>
+              )}
+              <Button
+                size="sm"
+                onClick={handleAddProperty}
+                className="w-full bg-positive-trend hover:bg-positive-trend/90 text-white"
+              >
+                {editingPropertyName ? (
+                  <>
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Update Parameter
+                  </>
+                ) : (
+                  <>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Parameter
+                  </>
+                )}
+              </Button>
+              {!editingPropertyName && (
+                <div className="text-xs text-muted-foreground bg-blue-50 border border-blue-200 rounded-md p-2 mt-2">
+                  <div className="flex items-center space-x-1">
+                    <div className="w-1.5 h-1.5 bg-blue-500 rounded-full"></div>
+                    <span>New parameters are required by default</span>
+                  </div>
+                </div>
+              )}
+            </div>
+            {Object.keys(parameters).length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Parameters</Label>
+                <div className="space-y-2 max-h-[200px] overflow-y-auto">
+                  {Object.entries(parameters).map(([propName, propDef]) => (
+                    <div
+                      key={propName}
+                      className={`flex items-center justify-between p-3 rounded-md border transition-all ${
+                        editingPropertyName === propName
+                          ? 'bg-positive-trend/10 border-positive-trend/40'
+                          : 'bg-muted/50 border-border'
+                      }`}
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-2 flex-wrap">
+                          <span className="font-mono text-sm font-medium">{propName}</span>
+                          <span className="text-xs text-muted-foreground px-2 py-0.5 bg-background rounded">
+                            {propDef.enum && propDef.enum.length > 0 ? 'enum' : propDef.type}
+                          </span>
+                          {propDef.default !== undefined && (
+                            <span className="text-xs text-green-600 px-2 py-0.5 bg-green-50 rounded border border-green-200">
+                              default: {typeof propDef.default === 'string' ? `"${propDef.default}"` : JSON.stringify(propDef.default)}
+                            </span>
+                          )}
+                        </div>
+                        {propDef.description && (
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {propDef.description}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={requiredFields.includes(propName)}
+                            onChange={() => handleToggleRequired(propName)}
+                            className="w-4 h-4 rounded border-gray-300 text-positive-trend focus:ring-positive-trend"
+                          />
+                          <span className="text-xs text-muted-foreground">Required</span>
+                        </label>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleEditProperty(propName)}
+                          className="h-8 w-8 p-0 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
+                          title="Edit parameter"
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleRemoveProperty(propName)}
+                          className="h-8 w-8 p-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                          title="Delete parameter"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {/* Execution Specs Section */}
+            <div className="space-y-3 p-4 bg-muted/30 rounded-lg border border-border">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-medium">Execution Specs (Optional)</Label>
+                <Switch
+                  checked={includeExecutionSpecs}
+                  onCheckedChange={setIncludeExecutionSpecs}
+                />
+              </div>
+              {includeExecutionSpecs && (
+                <div className="space-y-3 pt-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="executionType" className="text-xs">Execution Type</Label>
+                    <Input
+                      id="executionType"
+                      value={executionType}
+                      readOnly
+                      disabled
+                      placeholder="client_side"
+                      className="bg-background text-sm opacity-70 cursor-not-allowed"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="maxRetry" className="text-xs">Max Retry Attempts</Label>
+                    <Input
+                      id="maxRetry"
+                      type="number"
+                      value={maxRetryAttempts}
+                      onChange={(e) => setMaxRetryAttempts(Number(e.target.value))}
+                      className="bg-background text-sm"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="waitTime" className="text-xs">Wait Time (milliseconds)</Label>
+                    <Input
+                      id="waitTime"
+                      type="number"
+                      value={waitTimeInMillis}
+                      onChange={(e) => setWaitTimeInMillis(Number(e.target.value))}
+                      className="bg-background text-sm"
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+            {/* Options */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
+                <Label htmlFor="strict" className="text-sm font-medium cursor-pointer">
+                  Strict Mode
+                </Label>
+                <Switch
+                  id="strict"
+                  checked={strict}
+                  onCheckedChange={setStrict}
+                />
+              </div>
+              <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg border border-border">
+                <Label htmlFor="additionalProps" className="text-sm font-medium cursor-pointer">
+                  Allow Additional Properties
+                </Label>
+                <Switch
+                  id="additionalProps"
+                  checked={additionalProperties}
+                  onCheckedChange={setAdditionalProperties}
+                />
+              </div>
+            </div>
+          </div>
+          {/* Right Column - JSON Preview */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium">JSON Preview</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                title="Copy JSON to clipboard"
+                onClick={() => copyToClipboard(getJsonPreview(), 'JSON')}
+              >
+                <Copy className="h-3 w-3 text-muted-foreground" />
+              </Button>
+            </div>
+            <div className="bg-gray-900 rounded-lg p-4 border border-border overflow-auto max-h-[calc(90vh-200px)]">
+              <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
+                {getJsonPreview()}
+              </pre>
+            </div>
+          </div>
         </div>
+            </TabsContent>
+
+            <TabsContent value="json">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+              {/* Left: Paste schema and Execution Specs */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Paste Function Schema</Label>
+                <Textarea
+                  value={jsonInput}
+                  onChange={(e) => setJsonInput(e.target.value)}
+                  className="min-h-[360px] bg-background border border-input font-mono text-xs focus-visible:ring-2 focus-visible:ring-ring placeholder:text-muted-foreground"
+                  placeholder={getJsonPreview()}
+                />
+                {jsonError && (
+                  <div className="text-xs text-red-500">
+                    {jsonError}
+                  </div>
+                )}
+                {/* Execution Specs below textarea, collapsible */}
+                <div className="space-y-3 p-4 bg-background rounded-xl border border-border shadow-sm">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-sm font-medium">Execution Specs (Optional)</Label>
+                      <Switch
+                        checked={executionSpecsEditableJson}
+                        onCheckedChange={setExecutionSpecsEditableJson}
+                      />
+                    </div>
+                    {executionSpecsEditableJson && (
+                      <div className="space-y-3 pt-2">
+                        <div className="space-y-2">
+                          <Label htmlFor="executionTypeJson" className="text-xs">Execution Type</Label>
+                          <Input
+                            id="executionTypeJson"
+                            value={executionType}
+                            readOnly
+                            disabled
+                            placeholder="client_side"
+                            className="bg-background text-sm opacity-70 cursor-not-allowed"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="maxRetryJson" className="text-xs">Max Retry Attempts</Label>
+                          <Input
+                            id="maxRetryJson"
+                            type="number"
+                            value={maxRetryAttempts}
+                            onChange={(e) => setMaxRetryAttempts(Number(e.target.value))}
+                            className="bg-background text-sm"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="waitTimeJson" className="text-xs">Wait Time (milliseconds)</Label>
+                          <Input
+                            id="waitTimeJson"
+                            type="number"
+                            value={waitTimeInMillis}
+                            onChange={(e) => setWaitTimeInMillis(Number(e.target.value))}
+                            className="bg-background text-sm"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+              </div>
+
+              {/* Right: JSON Preview 50% */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label className="text-sm font-medium">JSON Preview</Label>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 w-6 p-0"
+                    title="Copy JSON to clipboard"
+                    onClick={() => copyToClipboard(getAugmentedJsonPreviewFromJsonInput(), 'JSON')}
+                  >
+                    <Copy className="h-3 w-3 text-muted-foreground" />
+                  </Button>
+                </div>
+                <div className="bg-gray-900 rounded-lg p-4 border border-border overflow-auto max-h-[calc(90vh-200px)] min-h-[360px]">
+                  <pre className="text-xs text-green-400 font-mono whitespace-pre-wrap">
+                    {isJsonValid ? (isEditing ? jsonInput : getAugmentedJsonPreviewFromJsonInput()) : ''}
+                  </pre>
+                </div>
+              </div>
+            </div>
+            </TabsContent>
+          </Tabs>
+        )}
 
         {/* Footer */}
         <div className="flex items-center justify-end space-x-2 pt-4 border-t">
@@ -1154,13 +1870,8 @@ const LocalToolModal: React.FC<LocalToolModalProps> = ({
             Cancel
           </Button>
           <Button
-            onClick={handleSave}
-            disabled={!isFormValid()}
-            className={`${
-              isFormValid() 
-                ? 'bg-positive-trend hover:bg-positive-trend/90 text-white' 
-                : 'bg-gray-400 text-gray-200 cursor-not-allowed'
-            }`}
+            onClick={() => (isEditing ? handleSave() : (activeTab === 'json' ? handleSaveFromJson() : handleSave()))}
+            disabled={isEditing ? !isFormValid() : (activeTab === 'json' ? !isJsonValid : !isFormValid())}
           >
             {isEditing ? 'Update Tool' : 'Create Tool'}
           </Button>

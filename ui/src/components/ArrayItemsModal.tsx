@@ -51,7 +51,8 @@ const ArrayItemsModal: React.FC<ArrayItemsModalProps> = ({
     if (open) {
       if (initialItems) {
         setItems(initialItems);
-        setPropertyType(initialItems.type);
+        // If property has enum values, treat it as enum type in UI (even if saved type is 'string')
+        setPropertyType(initialItems.enum && initialItems.enum.length > 0 ? 'enum' : initialItems.type);
         setPropertyDescription(initialItems.description || '');
         setPropertyDefaultValue(initialItems.default !== undefined ? JSON.stringify(initialItems.default) : '');
         setPropertyEnumValues(initialItems.enum || []);
@@ -120,7 +121,7 @@ const ArrayItemsModal: React.FC<ArrayItemsModalProps> = ({
     const parsedDefaultValue = parseDefaultValue(propertyDefaultValue, propertyType);
     
     const newItems: PropertyDefinition = {
-      type: propertyType,
+      type: propertyType === 'enum' ? 'string' : propertyType,
       description: propertyDescription.trim() || undefined,
       ...(parsedDefaultValue !== undefined && { default: parsedDefaultValue }),
       ...(propertyType === 'enum' && propertyEnumValues.length > 0 && { enum: propertyEnumValues }),
@@ -134,7 +135,8 @@ const ArrayItemsModal: React.FC<ArrayItemsModalProps> = ({
   const handleCancel = () => {
     if (initialItems) {
       setItems(initialItems);
-      setPropertyType(initialItems.type);
+      // If property has enum values, treat it as enum type in UI (even if saved type is 'string')
+      setPropertyType(initialItems.enum && initialItems.enum.length > 0 ? 'enum' : initialItems.type);
       setPropertyDescription(initialItems.description || '');
       setPropertyDefaultValue(initialItems.default !== undefined ? JSON.stringify(initialItems.default) : '');
       setPropertyEnumValues(initialItems.enum || []);

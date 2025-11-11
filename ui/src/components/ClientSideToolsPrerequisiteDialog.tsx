@@ -9,6 +9,9 @@ import {
 import { AlertTriangle, Eye, EyeOff, Copy, Check } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { apiClient } from '@/lib/api';
 
 interface ClientSideToolsPrerequisiteDialogProps {
@@ -27,6 +30,7 @@ const ClientSideToolsPrerequisiteDialog: React.FC<ClientSideToolsPrerequisiteDia
   const [isLoading, setIsLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [isCopied, setIsCopied] = React.useState(false);
+  const [rememberMe, setRememberMe] = React.useState(false);
 
   const fetchCredentials = async () => {
     setIsLoading(true);
@@ -45,6 +49,8 @@ const ClientSideToolsPrerequisiteDialog: React.FC<ClientSideToolsPrerequisiteDia
   React.useEffect(() => {
     if (open && agentName) {
       fetchCredentials();
+      // Reset checkbox state when dialog opens
+      setRememberMe(false);
     }
   }, [open, agentName]);
 
@@ -59,8 +65,18 @@ const ClientSideToolsPrerequisiteDialog: React.FC<ClientSideToolsPrerequisiteDia
     }
   };
 
+  const handleClose = (open: boolean) => {
+    if (!open && rememberMe) {
+      // Store the preference in localStorage with timestamp (14 days from now)
+      const expiryDate = new Date();
+      expiryDate.setDate(expiryDate.getDate() + 14);
+      localStorage.setItem('clientSideToolsPrerequisiteDismissed', expiryDate.toISOString());
+    }
+    onOpenChange(open);
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-2xl">
         <DialogHeader>
           <div className="flex items-center gap-2">
@@ -197,6 +213,22 @@ const ClientSideToolsPrerequisiteDialog: React.FC<ClientSideToolsPrerequisiteDia
               </div>
             </div>
           </div>
+        </div>
+
+        <Separator className="my-4" />
+
+        <div className="flex items-center space-x-2">
+          <Checkbox
+            id="remember-me"
+            checked={rememberMe}
+            onCheckedChange={(checked) => setRememberMe(checked === true)}
+          />
+          <Label
+            htmlFor="remember-me"
+            className="text-sm font-normal cursor-pointer text-muted-foreground"
+          >
+            Don't show this again for 14 days
+          </Label>
         </div>
       </DialogContent>
     </Dialog>
