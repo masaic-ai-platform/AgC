@@ -79,8 +79,7 @@ services:
       - "6644:6644"
     environment:
       - OPEN_RESPONSES_STORE_TYPE=mongodb
-      - OPEN_RESPONSES_MONGODB_URI=mongodb://mongo:27017
-      - OPEN_RESPONSES_MONGODB_DATABASE=${OPEN_RESPONSES_MONGODB_DATABASE:-open_responses}
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo:27017/open_responses
     depends_on:
       - mongo
     restart: unless-stopped
@@ -104,8 +103,7 @@ services:
       - OPEN_RESPONSES_STORE_VECTOR_SEARCH_COLLECTION_NAME=${OPEN_RESPONSES_STORE_VECTOR_SEARCH_COLLECTION_NAME:-open_responses}
       - OPEN_RESPONSES_STORE_VECTOR_REPOSITORY_TYPE=mongodb
       - OPEN_RESPONSES_STORE_TYPE=mongodb
-      - OPEN_RESPONSES_MONGODB_URI=mongodb://mongo:27017
-      - OPEN_RESPONSES_MONGODB_DATABASE=${OPEN_RESPONSES_MONGODB_DATABASE:-open_responses}
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo:27017/open_responses
     depends_on:
       - mongo
       - qdrant
@@ -130,8 +128,7 @@ services:
       - OPEN_RESPONSES_STORE_VECTOR_SEARCH_COLLECTION_NAME=${OPEN_RESPONSES_STORE_VECTOR_SEARCH_COLLECTION_NAME:-open_responses}
       - OPEN_RESPONSES_STORE_VECTOR_REPOSITORY_TYPE=mongodb
       - OPEN_RESPONSES_STORE_TYPE=mongodb
-      - OPEN_RESPONSES_MONGODB_URI=${OPEN_RESPONSES_MONGODB_URI:-mongodb://mongo:27017}
-      - OPEN_RESPONSES_MONGODB_DATABASE=${OPEN_RESPONSES_MONGODB_DATABASE:-open_responses}
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo:27017/open_responses
     restart: unless-stopped
     profiles:
       - external
@@ -179,8 +176,7 @@ services:
       - OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_USE_TLS=${OPEN_RESPONSES_STORE_VECTOR_SEARCH_QDRANT_USE_TLS:-false}
       - OPEN_RESPONSES_STORE_VECTOR_SEARCH_COLLECTION_NAME=${OPEN_RESPONSES_STORE_VECTOR_SEARCH_COLLECTION_NAME:-open_responses}
       - OPEN_RESPONSES_STORE_TYPE=mongodb
-      - OPEN_RESPONSES_MONGODB_URI=mongodb://mongo:27017
-      - OPEN_RESPONSES_MONGODB_DATABASE=${OPEN_RESPONSES_MONGODB_DATABASE:-open_responses}
+      - SPRING_DATA_MONGODB_URI=mongodb://mongo:27017/open_responses
     depends_on:
       - mongo
       - qdrant
