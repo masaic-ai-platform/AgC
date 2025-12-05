@@ -2,6 +2,7 @@ package ai.masaic.openresponses.api.service.embedding
 
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty
 import org.springframework.boot.context.properties.ConfigurationProperties
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import org.springframework.context.annotation.Primary
@@ -33,6 +34,7 @@ data class EmbeddingProperties(
  * Configuration for embedding models.
  */
 @Configuration
+@EnableConfigurationProperties(EmbeddingProperties::class)
 class OpenAiEmbeddingConfiguration {
     /**
      * Creates an OpenAI embedding service when openai.embeddings.enabled is true.

@@ -2,7 +2,7 @@
 FROM bellsoft/liberica-openjre-alpine-musl:21
 
 # Accept version as build argument
-ARG BUILD_VERSION=0.8.0
+ARG BUILD_VERSION=0.8.1
 
 RUN addgroup -S app && adduser -S app -G app
 USER app
