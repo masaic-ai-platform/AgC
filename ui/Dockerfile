@@ -2,7 +2,7 @@
 FROM node:18-alpine AS build
 
 # Accept version as build argument
-ARG UI_VERSION=0.8.0
+ARG UI_VERSION=0.8.1
 
 WORKDIR /app
 

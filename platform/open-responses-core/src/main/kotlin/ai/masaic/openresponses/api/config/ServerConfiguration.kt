@@ -12,6 +12,7 @@ import ai.masaic.openresponses.tool.mcp.MCPToolExecutor
 import ai.masaic.openresponses.tool.mcp.MCPToolRegistry
 import com.fasterxml.jackson.databind.ObjectMapper
 import io.micrometer.core.instrument.MeterRegistry
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry
 import io.micrometer.observation.ObservationRegistry
 import io.opentelemetry.api.OpenTelemetry
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
@@ -23,6 +24,14 @@ import org.springframework.core.io.ResourceLoader
 class ServerConfiguration {
     @Bean
     fun deploymentSettings(): DeploymentSettings = DeploymentSettings(System.getenv("OPENAI_BASE_URL"))
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun noOpRegistry(): ObservationRegistry = ObservationRegistry.NOOP
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun meterRegistry(): MeterRegistry = SimpleMeterRegistry()
 
     @Bean
     @ConditionalOnMissingBean
