@@ -9,7 +9,7 @@ USER app
 
 WORKDIR /app
 
-fixed d# Copy the built JAR with a fixed name
+# Copy the built JAR with a fixed name
 COPY agc-platform-server/build/libs/agc-platform-server-${BUILD_VERSION}.jar /app/agc-platform-server.jar
 
 # Copy the agc-client-runtime/java-sdk directory
