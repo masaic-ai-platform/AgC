@@ -29,6 +29,7 @@ import mu.KotlinLogging
 import org.springframework.beans.factory.annotation.Value
 import java.time.Duration
 import kotlin.jvm.optionals.getOrDefault
+import kotlin.jvm.optionals.getOrElse
 
 open class TelemetryService(
     private val observationRegistry: ObservationRegistry,
@@ -999,7 +1000,11 @@ open class TelemetryService(
                                         .get()
                                         .content()
                                         .asArrayOfContentParts()
-                                        .joinToString("\n") { it.asText().text() },
+                                        .joinToString("\n") {
+                                            if (it.isText())it.asText().text()
+                                            else if(it.isImageUrl()) it.asImageUrl().imageUrl().url()
+                                            else if(it.isFile()) it.asFile().file().fileId().getOrElse { "Unknown file input" }
+                                            else "Unsupported input value" },
                                 )
                             } else {
                                 messageContent(
