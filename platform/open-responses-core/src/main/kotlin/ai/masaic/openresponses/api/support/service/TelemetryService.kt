@@ -1001,10 +1001,20 @@ open class TelemetryService(
                                         .content()
                                         .asArrayOfContentParts()
                                         .joinToString("\n") {
-                                            if (it.isText())it.asText().text()
-                                            else if(it.isImageUrl()) it.asImageUrl().imageUrl().url()
-                                            else if(it.isFile()) it.asFile().file().fileId().getOrElse { "Unknown file input" }
-                                            else "Unsupported input value" },
+                                            if (it.isText()) {
+                                                it.asText().text()
+                                            } else if (it.isImageUrl()) {
+                                                it.asImageUrl().imageUrl().url()
+                                            } else if (it.isFile()) {
+                                                it
+                                                    .asFile()
+                                                    .file()
+                                                    .fileId()
+                                                    .getOrElse { "Unknown file input" }
+                                            } else {
+                                                "Unsupported input value"
+                                            }
+                                        },
                                 )
                             } else {
                                 messageContent(
