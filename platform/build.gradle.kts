@@ -11,7 +11,7 @@ plugins {
 
 // Determine the version - allow override from command line
 val projectVersion = (findProperty("buildVersion") as String?)
-    ?.takeIf { it.isNotBlank() } ?: "0.8.2"
+    ?.takeIf { it.isNotBlank() } ?: "0.8.3"
 
 allprojects {
     group = "ai.masaic.agc"

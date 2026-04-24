@@ -379,6 +379,8 @@ class MasaicToolHandler(
                         .content()
                         .get()
                         .isNotBlank()
+            }.filter {
+                it.finishReason() != ChatCompletion.Choice.FinishReason.TOOL_CALLS
             }.forEach {
                 logger.trace { "Adding text content to parked items" }
                 parked.add(
@@ -681,7 +683,8 @@ class MasaicToolHandler(
                         .message()
                         .get()
                         .content()
-                        .isNotEmpty()
+                        .isNotEmpty() &&
+                    !response.output().any { it.isFunctionCall() }
             }
         logger.trace { "Found ${messageOutputs.size} message outputs to park" }
         messageOutputs.forEach {

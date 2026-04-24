@@ -24,7 +24,7 @@ suspend fun ResponseCreateParams.Builder.fromBody(
 ): ResponseCreateParams.Builder {
     // Set required parameters
     if (body.previousResponseId().isPresent) {
-        responseStore.getResponse(body.previousResponseId().get()) ?: throw ResponseNotFoundException("Previous response not found")
+        val previousResponse = responseStore.getResponse(body.previousResponseId().get()) ?: throw ResponseNotFoundException("Previous response not found")
         var previousInputItems =
             responseStore
                 .getInputItems(body.previousResponseId().get())
@@ -48,7 +48,21 @@ suspend fun ResponseCreateParams.Builder.fromBody(
                 )
             }
 
-        previousInputItems.addAll(previousResponseOutputItems.map { objectMapper.convertValue(it, ResponseInputItem::class.java) })
+        val hasToolCalls = previousResponse.output().any { it.isFunctionCall() }
+        previousInputItems.addAll(
+            previousResponseOutputItems
+                .map { objectMapper.convertValue(it, ResponseInputItem::class.java) }
+                .filter { item ->
+                    val role =
+                        when {
+                            item.isMessage() -> item.asMessage().role().toString()
+                            item.isResponseOutputMessage() -> item.asResponseOutputMessage()._role().toString()
+                            else -> ""
+                        }
+                    val isAssistantMessageFromToolCall = hasToolCalls && role.lowercase() == "assistant"
+                    !isAssistantMessageFromToolCall && item !in previousInputItems
+                },
+        )
         previousInputItems.addAll(currentInputItems)
         if (body.instructions().isPresent &&
             previousInputItems.any {
