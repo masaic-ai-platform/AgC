@@ -113,6 +113,7 @@ class ExtensionsTest {
         
             // Mock previous response
             val mockResponse = mockk<Response>()
+            every { mockResponse.output() } returns emptyList()
             coEvery { responseStore.getResponse(previousResponseId) } returns mockResponse
         
             // Mock previous input items
@@ -139,6 +140,7 @@ class ExtensionsTest {
                             .role(EasyInputMessage.Role.USER)
                             .build()
                     every { isResponseOutputMessage() } returns false
+                    every { isMessage() } returns false
                 }
             val convertedInputItem2 =
                 mockk<ResponseInputItem> {
@@ -152,6 +154,7 @@ class ExtensionsTest {
                             .role(EasyInputMessage.Role.ASSISTANT)
                             .build()
                     every { isResponseOutputMessage() } returns false
+                    every { isMessage() } returns false
                 }
             val convertedOutputItem =
                 mockk<ResponseInputItem> {
@@ -165,6 +168,7 @@ class ExtensionsTest {
                             .role(EasyInputMessage.Role.USER)
                             .build()
                     every { isResponseOutputMessage() } returns false
+                    every { isMessage() } returns false
                 }
             every { objectMapper.convertValue(previousInputItem1, ResponseInputItem::class.java) } returns convertedInputItem1
             every { objectMapper.convertValue(previousInputItem2, ResponseInputItem::class.java) } returns convertedInputItem2
@@ -183,6 +187,7 @@ class ExtensionsTest {
                             .role(EasyInputMessage.Role.ASSISTANT)
                             .build()
                     every { isResponseOutputMessage() } returns false
+                    every { isMessage() } returns false
                 }
             val currentInputItems = listOf(currentInputItem)
         

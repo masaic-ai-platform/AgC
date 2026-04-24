@@ -70,7 +70,7 @@ class MasaicToolHandlerTest {
             ChatCompletion.Choice
                 .builder()
                 .message(chatMessage)
-                .finishReason(ChatCompletion.Choice.FinishReason.TOOL_CALLS)
+                .finishReason(ChatCompletion.Choice.FinishReason.STOP)
                 .index(0)
                 .logprobs(null)
                 .build()
@@ -568,16 +568,15 @@ class MasaicToolHandlerTest {
         // When
         val result = runBlocking { handler.handleMasaicToolCall(chatCompletion, params, null, mockk()) }
 
-        // Then: We expect a Continue result with 6 items
+        // Then: We expect a Continue result with 5 items
         assertTrue(result is MasaicToolCallResult.Continue)
         val items = (result as MasaicToolCallResult.Continue).items
         // 1) Original user message
-        // 2) Assistant message with tools (parked)
-        // 3) First tool call
-        // 4) First tool result
-        // 5) Second tool call
-        // 6) Second tool result
-        assertEquals(6, items.size)
+        // 2) First tool call
+        // 3) First tool result
+        // 4) Second tool call
+        // 5) Second tool result
+        assertEquals(5, items.size)
 
         // Verify tool execution was observed twice
 //        verify(exactly = 2) { runBlocking { telemetryService.withClientObservation<Any>(any(), any<Observation>(), any()) } }
@@ -856,14 +855,13 @@ class MasaicToolHandlerTest {
         // When
         val result = runBlocking { handler.handleMasaicToolCall(chatCompletion, params, null, mockk(relaxed = true)) }
 
-        // Then: We expect a Continue result with 4 items
+        // Then: We expect a Continue result with 3 items
         assertTrue(result is MasaicToolCallResult.Continue)
         val items = (result as MasaicToolCallResult.Continue).items
         // 1) The original user input as a ResponseInputItem
-        // 2) The assistant text message from the completion
-        // 3) The function call
-        // 4) The function call output
-        assertEquals(4, items.size)
+        // 2) The function call
+        // 3) The function call output
+        assertEquals(3, items.size)
 
         // Verify function call and output
         val functionCall = items[1]
