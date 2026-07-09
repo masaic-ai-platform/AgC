@@ -28,6 +28,7 @@ dependencies {
     api(project(":open-responses-rest"))
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     runtimeOnly("org.springframework.boot:spring-boot-starter-data-mongodb-reactive")
+    runtimeOnly("org.redisson:redisson-spring-boot-starter:3.40.0")
 
     // ensure Kotlin stdlib is on the runtime classpath
     implementation(kotlin("stdlib-jdk8"))
