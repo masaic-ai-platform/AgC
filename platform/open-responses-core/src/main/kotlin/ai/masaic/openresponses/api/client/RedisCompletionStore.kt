@@ -33,28 +33,28 @@ class RedisCompletionStore(
             logger.warn { "Attempted to store completion without a valid ID. Skipping." }
             return completion
         }
-        val document = CompletionDocument(
-            completionJson = objectMapper.writeValueAsString(completion),
-            messagesJson = objectMapper.writeValueAsString(messages),
-            aliasMapJson = objectMapper.writeValueAsString(context?.aliasMap ?: emptyMap<String, String>()),
-        )
+        val document =
+            CompletionDocument(
+                completionJson = objectMapper.writeValueAsString(completion),
+                messagesJson = objectMapper.writeValueAsString(messages),
+                aliasMapJson = objectMapper.writeValueAsString(context?.aliasMap ?: emptyMap<String, String>()),
+            )
         val key = completionKey(completionId)
-        redissonClient.getBucket<String>(key)
+        redissonClient
+            .getBucket<String>(key)
             .set(objectMapper.writeValueAsString(document), ttl())
             .awaitFirstOrNull()
         return completion
     }
 
-    override suspend fun getCompletion(completionId: String): ChatCompletion? =
-        readDocument(completionId)?.let { objectMapper.readValue(it.completionJson, ChatCompletion::class.java) }
+    override suspend fun getCompletion(completionId: String): ChatCompletion? = readDocument(completionId)?.let { objectMapper.readValue(it.completionJson, ChatCompletion::class.java) }
 
     override suspend fun getMessages(completionId: String): List<ChatCompletionMessageParam>? =
         readDocument(completionId)?.let {
             objectMapper.readValue(it.messagesJson, objectMapper.typeFactory.constructCollectionType(List::class.java, ChatCompletionMessageParam::class.java))
         }
 
-    override suspend fun deleteCompletion(completionId: String): Boolean =
-        redissonClient.getBucket<String>(completionKey(completionId)).delete().awaitFirstOrNull() == true
+    override suspend fun deleteCompletion(completionId: String): Boolean = redissonClient.getBucket<String>(completionKey(completionId)).delete().awaitFirstOrNull() == true
 
     private suspend fun readDocument(completionId: String): CompletionDocument? {
         val bucket = redissonClient.getBucket<String>(completionKey(completionId))
@@ -64,5 +64,6 @@ class RedisCompletionStore(
     }
 
     private fun completionKey(id: String) = "${config.keyPrefix}:completion:$id"
+
     private fun ttl() = Duration.ofMinutes(config.ttlMinutes)
 }

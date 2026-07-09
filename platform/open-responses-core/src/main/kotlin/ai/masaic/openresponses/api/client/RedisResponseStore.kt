@@ -36,44 +36,43 @@ class RedisResponseStore(
         lock.lock().awaitFirstOrNull()
         try {
             val newInputItems = inputItems.map { objectMapper.convertValue(it, InputMessageItem::class.java) }
-            val newOutputItems = response.output().mapNotNull { outputItem ->
-                when {
-                    outputItem.isMessage() && outputItem.message().orElse(null) != null ->
-                        objectMapper.convertValue(outputItem.message().get(), InputMessageItem::class.java)
-                    outputItem.isFunctionCall() -> {
-                        val functionCall = outputItem.asFunctionCall()
-                        InputMessageItem(
-                            id = functionCall.id().getOrNull() ?: functionCall.callId(),
-                            role = "assistant",
-                            type = "function_call",
-                            call_id = functionCall.callId(),
-                            name = functionCall.name(),
-                            arguments = functionCall.arguments(),
-                        )
+            val newOutputItems =
+                response.output().mapNotNull { outputItem ->
+                    when {
+                        outputItem.isMessage() && outputItem.message().orElse(null) != null ->
+                            objectMapper.convertValue(outputItem.message().get(), InputMessageItem::class.java)
+                        outputItem.isFunctionCall() -> {
+                            val functionCall = outputItem.asFunctionCall()
+                            InputMessageItem(
+                                id = functionCall.id().getOrNull() ?: functionCall.callId(),
+                                role = "assistant",
+                                type = "function_call",
+                                call_id = functionCall.callId(),
+                                name = functionCall.name(),
+                                arguments = functionCall.arguments(),
+                            )
+                        }
+                        else -> null
                     }
-                    else -> null
                 }
-            }
             val existing = readDocument(key)
-            val document = ResponseDocument(
-                responseJson = objectMapper.writeValueAsString(response),
-                inputItems = (existing?.inputItems.orEmpty() + newInputItems).distinct(),
-                outputInputItems = (existing?.outputInputItems.orEmpty() + newOutputItems).distinct(),
-            )
+            val document =
+                ResponseDocument(
+                    responseJson = objectMapper.writeValueAsString(response),
+                    inputItems = (existing?.inputItems.orEmpty() + newInputItems).distinct(),
+                    outputInputItems = (existing?.outputInputItems.orEmpty() + newOutputItems).distinct(),
+                )
             writeDocument(key, document)
         } finally {
             lock.unlock().awaitFirstOrNull()
         }
     }
 
-    override suspend fun getResponse(responseId: String): Response? =
-        readDocument(responseKey(responseId))?.let { objectMapper.readValue(it.responseJson, Response::class.java) }
+    override suspend fun getResponse(responseId: String): Response? = readDocument(responseKey(responseId))?.let { objectMapper.readValue(it.responseJson, Response::class.java) }
 
-    override suspend fun getInputItems(responseId: String): List<InputMessageItem> =
-        readDocument(responseKey(responseId))?.inputItems ?: emptyList()
+    override suspend fun getInputItems(responseId: String): List<InputMessageItem> = readDocument(responseKey(responseId))?.inputItems ?: emptyList()
 
-    override suspend fun getOutputItems(responseId: String): List<InputMessageItem> =
-        readDocument(responseKey(responseId))?.outputInputItems ?: emptyList()
+    override suspend fun getOutputItems(responseId: String): List<InputMessageItem> = readDocument(responseKey(responseId))?.outputInputItems ?: emptyList()
 
     override suspend fun deleteResponse(responseId: String): Boolean {
         val key = responseKey(responseId)
@@ -87,13 +86,18 @@ class RedisResponseStore(
         return objectMapper.readValue(json, ResponseDocument::class.java)
     }
 
-    private suspend fun writeDocument(key: String, document: ResponseDocument) {
-        redissonClient.getBucket<String>(key)
+    private suspend fun writeDocument(
+        key: String,
+        document: ResponseDocument,
+    ) {
+        redissonClient
+            .getBucket<String>(key)
             .set(objectMapper.writeValueAsString(document), ttl())
             .awaitFirstOrNull()
         logger.debug { "Stored response in Redis with key $key" }
     }
 
     private fun responseKey(id: String) = "${config.keyPrefix}:response:$id"
+
     private fun ttl() = Duration.ofMinutes(config.ttlMinutes)
 }
