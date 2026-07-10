@@ -23,6 +23,9 @@ import reactor.core.publisher.Hooks
         MongoReactiveDataAutoConfiguration::class,
         MongoReactiveRepositoriesAutoConfiguration::class,
     ],
+    excludeName = [
+        "org.redisson.spring.starter.RedissonAutoConfigurationV2",
+    ],
 )
 @ConfigurationPropertiesScan
 @EnableScheduling

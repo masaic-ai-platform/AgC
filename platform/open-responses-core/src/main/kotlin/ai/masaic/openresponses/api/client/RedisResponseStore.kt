@@ -32,40 +32,34 @@ class RedisResponseStore(
     ) {
         val responseId = response.id()
         val key = responseKey(responseId)
-        val lock = redissonClient.getLock("$key:lock")
-        lock.lock().awaitFirstOrNull()
-        try {
-            val newInputItems = inputItems.map { objectMapper.convertValue(it, InputMessageItem::class.java) }
-            val newOutputItems =
-                response.output().mapNotNull { outputItem ->
-                    when {
-                        outputItem.isMessage() && outputItem.message().orElse(null) != null ->
-                            objectMapper.convertValue(outputItem.message().get(), InputMessageItem::class.java)
-                        outputItem.isFunctionCall() -> {
-                            val functionCall = outputItem.asFunctionCall()
-                            InputMessageItem(
-                                id = functionCall.id().getOrNull() ?: functionCall.callId(),
-                                role = "assistant",
-                                type = "function_call",
-                                call_id = functionCall.callId(),
-                                name = functionCall.name(),
-                                arguments = functionCall.arguments(),
-                            )
-                        }
-                        else -> null
+        val newInputItems = inputItems.map { objectMapper.convertValue(it, InputMessageItem::class.java) }
+        val newOutputItems =
+            response.output().mapNotNull { outputItem ->
+                when {
+                    outputItem.isMessage() && outputItem.message().orElse(null) != null ->
+                        objectMapper.convertValue(outputItem.message().get(), InputMessageItem::class.java)
+                    outputItem.isFunctionCall() -> {
+                        val functionCall = outputItem.asFunctionCall()
+                        InputMessageItem(
+                            id = functionCall.id().getOrNull() ?: functionCall.callId(),
+                            role = "assistant",
+                            type = "function_call",
+                            call_id = functionCall.callId(),
+                            name = functionCall.name(),
+                            arguments = functionCall.arguments(),
+                        )
                     }
+                    else -> null
                 }
-            val existing = readDocument(key)
-            val document =
-                ResponseDocument(
-                    responseJson = objectMapper.writeValueAsString(response),
-                    inputItems = (existing?.inputItems.orEmpty() + newInputItems).distinct(),
-                    outputInputItems = (existing?.outputInputItems.orEmpty() + newOutputItems).distinct(),
-                )
-            writeDocument(key, document)
-        } finally {
-            lock.unlock().awaitFirstOrNull()
-        }
+            }
+        val existing = readDocument(key)
+        val document =
+            ResponseDocument(
+                responseJson = objectMapper.writeValueAsString(response),
+                inputItems = (existing?.inputItems.orEmpty() + newInputItems).distinct(),
+                outputInputItems = (existing?.outputInputItems.orEmpty() + newOutputItems).distinct(),
+            )
+        writeDocument(key, document)
     }
 
     override suspend fun getResponse(responseId: String): Response? = readDocument(responseKey(responseId))?.let { objectMapper.readValue(it.responseJson, Response::class.java) }

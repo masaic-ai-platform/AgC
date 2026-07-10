@@ -35,6 +35,10 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-test")
 }
 
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
+
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
     // always set your app’s main class
     mainClass.set("ai.masaic.OpenResponsesApplicationKt")

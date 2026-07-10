@@ -29,7 +29,6 @@ dependencies {
     implementation(project(":agc-platform-rest"))
     implementation("org.springframework.boot:spring-boot-starter-webflux")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-    runtimeOnly("org.redisson:redisson-spring-boot-starter:3.40.0")
 
     implementation("io.temporal:temporal-spring-boot-starter:1.31.0")
     // Add gRPC dependencies that Temporal needs
